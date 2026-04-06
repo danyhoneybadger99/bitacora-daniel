@@ -92,6 +92,25 @@ function createDefaultObjective() {
   };
 }
 
+function createDefaultPrivateVault() {
+  return {
+    pin: '',
+    pinMode: 'numeric-4',
+    autoLockMinutes: '5',
+    lastPrivateExportAt: '',
+    lastPrivateImportAt: '',
+  };
+}
+
+function createDefaultSyncMeta() {
+  return {
+    updatedAt: '',
+    lastSyncedAt: '',
+    deviceId: '',
+    schemaVersion: 1,
+  };
+}
+
 export const defaultState = {
   foods: [],
   foodTemplates: [],
@@ -102,6 +121,11 @@ export const defaultState = {
   bodyMetrics: [],
   fastingProtocols: defaultFastingProtocols,
   fastingLogs: [],
+  privateCycles: [],
+  privateProducts: [],
+  privatePayments: [],
+  privateHormonalEntries: [],
+  privateVault: createDefaultPrivateVault(),
   objectives: [createDefaultObjective()],
   goals: {
     calories: '2200',
@@ -110,6 +134,7 @@ export const defaultState = {
     hydrationBase: '3200',
     hydrationHighActivity: '4000',
   },
+  syncMeta: createDefaultSyncMeta(),
   backupMeta: {
     lastExportAt: '',
     lastImportAt: '',

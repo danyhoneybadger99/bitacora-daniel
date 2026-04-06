@@ -13,6 +13,8 @@ export function createEmptyFood() {
     protein: '',
     carbs: '',
     fat: '',
+    costMxn: '',
+    caffeineMg: '',
     notes: '',
   };
 }
@@ -42,6 +44,8 @@ export function createEmptyFoodTemplate() {
     protein: '',
     carbs: '',
     fat: '',
+    costMxn: '',
+    caffeineMg: '',
     notes: '',
   };
 }
@@ -95,6 +99,7 @@ export const mealTypeLabels = {
   comida: 'Comida',
   cena: 'Cena',
   snack: 'Snack',
+  bebida: 'Bebida',
 };
 
 export const mealTypeOrder = {
@@ -102,6 +107,7 @@ export const mealTypeOrder = {
   comida: 2,
   cena: 3,
   snack: 4,
+  bebida: 5,
 };
 
 export const drinkTypeLabels = {

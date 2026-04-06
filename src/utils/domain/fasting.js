@@ -102,10 +102,31 @@ export function calculateLiveElapsedHours(startDateTime, nowTimestamp) {
   return diffMs / (1000 * 60 * 60);
 }
 
+export function isFastingLogActiveAt(log, nowTimestamp = Date.now()) {
+  if (!log?.actualStartDateTime) return false;
+
+  const start = new Date(log.actualStartDateTime);
+  if (Number.isNaN(start.getTime())) return false;
+
+  const now = new Date(nowTimestamp);
+  if (now.getTime() < start.getTime()) return false;
+
+  if (!log.actualBreakDateTime) return true;
+
+  const breakDate = new Date(log.actualBreakDateTime);
+  if (Number.isNaN(breakDate.getTime())) return true;
+
+  return now.getTime() < breakDate.getTime();
+}
+
+export function getActiveFastingLog(logs, nowTimestamp = Date.now()) {
+  return (logs || []).find((item) => isFastingLogActiveAt(item, nowTimestamp)) || null;
+}
+
 export function getFastingElapsedHours(log, nowTimestamp = Date.now()) {
   if (!log?.actualStartDateTime) return 0;
 
-  if (log.actualBreakDateTime) {
+  if (log.actualBreakDateTime && !isFastingLogActiveAt(log, nowTimestamp)) {
     return Number(log.actualDuration || calculateFastingDurationHours(log.actualStartDateTime, log.actualBreakDateTime) || 0);
   }
 
@@ -115,17 +136,21 @@ export function getFastingElapsedHours(log, nowTimestamp = Date.now()) {
 export function getFastingStatusLabel(log, protocol, nowTimestamp = Date.now()) {
   if (!log || !log.actualStartDateTime) return 'pendiente';
 
+  const start = new Date(log.actualStartDateTime);
+  if (Number.isNaN(start.getTime()) || nowTimestamp < start.getTime()) return 'pendiente';
+
   const duration = getFastingElapsedHours(log, nowTimestamp);
   const expected = Number(protocol?.expectedDuration || 0);
 
-  if (!log.actualBreakDateTime) {
-    if (expected > 0 && duration >= expected) return 'cumplido';
+  if (isFastingLogActiveAt(log, nowTimestamp)) {
     return 'en curso';
   }
 
-  if (expected > 0) return duration >= expected ? 'cumplido' : 'roto';
+  if (!log.actualBreakDateTime) return 'en curso';
 
-  return log.completed === 'si' ? 'cumplido' : 'roto';
+  if (log.completed === 'si') return 'cumplido';
+  if (expected > 0) return duration >= expected ? 'cumplido' : 'roto';
+  return 'roto';
 }
 
 export function getCurrentDateTimeValue(nowTimestamp = Date.now()) {
@@ -169,11 +194,13 @@ export function getFastingTimeRange(log, nowTimestamp = Date.now()) {
   if (!log?.actualStartDateTime) return null;
 
   const start = new Date(log.actualStartDateTime);
-  const rawEnd = log.actualBreakDateTime ? new Date(log.actualBreakDateTime) : new Date(nowTimestamp);
+  if (Number.isNaN(start.getTime())) return null;
 
-  if (Number.isNaN(start.getTime()) || Number.isNaN(rawEnd.getTime())) return null;
-
-  const end = rawEnd.getTime() >= start.getTime() ? rawEnd : start;
+  const now = new Date(nowTimestamp);
+  const breakDate = log.actualBreakDateTime ? new Date(log.actualBreakDateTime) : null;
+  const effectiveEnd =
+    breakDate && !Number.isNaN(breakDate.getTime()) && breakDate.getTime() <= now.getTime() ? breakDate : now;
+  const end = effectiveEnd.getTime() >= start.getTime() ? effectiveEnd : start;
 
   return { start, end };
 }

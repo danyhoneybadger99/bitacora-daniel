@@ -8,8 +8,14 @@ export const appDataValidationKeys = [
   'bodyMetrics',
   'fastingProtocols',
   'fastingLogs',
+  'privateCycles',
+  'privateProducts',
+  'privatePayments',
+  'privateHormonalEntries',
+  'privateVault',
   'objectives',
   'goals',
+  'syncMeta',
 ];
 
 export function isValidAppDataPayload(payload) {
@@ -24,9 +30,14 @@ export function getPersistenceCollectionCounts(data = {}) {
     supplements: Array.isArray(data.supplements) ? data.supplements.length : 0,
     routines: Array.isArray(data.routines) ? data.routines.length : 0,
     fastingLogs: Array.isArray(data.fastingLogs) ? data.fastingLogs.length : 0,
+    privateCycles: Array.isArray(data.privateCycles) ? data.privateCycles.length : 0,
+    privateProducts: Array.isArray(data.privateProducts) ? data.privateProducts.length : 0,
+    privatePayments: Array.isArray(data.privatePayments) ? data.privatePayments.length : 0,
+    privateHormonalEntries: Array.isArray(data.privateHormonalEntries) ? data.privateHormonalEntries.length : 0,
     exercises: Array.isArray(data.exercises) ? data.exercises.length : 0,
     bodyMetrics: Array.isArray(data.bodyMetrics) ? data.bodyMetrics.length : 0,
     objectives: Array.isArray(data.objectives) ? data.objectives.length : 0,
+    syncMeta: data.syncMeta ? 1 : 0,
     backupMeta: data.backupMeta ? 1 : 0,
   };
 }

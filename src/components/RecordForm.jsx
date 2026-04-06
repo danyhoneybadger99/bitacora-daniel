@@ -6,6 +6,8 @@ export default function RecordForm({
   onSubmit,
   onCancel,
   isEditing,
+  submitDisabled = false,
+  submitLabel,
 }) {
   return (
     <form className="record-form" onSubmit={onSubmit}>
@@ -66,8 +68,8 @@ export default function RecordForm({
       </div>
 
       <div className="form-actions">
-        <button className="button button-primary" type="submit">
-          {isEditing ? 'Guardar cambios' : 'Agregar registro'}
+        <button className="button button-primary" type="submit" disabled={submitDisabled}>
+          {submitLabel || (isEditing ? 'Guardar cambios' : 'Agregar registro')}
         </button>
         {isEditing ? (
           <button className="button button-secondary" type="button" onClick={onCancel}>

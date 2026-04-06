@@ -7,8 +7,10 @@ import ProgressCard from './components/ProgressCard';
 import RecordForm from './components/RecordForm';
 import SectionCard from './components/SectionCard';
 import { defaultState } from './data/defaultState';
+import { isSupabaseConfigured } from './lib/supabase';
 import { buildTodaySummary } from './utils/domain/dashboardSummary';
 import {
+  getActiveFastingLog,
   calculateFastingDurationHours,
   calculateLiveElapsedHours,
   createEmptyFastingLog,
@@ -49,6 +51,40 @@ import {
   objectiveTypeLabels,
 } from './utils/domain/objectives';
 import { getPersistenceCollectionCounts, isValidAppDataPayload } from './utils/domain/persistenceDebug';
+import {
+  buildPrivateSummary,
+  buildPrivateTimeline,
+  createEmptyPrivateCycle,
+  createEmptyPrivateEntry,
+  createEmptyPrivatePayment,
+  createEmptyPrivateProduct,
+  getPrivateActiveCycle,
+  getPrivateCycleFinancialSummary,
+  getPrivatePinLength,
+  isValidPrivatePin,
+  privateCategoryLabels,
+  privateCycleStatusLabels,
+  privateCycleTypeLabels,
+  privateEventTypeLabels,
+  privatePaymentStatusLabels,
+  privateProductStatusLabels,
+} from './utils/domain/private';
+import {
+  compareSnapshotRecency,
+  createDeviceId,
+  ensureSyncMeta,
+  fetchRemoteSnapshot,
+  getSupabaseSession,
+  markDataSynced,
+  markDataUpdated,
+  mergeRemoteSnapshot,
+  onSupabaseAuthChange,
+  pushRemoteSnapshot,
+  signInWithSupabasePassword,
+  signOutFromSupabase,
+  signUpWithSupabasePassword,
+  syncStatusLabels,
+} from './services/syncService';
 import {
   createEmptyExercise,
   createEmptyFood,
@@ -97,11 +133,217 @@ const tabs = [
   { id: 'metrics', label: 'Metricas' },
   { id: 'weekly', label: 'Semanal' },
   { id: 'history', label: 'Historial' },
+  { id: 'private', label: 'Salud hormonal' },
+  { id: 'settings', label: 'Ajustes' },
 ];
+
+function sortPrivateRecordsByDate(items = [], dateField = 'date') {
+  return [...items].sort((a, b) => {
+    const dateA = a?.[dateField] || '';
+    const dateB = b?.[dateField] || '';
+    if (dateA !== dateB) return String(dateB).localeCompare(String(dateA));
+    return String(b?.id || '').localeCompare(String(a?.id || ''));
+  });
+}
+
+function formatCurrencyMx(value) {
+  const amount = Number(value || 0);
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN',
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function formatShortDateTimeHuman(value) {
+  if (!value) return 'Aun no exportado';
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Sin fecha';
+
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(parsed).replace(',', ' ·');
+}
+
+function getPrivateAgendaDateTime(entry) {
+  if (!entry) return null;
+
+  const reference = entry.nextApplication || (entry.date ? `${entry.date}T${entry.time || '00:00'}` : '');
+  if (!reference) return null;
+
+  const parsed = new Date(reference);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getPrivateAgendaDate(entry) {
+  if (!entry) return '';
+  if (entry.nextApplication) return normalizeDateString(entry.nextApplication);
+  return normalizeDateString(entry.date);
+}
+
+function formatAgendaDayLabel(dateString) {
+  if (!dateString) return '';
+  const parsed = new Date(`${dateString}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return new Intl.DateTimeFormat('es-MX', { weekday: 'short' })
+    .format(parsed)
+    .replace('.', '')
+    .toLowerCase();
+}
+
+function formatAgendaShortDate(dateString) {
+  if (!dateString) return '';
+  const parsed = new Date(`${dateString}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+  })
+    .format(parsed)
+    .toLowerCase();
+}
+
+function formatAgendaTime(value) {
+  if (!value) return 'Sin hora';
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Sin hora';
+
+  return new Intl.DateTimeFormat('es-MX', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+    .format(parsed)
+    .replace(/\b(a\.?\s?m\.?)\b/i, 'a. m.')
+    .replace(/\b(p\.?\s?m\.?)\b/i, 'p. m.');
+}
+
+function itemToSortableAgendaValue(item) {
+  if (item?.scheduledAt) return item.scheduledAt.toISOString();
+  if (item?.scheduledDate) return `${item.scheduledDate}T23:59:59`;
+  return '9999-12-31T23:59:59';
+}
+
+function getPrivateEventChipClass(eventType) {
+  switch (eventType) {
+    case 'aplicacion':
+      return 'private-event-chip private-event-chip-application';
+    case 'toma':
+      return 'private-event-chip private-event-chip-oral';
+    case 'analitica':
+      return 'private-event-chip private-event-chip-lab';
+    case 'compra':
+      return 'private-event-chip private-event-chip-purchase';
+    case 'sintoma':
+      return 'private-event-chip private-event-chip-symptom';
+    case 'control':
+      return 'private-event-chip private-event-chip-control';
+    default:
+      return 'private-event-chip';
+  }
+}
+
+function getPrivateCycleStatusPhrase(status) {
+  switch (status) {
+    case 'planeado':
+      return 'Ciclo en planeacion';
+    case 'activo':
+      return 'Ciclo activo';
+    case 'pausado':
+      return 'Ciclo pausado';
+    case 'cerrado':
+      return 'Ciclo finalizado';
+    default:
+      return 'Sin estado operativo';
+  }
+}
+
+function getPrivateAgendaPrimaryState(item, { now, currentDate, nextEventId } = {}) {
+  if (!item) return 'Sin evento';
+  if (nextEventId && item.id === nextEventId) {
+    return item.scheduledDate === currentDate ? 'Proximo hoy' : 'Proximo';
+  }
+  if (item.scheduledDate === currentDate) {
+    if (item.scheduledAt && item.scheduledAt.getTime() < now.getTime()) return 'Ya paso hoy';
+    return 'Hoy';
+  }
+  if (!item.scheduledAt) return 'Sin hora';
+  return 'Programado';
+}
+
+function getPrivateAgendaFlags(item, { now, currentDate, nextEventId } = {}) {
+  if (!item) return [];
+
+  const flags = [];
+
+  if (item.scheduledDate === currentDate) {
+    if (item.scheduledAt && item.scheduledAt.getTime() < now.getTime()) {
+      flags.push('Ya paso hoy');
+    } else {
+      flags.push('Hoy');
+    }
+  }
+
+  if (nextEventId && item.id === nextEventId) {
+    flags.push('Proximo');
+  }
+
+  if (!item.scheduledAt) {
+    flags.push('Sin hora');
+  }
+
+  return [...new Set(flags)];
+}
+
+function getPrivateAgendaFlagClass(flag) {
+  switch (flag) {
+    case 'Hoy':
+      return 'private-agenda-flag private-agenda-flag-today';
+    case 'Proximo':
+    case 'Proximo hoy':
+      return 'private-agenda-flag private-agenda-flag-next';
+    case 'Ya paso hoy':
+      return 'private-agenda-flag private-agenda-flag-past';
+    case 'Sin hora':
+      return 'private-agenda-flag private-agenda-flag-no-time';
+    default:
+      return 'private-agenda-flag';
+  }
+}
+
+function getPrivateAgendaEventDetail(item, linkedProduct) {
+  const detailParts = [];
+
+  if (item?.eventType) {
+    detailParts.push(privateEventTypeLabels[item.eventType] || item.eventType);
+  }
+
+  if (item?.category) {
+    detailParts.push(privateCategoryLabels[item.category] || item.category);
+  }
+
+  if (item?.dose) {
+    detailParts.push(`${item.dose} ${item.unit || ''}`.trim());
+  }
+
+  if (linkedProduct?.name) {
+    detailParts.push(linkedProduct.name);
+  }
+
+  return detailParts.join(' • ');
+}
 
 function App() {
   const currentDate = getToday();
   const isDevMode = import.meta.env.DEV;
+  const appBuildLabel = __APP_BUILD_LABEL__;
+  const remoteSyncEnabled = isSupabaseConfigured;
   const [activeTab, setActiveTab] = useState('dashboard');
   const [diaryData, setDiaryData] = useState(defaultState);
   const [hasLoadedData, setHasLoadedData] = useState(false);
@@ -118,6 +360,10 @@ function App() {
   const [routineItems, setRoutineItems] = useState([]);
   const [exerciseForm, setExerciseForm] = useState(createEmptyExercise);
   const [metricForm, setMetricForm] = useState(createEmptyMetric);
+  const [privateEntryForm, setPrivateEntryForm] = useState(createEmptyPrivateEntry);
+  const [privateCycleForm, setPrivateCycleForm] = useState(createEmptyPrivateCycle);
+  const [privateProductForm, setPrivateProductForm] = useState(createEmptyPrivateProduct);
+  const [privatePaymentForm, setPrivatePaymentForm] = useState(createEmptyPrivatePayment);
   const [editingFoodId, setEditingFoodId] = useState(null);
   const [editingHydrationId, setEditingHydrationId] = useState(null);
   const [editingFoodTemplateId, setEditingFoodTemplateId] = useState(null);
@@ -126,6 +372,10 @@ function App() {
   const [editingSupplementId, setEditingSupplementId] = useState(null);
   const [editingExerciseId, setEditingExerciseId] = useState(null);
   const [editingMetricId, setEditingMetricId] = useState(null);
+  const [editingPrivateEntryId, setEditingPrivateEntryId] = useState(null);
+  const [editingPrivateCycleId, setEditingPrivateCycleId] = useState(null);
+  const [editingPrivateProductId, setEditingPrivateProductId] = useState(null);
+  const [editingPrivatePaymentId, setEditingPrivatePaymentId] = useState(null);
   const [weekReferenceDate, setWeekReferenceDate] = useState(currentDate);
   const [showAllRecentFoods, setShowAllRecentFoods] = useState(false);
   const [showFoodTemplateBuilder, setShowFoodTemplateBuilder] = useState(true);
@@ -136,9 +386,166 @@ function App() {
   const [fastingNow, setFastingNow] = useState(() => Date.now());
   const [backupInputKey, setBackupInputKey] = useState(0);
   const [backupFeedback, setBackupFeedback] = useState({ type: '', text: '' });
+  const [privateBackupInputKey, setPrivateBackupInputKey] = useState(0);
+  const [privateFeedback, setPrivateFeedback] = useState({ type: '', text: '' });
+  const [syncFeedback, setSyncFeedback] = useState({ type: '', text: '' });
+  const [syncStatus, setSyncStatus] = useState(remoteSyncEnabled ? 'auth' : 'local');
+  const [syncCredentials, setSyncCredentials] = useState({ email: '', password: '' });
+  const [syncUser, setSyncUser] = useState(null);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  );
+  const [hasResolvedSyncSession, setHasResolvedSyncSession] = useState(!remoteSyncEnabled);
+  const [hasResolvedRemoteSnapshot, setHasResolvedRemoteSnapshot] = useState(!remoteSyncEnabled);
+  const [syncLastSyncedAt, setSyncLastSyncedAt] = useState('');
+  const [privateUnlockPin, setPrivateUnlockPin] = useState('');
+  const [privateSetupPin, setPrivateSetupPin] = useState('');
+  const [privateSetupPinConfirm, setPrivateSetupPinConfirm] = useState('');
+  const [privatePinUpdate, setPrivatePinUpdate] = useState({ current: '', next: '', confirm: '' });
+  const [privateFormVisibility, setPrivateFormVisibility] = useState({
+    cycle: false,
+    product: false,
+    event: false,
+    payment: false,
+  });
+  const [privateSecurityExpanded, setPrivateSecurityExpanded] = useState(false);
+  const [privateTimelineFilter, setPrivateTimelineFilter] = useState('all');
+  const [privateAgendaSelectedDate, setPrivateAgendaSelectedDate] = useState('');
+  const [privateAgendaShowAll, setPrivateAgendaShowAll] = useState(false);
+  const [privateBlockedTarget, setPrivateBlockedTarget] = useState('');
+  const [isPrivateUnlocked, setIsPrivateUnlocked] = useState(false);
   const [debugLastLoadAt, setDebugLastLoadAt] = useState('');
   const [debugLastSaveAt, setDebugLastSaveAt] = useState('');
   const persistReasonRef = useRef('inicio');
+  const syncDeviceIdRef = useRef('');
+  const latestPersistedDataRef = useRef(defaultState);
+  const syncDebounceTimeoutRef = useRef(null);
+  const skipNextRemoteSyncRef = useRef(false);
+  const privateAutoLockTimeoutRef = useRef(null);
+  const privateCycleSectionRef = useRef(null);
+  const privateProductSectionRef = useRef(null);
+  const privatePaymentSectionRef = useRef(null);
+  const privateEventSectionRef = useRef(null);
+
+  useEffect(() => {
+    document.title = 'Bitacora Daniel';
+  }, []);
+
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+    }
+
+    function handleOffline() {
+      setIsOnline(false);
+      setSyncStatus('offline');
+    }
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!remoteSyncEnabled) {
+      setHasResolvedSyncSession(true);
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    getSupabaseSession()
+      .then((session) => {
+        if (!isMounted) return;
+        setSyncUser(session?.user || null);
+        setHasResolvedSyncSession(true);
+        setSyncStatus(session?.user ? (isOnline ? 'pending' : 'offline') : isOnline ? 'auth' : 'offline');
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setHasResolvedSyncSession(true);
+        setSyncStatus(isOnline ? 'error' : 'offline');
+        setSyncFeedback({
+          type: 'error',
+          text: error instanceof Error ? error.message : 'No se pudo iniciar la sesion de sincronizacion.',
+        });
+      });
+
+    const subscription = onSupabaseAuthChange((session) => {
+      setSyncUser(session?.user || null);
+      setHasResolvedSyncSession(true);
+      setHasResolvedRemoteSnapshot(false);
+      setSyncStatus(session?.user ? (isOnline ? 'pending' : 'offline') : isOnline ? 'auth' : 'offline');
+    });
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe?.();
+    };
+  }, [isOnline, remoteSyncEnabled]);
+
+  function togglePrivateForm(formKey) {
+    setPrivateFormVisibility((current) => ({
+      ...current,
+      [formKey]: !current[formKey],
+    }));
+  }
+
+  function openPrivateForm(formKey, options = {}) {
+    const nextFormKey = formKey;
+
+    if (formKey === 'cycle') {
+      setPrivateBlockedTarget('');
+    } else if (!activePrivateCycle && ['product', 'event', 'payment'].includes(formKey)) {
+      setPrivateBlockedTarget(formKey);
+    } else {
+      setPrivateBlockedTarget('');
+    }
+
+    setPrivateFormVisibility((current) => ({
+      ...current,
+      [nextFormKey]: true,
+    }));
+
+    const targetMap = {
+      cycle: privateCycleSectionRef,
+      product: privateProductSectionRef,
+      event: privateEventSectionRef,
+      payment: privatePaymentSectionRef,
+    };
+
+    window.setTimeout(() => {
+      const targetNode = targetMap[nextFormKey]?.current;
+      targetNode?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const focusSelector = options.focusSelector || 'input, select, textarea';
+      const firstField = targetNode?.querySelector(focusSelector);
+      if (firstField instanceof HTMLElement) {
+        firstField.focus();
+      }
+    }, 60);
+  }
+
+  function openPrivateEventFormForDate(dateValue = '') {
+    const targetDate = dateValue || currentDate;
+    setPrivateEntryForm((current) => ({
+      ...current,
+      cycleId: activePrivateCycle?.id || current.cycleId,
+      date: targetDate,
+    }));
+    openPrivateForm('event', {
+      focusSelector: 'input[name="time"], input[name="name"], select[name="eventType"], textarea[name="notes"]',
+    });
+  }
+
+  function getPrivateBlockedCopy(formKey) {
+    if (formKey === 'product') return 'Primero activa un ciclo para asociar un componente.';
+    if (formKey === 'payment') return 'Primero activa un ciclo para registrar un pago.';
+    return 'Primero activa un ciclo para registrar un evento.';
+  }
 
   function markPersistenceReason(reason) {
     persistReasonRef.current = reason;
@@ -149,15 +556,22 @@ function App() {
 
   useEffect(() => {
     const loadedData = loadAppData();
-    setDiaryData(loadedData);
-    setGoalForm(loadedData.goals || defaultState.goals);
-    setObjectiveForm((loadedData.objectives && loadedData.objectives[0]) || defaultState.objectives?.[0] || createEmptyObjective());
+    const preparedData = ensureSyncMeta(
+      loadedData,
+      loadedData?.syncMeta?.deviceId || createDeviceId()
+    );
+    syncDeviceIdRef.current = preparedData.syncMeta.deviceId;
+    latestPersistedDataRef.current = preparedData;
+    setDiaryData(preparedData);
+    setGoalForm(preparedData.goals || defaultState.goals);
+    setObjectiveForm((preparedData.objectives && preparedData.objectives[0]) || defaultState.objectives?.[0] || createEmptyObjective());
+    setSyncLastSyncedAt(preparedData.syncMeta?.lastSyncedAt || '');
     const loadTimestamp = getCurrentDateTimeValue();
     setDebugLastLoadAt(loadTimestamp);
     if (isDevMode) {
       console.info('[Mi Diario][debug] load:applied', {
         at: loadTimestamp,
-        collectionCounts: getPersistenceCollectionCounts(loadedData),
+        collectionCounts: getPersistenceCollectionCounts(preparedData),
       });
     }
     setHasLoadedData(true);
@@ -166,16 +580,151 @@ function App() {
   useEffect(() => {
     if (!hasLoadedData) return;
     const saveTimestamp = getCurrentDateTimeValue();
-    saveAppData(diaryData);
+    const dataToPersist = markDataUpdated(diaryData, {
+      updatedAt: saveTimestamp,
+      deviceId: syncDeviceIdRef.current || diaryData.syncMeta?.deviceId || createDeviceId(),
+    });
+    latestPersistedDataRef.current = dataToPersist;
+    saveAppData(dataToPersist);
     setDebugLastSaveAt(saveTimestamp);
     if (isDevMode) {
       console.info('[Mi Diario][debug] save:applied', {
         at: saveTimestamp,
         reason: persistReasonRef.current,
-        collectionCounts: getPersistenceCollectionCounts(diaryData),
+        collectionCounts: getPersistenceCollectionCounts(dataToPersist),
       });
     }
   }, [diaryData, hasLoadedData, isDevMode]);
+
+  useEffect(() => {
+    if (!hasLoadedData || !hasResolvedSyncSession) return;
+
+    if (!remoteSyncEnabled) {
+      setHasResolvedRemoteSnapshot(true);
+      setSyncStatus('local');
+      return;
+    }
+
+    if (!syncUser) {
+      setHasResolvedRemoteSnapshot(true);
+      setSyncStatus(isOnline ? 'auth' : 'offline');
+      return;
+    }
+
+    if (!isOnline) {
+      setHasResolvedRemoteSnapshot(true);
+      setSyncStatus('offline');
+      return;
+    }
+
+    let cancelled = false;
+
+    setSyncStatus('syncing');
+    setHasResolvedRemoteSnapshot(false);
+
+    fetchRemoteSnapshot(syncUser.id)
+      .then((remoteSnapshot) => {
+        if (cancelled) return;
+
+        const localSnapshot = latestPersistedDataRef.current;
+
+        if (!remoteSnapshot?.data) {
+          setHasResolvedRemoteSnapshot(true);
+          setSyncStatus(localSnapshot.syncMeta?.updatedAt ? 'pending' : 'synced');
+          return;
+        }
+
+        const mergedRemoteData = mergeRemoteSnapshot({
+          remoteData: migrateAppData(remoteSnapshot.data),
+          localData: localSnapshot,
+          deviceId: syncDeviceIdRef.current || localSnapshot.syncMeta?.deviceId || createDeviceId(),
+          lastSyncedAt: remoteSnapshot.last_synced_at || remoteSnapshot.updated_at || getCurrentDateTimeValue(),
+        });
+
+        const winner = compareSnapshotRecency(localSnapshot, mergedRemoteData);
+
+        if (winner === 'remote') {
+          skipNextRemoteSyncRef.current = true;
+          latestPersistedDataRef.current = mergedRemoteData;
+          saveAppData(mergedRemoteData);
+          setDiaryData(mergedRemoteData);
+          setGoalForm(mergedRemoteData.goals || defaultState.goals);
+          setObjectiveForm(
+            (mergedRemoteData.objectives && mergedRemoteData.objectives[0]) ||
+              defaultState.objectives?.[0] ||
+              createEmptyObjective()
+          );
+          setSyncLastSyncedAt(mergedRemoteData.syncMeta?.lastSyncedAt || '');
+          setSyncStatus('synced');
+        } else if (winner === 'equal') {
+          setSyncLastSyncedAt(mergedRemoteData.syncMeta?.lastSyncedAt || '');
+          setSyncStatus('synced');
+        } else {
+          setSyncStatus('pending');
+        }
+
+        setHasResolvedRemoteSnapshot(true);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setHasResolvedRemoteSnapshot(true);
+        setSyncStatus(isOnline ? 'error' : 'offline');
+        setSyncFeedback({
+          type: 'error',
+          text: error instanceof Error ? error.message : 'No se pudo cargar el snapshot remoto.',
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasLoadedData, hasResolvedSyncSession, isOnline, remoteSyncEnabled, syncUser]);
+
+  useEffect(() => {
+    if (!hasLoadedData || !hasResolvedRemoteSnapshot || !remoteSyncEnabled || !syncUser) return;
+
+    if (!isOnline) {
+      setSyncStatus('offline');
+      return;
+    }
+
+    if (skipNextRemoteSyncRef.current) {
+      skipNextRemoteSyncRef.current = false;
+      return;
+    }
+
+    window.clearTimeout(syncDebounceTimeoutRef.current);
+    setSyncStatus('pending');
+
+    syncDebounceTimeoutRef.current = window.setTimeout(async () => {
+      try {
+        setSyncStatus('syncing');
+        const currentSnapshot = latestPersistedDataRef.current;
+        const syncResult = await pushRemoteSnapshot({
+          userId: syncUser.id,
+          data: currentSnapshot,
+        });
+        const syncedSnapshot = markDataSynced(currentSnapshot, {
+          deviceId: syncDeviceIdRef.current || currentSnapshot.syncMeta?.deviceId || createDeviceId(),
+          lastSyncedAt: syncResult.lastSyncedAt || getCurrentDateTimeValue(),
+        });
+        latestPersistedDataRef.current = syncedSnapshot;
+        saveAppData(syncedSnapshot);
+        setSyncLastSyncedAt(syncedSnapshot.syncMeta?.lastSyncedAt || '');
+        setSyncStatus('synced');
+      } catch (error) {
+        setSyncStatus(isOnline ? 'error' : 'offline');
+        setSyncFeedback({
+          type: 'error',
+          text: error instanceof Error ? error.message : 'No se pudo sincronizar con Supabase.',
+        });
+      }
+    }, 900);
+
+    return () => {
+      window.clearTimeout(syncDebounceTimeoutRef.current);
+    };
+  }, [diaryData, hasLoadedData, hasResolvedRemoteSnapshot, isOnline, remoteSyncEnabled, syncUser]);
 
   const todaysFoods = useMemo(
     () => sortFoods(diaryData.foods).filter((item) => item.date && isSameDate(item.date, currentDate)),
@@ -210,9 +759,9 @@ function App() {
     [currentDate, sortedFastingLogs]
   );
 
-  const currentFastingLog = useMemo(
-    () => sortedFastingLogs.find((item) => item.actualStartDateTime && !item.actualBreakDateTime) || null,
-    [sortedFastingLogs]
+  const activeFastEntry = useMemo(
+    () => getActiveFastingLog(sortedFastingLogs, fastingNow),
+    [fastingNow, sortedFastingLogs]
   );
 
   const todaysExercises = useMemo(
@@ -249,7 +798,7 @@ function App() {
     () => findFastingProtocolForDate(diaryData.fastingProtocols || [], currentDate) || null,
     [currentDate, diaryData.fastingProtocols]
   );
-  const activeFastingLog = currentFastingLog || null;
+  const activeFastingLog = activeFastEntry || null;
   const activeFastingReferenceDate = activeFastingLog
     ? getFastingRecordDate(activeFastingLog, currentDate)
     : currentDate;
@@ -342,7 +891,270 @@ function App() {
     [objectiveForm.currentWeight, objectiveForm.startWeight, objectiveForm.targetWeight]
   );
   const backupMeta = diaryData.backupMeta || defaultState.backupMeta;
+  const syncMeta = diaryData.syncMeta || defaultState.syncMeta;
+  const privateVault = diaryData.privateVault || defaultState.privateVault;
+  const privatePinLength = getPrivatePinLength(privateVault);
+  const syncStatusLabel = syncStatusLabels[syncStatus] || syncStatusLabels.local;
+  const syncUserLabel = syncUser?.email || 'Sin cuenta conectada';
+  const privateCycles = useMemo(
+    () => sortPrivateRecordsByDate(diaryData.privateCycles || [], 'startDate'),
+    [diaryData.privateCycles]
+  );
+  const privateProducts = useMemo(
+    () => sortPrivateRecordsByDate(diaryData.privateProducts || [], 'purchaseDate'),
+    [diaryData.privateProducts]
+  );
+  const privatePayments = useMemo(
+    () => sortPrivateRecordsByDate(diaryData.privatePayments || [], 'date'),
+    [diaryData.privatePayments]
+  );
+  const privateEntries = useMemo(
+    () =>
+      sortByDateDesc(diaryData.privateHormonalEntries || []).sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        const timeA = a.time || '99:99';
+        const timeB = b.time || '99:99';
+        if (timeA !== timeB) return timeA.localeCompare(timeB);
+        return String(b.id).localeCompare(String(a.id));
+    }),
+  [diaryData.privateHormonalEntries]
+  );
+  const activePrivateCycle = useMemo(() => getPrivateActiveCycle(privateCycles), [privateCycles]);
+  const hasActivePrivateCycle = Boolean(activePrivateCycle);
+  const privateSummary = useMemo(
+    () =>
+      buildPrivateSummary({
+        privateCycles,
+        privateProducts,
+        privatePayments,
+        privateEntries,
+        now: new Date(),
+      }),
+    [privateCycles, privateProducts, privatePayments, privateEntries]
+  );
+  const activeCycleFinancialSummary = useMemo(
+    () => getPrivateCycleFinancialSummary(activePrivateCycle?.id || '', privateProducts, privatePayments),
+    [activePrivateCycle, privateProducts, privatePayments]
+  );
+  const activeCycleProducts = useMemo(
+    () => (activePrivateCycle ? privateProducts.filter((item) => item.cycleId === activePrivateCycle.id) : []),
+    [activePrivateCycle, privateProducts]
+  );
+  const activeCyclePayments = useMemo(
+    () => activeCycleFinancialSummary.orderedPayments || [],
+    [activeCycleFinancialSummary]
+  );
+  const activeCycleEntries = useMemo(
+    () => (activePrivateCycle ? privateEntries.filter((item) => item.cycleId === activePrivateCycle.id) : []),
+    [activePrivateCycle, privateEntries]
+  );
+  const privateTimeline = useMemo(
+    () =>
+      activePrivateCycle
+        ? buildPrivateTimeline({
+            privateEntries,
+            privateProducts,
+            privatePayments,
+            cycleId: activePrivateCycle.id,
+          })
+        : [],
+    [privateEntries, privateProducts, privatePayments, activePrivateCycle]
+  );
+  const privateCycleOptions = useMemo(
+    () => privateCycles.map((item) => ({ value: item.id, label: item.name || 'Ciclo sin nombre' })),
+    [privateCycles]
+  );
+  const privateProductOptions = useMemo(
+    () =>
+      privateProducts
+        .filter((item) => !privateEntryForm.cycleId || item.cycleId === privateEntryForm.cycleId)
+        .map((item) => ({ value: item.id, label: item.name || 'Componente sin nombre' })),
+    [privateProducts, privateEntryForm.cycleId]
+  );
+  const nextPrivateEventProduct = useMemo(
+    () => privateProducts.find((item) => item.id === privateSummary.nextEvent?.productId) || null,
+    [privateProducts, privateSummary.nextEvent]
+  );
+  const latestPrivateTimelineItem = useMemo(() => privateTimeline[0] || null, [privateTimeline]);
+  const activeCycleEvents = useMemo(
+    () =>
+      activeCycleEntries
+        .map((item) => {
+          const scheduledAt = getPrivateAgendaDateTime(item);
+          const scheduledDate = getPrivateAgendaDate(item);
+
+          return {
+            ...item,
+            scheduledAt,
+            scheduledDate,
+          };
+        })
+        .filter((item) => item.scheduledDate)
+        .sort((a, b) => {
+          const valueA = itemToSortableAgendaValue(a);
+          const valueB = itemToSortableAgendaValue(b);
+          return valueA.localeCompare(valueB);
+        }),
+    [activeCycleEntries]
+  );
+  const privateAgendaTodayEntries = useMemo(
+    () => activeCycleEvents.filter((item) => item.scheduledDate === currentDate),
+    [activeCycleEvents, currentDate]
+  );
+  const privateAgendaTodayNextEntry = useMemo(() => {
+    const now = new Date();
+    return (
+      privateAgendaTodayEntries.find((item) => item.scheduledAt && item.scheduledAt.getTime() >= now.getTime()) || null
+    );
+  }, [privateAgendaTodayEntries]);
+  const tomorrowDate = useMemo(() => shiftDateByDays(currentDate, 1), [currentDate]);
+  const privateAgendaTomorrowEntries = useMemo(
+    () => activeCycleEvents.filter((item) => item.scheduledDate === tomorrowDate),
+    [activeCycleEvents, tomorrowDate]
+  );
+  const privateUpcomingEntries = useMemo(() => {
+    const now = new Date();
+
+    return activeCycleEvents.filter((item) => {
+      if (item.scheduledAt) return item.scheduledAt.getTime() >= now.getTime();
+      return item.scheduledDate >= currentDate;
+    });
+  }, [activeCycleEvents, currentDate]);
+  const nextUpcomingEvent = privateUpcomingEntries[0] || null;
+  const privateAgendaNow = useMemo(
+    () => new Date(),
+    [activeCycleEvents, currentDate, privateAgendaSelectedDate, privateAgendaShowAll]
+  );
+  const privateNextEventDay = nextUpcomingEvent?.scheduledDate || '';
+  const agendaDays = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, index) => {
+        const date = shiftDateByDays(currentDate, index);
+        const count = activeCycleEvents.filter((item) => item.scheduledDate === date).length;
+
+        return {
+          date,
+          count,
+          isToday: date === currentDate,
+          isNextWithEvent: !!privateNextEventDay && date === privateNextEventDay && date !== currentDate,
+        };
+      }),
+    [activeCycleEvents, currentDate, privateNextEventDay]
+  );
+  const selectedAgendaDate = privateAgendaSelectedDate || currentDate;
+  const selectedAgendaEvents = useMemo(() => {
+    if (privateAgendaShowAll) return privateUpcomingEntries;
+    return activeCycleEvents.filter((item) => item.scheduledDate === selectedAgendaDate);
+  }, [activeCycleEvents, privateAgendaShowAll, privateUpcomingEntries, selectedAgendaDate]);
+  const selectedAgendaDateLabel = privateAgendaShowAll
+    ? 'Todos los proximos'
+    : selectedAgendaDate === currentDate
+      ? 'Hoy'
+      : formatDate(selectedAgendaDate);
+  const privateAgendaMicroSummary = useMemo(
+    () => [
+      {
+        label: 'Hoy',
+        value:
+          privateAgendaTodayEntries.length > 0
+            ? `${privateAgendaTodayEntries.length} evento(s)`
+            : 'Sin actividad',
+        accent: privateAgendaTodayEntries.length > 0 ? 'today' : '',
+      },
+      {
+        label: 'Mañana',
+        value:
+          privateAgendaTomorrowEntries.length > 0
+            ? `${privateAgendaTomorrowEntries.length} evento(s)`
+            : 'Libre',
+        accent: privateAgendaTomorrowEntries.length > 0 ? 'next' : '',
+      },
+      {
+        label: 'Proximos 3',
+        value:
+          privateUpcomingEntries.length > 0
+            ? privateUpcomingEntries
+                .slice(0, 3)
+                .map((item) => item.name || privateEventTypeLabels[item.eventType] || 'Evento')
+                .join(', ')
+            : 'Sin eventos',
+        accent: privateUpcomingEntries.length > 0 ? 'neutral' : '',
+      },
+    ],
+    [privateAgendaTodayEntries, privateAgendaTomorrowEntries, privateUpcomingEntries]
+  );
+  const nextUpcomingEventPrimaryState = useMemo(
+    () =>
+      getPrivateAgendaPrimaryState(nextUpcomingEvent, {
+        now: privateAgendaNow,
+        currentDate,
+        nextEventId: nextUpcomingEvent?.id || '',
+      }),
+    [nextUpcomingEvent, privateAgendaNow, currentDate]
+  );
+  const privateProductSubmitDisabled = !activePrivateCycle;
+  const privatePaymentSubmitDisabled = !activePrivateCycle;
+  const privateEventSubmitDisabled = !activePrivateCycle;
+  const filteredPrivateTimeline = useMemo(() => {
+    if (privateTimelineFilter === 'all') return privateTimeline;
+    if (privateTimelineFilter === 'events') return privateTimeline.filter((item) => item.kind === 'entry');
+    if (privateTimelineFilter === 'products') return privateTimeline.filter((item) => item.kind === 'product');
+    if (privateTimelineFilter === 'payments') return privateTimeline.filter((item) => item.kind === 'payment');
+    return privateTimeline;
+  }, [privateTimeline, privateTimelineFilter]);
+  const privateNextStepRecommendation = useMemo(() => {
+    if (!activePrivateCycle) return '';
+    if (activeCycleProducts.length === 0) return 'Agrega un componente al ciclo activo.';
+    if (activeCycleEntries.length === 0) return 'Registra un evento para alimentar la bitacora.';
+    if (activeCyclePayments.length === 0) return 'Registra un pago para reflejar el avance financiero.';
+    return '';
+  }, [activePrivateCycle, activeCycleEntries.length, activeCyclePayments.length, activeCycleProducts.length]);
   const persistenceDebugCounts = useMemo(() => getPersistenceCollectionCounts(diaryData), [diaryData]);
+
+  useEffect(() => {
+    if (!activePrivateCycle) {
+      if (privateAgendaSelectedDate) setPrivateAgendaSelectedDate('');
+      if (privateAgendaShowAll) setPrivateAgendaShowAll(false);
+      return;
+    }
+
+    if (!privateAgendaSelectedDate) {
+      setPrivateAgendaSelectedDate(currentDate);
+    }
+  }, [activePrivateCycle, currentDate, privateAgendaSelectedDate, privateAgendaShowAll]);
+
+  useEffect(() => {
+    if (hasActivePrivateCycle && privateBlockedTarget) {
+      setPrivateBlockedTarget('');
+    }
+  }, [hasActivePrivateCycle, privateBlockedTarget]);
+
+  function clearPrivateAutoLockTimeout() {
+    if (privateAutoLockTimeoutRef.current) {
+      window.clearTimeout(privateAutoLockTimeoutRef.current);
+      privateAutoLockTimeoutRef.current = null;
+    }
+  }
+
+function lockPrivateModule(feedbackText = '') {
+  setIsPrivateUnlocked(false);
+  setPrivateUnlockPin('');
+  setPrivateFormVisibility({ cycle: false, product: false, event: false, payment: false });
+  setPrivateSecurityExpanded(false);
+  clearPrivateAutoLockTimeout();
+    if (feedbackText) {
+      setPrivateFeedback({ type: 'info', text: feedbackText });
+    }
+  }
+
+  function bumpPrivateActivity() {
+    if (!isPrivateUnlocked) return;
+    clearPrivateAutoLockTimeout();
+    const autoLockMinutes = Math.max(Number(privateVault.autoLockMinutes || 5), 1);
+    privateAutoLockTimeoutRef.current = window.setTimeout(() => {
+      lockPrivateModule('Area privada bloqueada por inactividad.');
+    }, autoLockMinutes * 60 * 1000);
+  }
 
   useEffect(() => {
     if (activeFastingStatus !== 'en curso' && fastingFormStatus !== 'en curso') return undefined;
@@ -368,6 +1180,44 @@ function App() {
     if (!activeObjective) return;
     setObjectiveForm(activeObjective);
   }, [activeObjective]);
+
+  useEffect(() => {
+    if (!isPrivateUnlocked) return undefined;
+
+    const events = ['pointerdown', 'keydown', 'touchstart'];
+    const handleActivity = () => bumpPrivateActivity();
+
+    bumpPrivateActivity();
+    events.forEach((eventName) => window.addEventListener(eventName, handleActivity));
+
+    return () => {
+      events.forEach((eventName) => window.removeEventListener(eventName, handleActivity));
+      clearPrivateAutoLockTimeout();
+    };
+  }, [isPrivateUnlocked, privateVault.autoLockMinutes]);
+
+  useEffect(() => {
+    if (editingPrivateEntryId || editingPrivateProductId || editingPrivatePaymentId) return;
+
+    const activeCycleId = activePrivateCycle?.id || '';
+    setPrivateEntryForm((current) => (current.cycleId === activeCycleId ? current : { ...current, cycleId: activeCycleId, productId: '' }));
+    setPrivateProductForm((current) => (current.cycleId === activeCycleId ? current : { ...current, cycleId: activeCycleId }));
+    setPrivatePaymentForm((current) => (current.cycleId === activeCycleId ? current : { ...current, cycleId: activeCycleId }));
+  }, [activePrivateCycle, editingPrivateEntryId, editingPrivatePaymentId, editingPrivateProductId]);
+
+  useEffect(() => {
+    if (!isPrivateUnlocked) return;
+    if (editingPrivateCycleId || editingPrivateProductId || editingPrivatePaymentId || editingPrivateEntryId) return;
+
+    setPrivateFormVisibility((current) => {
+      const hasAnyOpen = Object.values(current).some(Boolean);
+      if (hasAnyOpen) return current;
+
+      return activePrivateCycle
+        ? { cycle: false, product: false, event: false, payment: false }
+        : { cycle: true, product: false, event: false, payment: false };
+    });
+  }, [isPrivateUnlocked, activePrivateCycle, editingPrivateCycleId, editingPrivateProductId, editingPrivatePaymentId, editingPrivateEntryId]);
 
   const calorieGoal = Number(diaryData.goals?.calories || 0);
   const proteinGoal = Number(diaryData.goals?.protein || 0);
@@ -718,6 +1568,31 @@ function App() {
     setMetricForm(createEmptyMetric());
   }
 
+  function resetPrivateEntryForm() {
+    setPrivateEntryForm({
+      ...createEmptyPrivateEntry(),
+      cycleId: activePrivateCycle?.id || '',
+    });
+  }
+
+  function resetPrivateCycleForm() {
+    setPrivateCycleForm(createEmptyPrivateCycle());
+  }
+
+  function resetPrivateProductForm() {
+    setPrivateProductForm({
+      ...createEmptyPrivateProduct(),
+      cycleId: activePrivateCycle?.id || '',
+    });
+  }
+
+  function resetPrivatePaymentForm() {
+    setPrivatePaymentForm({
+      ...createEmptyPrivatePayment(),
+      cycleId: activePrivateCycle?.id || '',
+    });
+  }
+
   function handleGoalSubmit(event) {
     event.preventDefault();
     markPersistenceReason('guardar:goals');
@@ -769,6 +1644,11 @@ function App() {
         lastExportAt: exportTimestamp,
       },
     };
+    delete payload.privateCycles;
+    delete payload.privateProducts;
+    delete payload.privatePayments;
+    delete payload.privateHormonalEntries;
+    delete payload.privateVault;
 
     const fileSafeTimestamp = exportTimestamp.replace(/[:T]/g, '-');
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -807,6 +1687,11 @@ function App() {
         const migratedData = migrateAppData(parsed);
         const importedData = {
           ...migratedData,
+          privateCycles: diaryData.privateCycles || defaultState.privateCycles,
+          privateProducts: diaryData.privateProducts || defaultState.privateProducts,
+          privatePayments: diaryData.privatePayments || defaultState.privatePayments,
+          privateHormonalEntries: diaryData.privateHormonalEntries || defaultState.privateHormonalEntries,
+          privateVault: diaryData.privateVault || defaultState.privateVault,
           backupMeta: {
             ...(migratedData.backupMeta || defaultState.backupMeta),
             lastImportAt: getCurrentDateTimeValue(),
@@ -876,6 +1761,10 @@ function App() {
     resetRoutineBuilder();
     resetExerciseForm();
     resetMetricForm();
+    resetPrivateEntryForm();
+    resetPrivateCycleForm();
+    resetPrivateProductForm();
+    resetPrivatePaymentForm();
     setEditingFoodId(null);
     setEditingHydrationId(null);
     setEditingFoodTemplateId(null);
@@ -884,11 +1773,463 @@ function App() {
     setEditingSupplementId(null);
     setEditingExerciseId(null);
     setEditingMetricId(null);
+    setEditingPrivateEntryId(null);
+    setEditingPrivateCycleId(null);
+    setEditingPrivateProductId(null);
+    setEditingPrivatePaymentId(null);
     setBackupInputKey((current) => current + 1);
+    setPrivateBackupInputKey((current) => current + 1);
+    setPrivateSetupPin('');
+    setPrivateSetupPinConfirm('');
+    setPrivatePinUpdate({ current: '', next: '', confirm: '' });
+    lockPrivateModule();
     setBackupFeedback({
       type: 'success',
       text: 'Todos los datos locales fueron reseteados y la app volvio a su estado inicial.',
     });
+  }
+
+  function handleSyncCredentialsChange(event) {
+    const { name, value } = event.target;
+    setSyncCredentials((current) => ({ ...current, [name]: value }));
+  }
+
+  async function handleSyncSignIn(event) {
+    event.preventDefault();
+
+    if (!remoteSyncEnabled) {
+      setSyncFeedback({ type: 'error', text: 'Faltan las variables de entorno de Supabase.' });
+      return;
+    }
+
+    try {
+      setSyncStatus(isOnline ? 'syncing' : 'offline');
+      await signInWithSupabasePassword(syncCredentials);
+      setSyncCredentials((current) => ({ ...current, password: '' }));
+      setSyncFeedback({ type: 'success', text: 'Sesion conectada. Se iniciara la sincronizacion.' });
+    } catch (error) {
+      setSyncStatus(isOnline ? 'error' : 'offline');
+      setSyncFeedback({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'No se pudo iniciar sesion.',
+      });
+    }
+  }
+
+  async function handleSyncSignUp() {
+    if (!remoteSyncEnabled) {
+      setSyncFeedback({ type: 'error', text: 'Faltan las variables de entorno de Supabase.' });
+      return;
+    }
+
+    try {
+      setSyncStatus(isOnline ? 'syncing' : 'offline');
+      const result = await signUpWithSupabasePassword(syncCredentials);
+      setSyncCredentials((current) => ({ ...current, password: '' }));
+      setSyncFeedback({
+        type: 'success',
+        text: result?.session
+          ? 'Cuenta creada y sesion iniciada.'
+          : 'Cuenta creada. Revisa tu correo si Supabase requiere confirmacion.',
+      });
+    } catch (error) {
+      setSyncStatus(isOnline ? 'error' : 'offline');
+      setSyncFeedback({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'No se pudo crear la cuenta.',
+      });
+    }
+  }
+
+  async function handleSyncSignOut() {
+    try {
+      await signOutFromSupabase();
+      setSyncStatus(isOnline ? 'auth' : 'offline');
+      setSyncFeedback({ type: 'info', text: 'Sesion cerrada. La app sigue operando con cache local.' });
+    } catch (error) {
+      setSyncFeedback({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'No se pudo cerrar la sesion.',
+      });
+    }
+  }
+
+  async function handleManualSync() {
+    if (!remoteSyncEnabled) {
+      setSyncFeedback({ type: 'error', text: 'Faltan las variables de entorno de Supabase.' });
+      return;
+    }
+
+    if (!syncUser) {
+      setSyncFeedback({ type: 'error', text: 'Inicia sesion para sincronizar entre dispositivos.' });
+      return;
+    }
+
+    if (!isOnline) {
+      setSyncStatus('offline');
+      setSyncFeedback({ type: 'info', text: 'Sin conexion. La app sigue usando la cache local.' });
+      return;
+    }
+
+    try {
+      setSyncStatus('syncing');
+      const currentSnapshot = latestPersistedDataRef.current;
+      const syncResult = await pushRemoteSnapshot({
+        userId: syncUser.id,
+        data: currentSnapshot,
+      });
+      const syncedSnapshot = markDataSynced(currentSnapshot, {
+        deviceId: syncDeviceIdRef.current || currentSnapshot.syncMeta?.deviceId || createDeviceId(),
+        lastSyncedAt: syncResult.lastSyncedAt || getCurrentDateTimeValue(),
+      });
+      latestPersistedDataRef.current = syncedSnapshot;
+      saveAppData(syncedSnapshot);
+      setSyncLastSyncedAt(syncedSnapshot.syncMeta?.lastSyncedAt || '');
+      setSyncStatus('synced');
+      setSyncFeedback({ type: 'success', text: 'Snapshot sincronizado con Supabase.' });
+    } catch (error) {
+      setSyncStatus(isOnline ? 'error' : 'offline');
+      setSyncFeedback({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'No se pudo sincronizar ahora.',
+      });
+    }
+  }
+
+  function handlePrivateEntrySubmit(event) {
+    event.preventDefault();
+    if (!activePrivateCycle) {
+      setPrivateFeedback({ type: 'info', text: 'Primero crea o activa un ciclo para registrar este evento.' });
+      return;
+    }
+    upsertRecord('privateHormonalEntries', privateEntryForm, editingPrivateEntryId, resetPrivateEntryForm, setEditingPrivateEntryId);
+    setPrivateFeedback({ type: 'success', text: 'Registro privado guardado correctamente.' });
+  }
+
+  function handlePrivateCycleSubmit(event) {
+    event.preventDefault();
+    const record = editingPrivateCycleId
+      ? { ...privateCycleForm, id: editingPrivateCycleId }
+      : { ...privateCycleForm, id: createId() };
+
+    markPersistenceReason(`${editingPrivateCycleId ? 'editar' : 'crear'}:privateCycles`);
+    setDiaryData((current) => {
+      const baseCycles = editingPrivateCycleId
+        ? (current.privateCycles || []).map((item) => (item.id === editingPrivateCycleId ? record : item))
+        : [record, ...(current.privateCycles || [])];
+
+      const normalizedCycles =
+        record.status === 'activo'
+          ? baseCycles.map((item) => {
+              if (item.id === record.id) return { ...item, status: 'activo' };
+              if (item.status === 'activo') return { ...item, status: 'planeado' };
+              return item;
+            })
+          : baseCycles;
+
+      return {
+        ...current,
+        privateCycles: normalizedCycles,
+      };
+    });
+    resetPrivateCycleForm();
+    setEditingPrivateCycleId(null);
+    setPrivateFeedback({ type: 'success', text: 'Ciclo privado guardado correctamente.' });
+  }
+
+  function handlePrivateProductSubmit(event) {
+    event.preventDefault();
+    if (!activePrivateCycle) {
+      setPrivateFeedback({ type: 'info', text: 'Primero crea o activa un ciclo para asociar este componente.' });
+      return;
+    }
+    upsertRecord('privateProducts', privateProductForm, editingPrivateProductId, resetPrivateProductForm, setEditingPrivateProductId);
+    setPrivateFeedback({ type: 'success', text: 'Componente privado guardado correctamente.' });
+  }
+
+  function handlePrivatePaymentSubmit(event) {
+    event.preventDefault();
+    if (!activePrivateCycle) {
+      setPrivateFeedback({ type: 'info', text: 'Primero crea o activa un ciclo para registrar este pago.' });
+      return;
+    }
+    upsertRecord('privatePayments', privatePaymentForm, editingPrivatePaymentId, resetPrivatePaymentForm, setEditingPrivatePaymentId);
+    setPrivateFeedback({ type: 'success', text: 'Pago privado guardado correctamente.' });
+  }
+
+  function duplicatePrivateProduct(id) {
+    const original = diaryData.privateProducts.find((item) => item.id === id);
+    if (!original) return;
+
+    const duplicate = {
+      ...original,
+      id: createId(),
+      purchaseDate: getToday(),
+    };
+
+    markPersistenceReason('duplicar:privateProducts');
+    setDiaryData((current) => ({
+      ...current,
+      privateProducts: [duplicate, ...(current.privateProducts || [])],
+    }));
+    setPrivateFeedback({ type: 'success', text: 'Componente privado duplicado.' });
+  }
+
+  function duplicatePrivatePayment(id) {
+    const original = diaryData.privatePayments.find((item) => item.id === id);
+    if (!original) return;
+
+    const duplicate = {
+      ...original,
+      id: createId(),
+      date: getToday(),
+    };
+
+    markPersistenceReason('duplicar:privatePayments');
+    setDiaryData((current) => ({
+      ...current,
+      privatePayments: [duplicate, ...(current.privatePayments || [])],
+    }));
+    setPrivateFeedback({ type: 'success', text: 'Pago privado duplicado.' });
+  }
+
+  function duplicatePrivateEntry(id) {
+    const original = diaryData.privateHormonalEntries.find((item) => item.id === id);
+    if (!original) return;
+
+    const duplicate = {
+      ...original,
+      id: createId(),
+      date: getToday(),
+      time: '',
+      nextApplication: '',
+    };
+
+    markPersistenceReason('duplicar:privateHormonalEntries');
+    setDiaryData((current) => ({
+      ...current,
+      privateHormonalEntries: [duplicate, ...(current.privateHormonalEntries || [])],
+    }));
+    setPrivateFeedback({ type: 'success', text: 'Evento privado duplicado.' });
+  }
+
+  function setPrivateCycleAsActive(cycleId) {
+    if (!cycleId) return;
+    markPersistenceReason('guardar:privateCycles:set-active');
+    setDiaryData((current) => ({
+      ...current,
+      privateCycles: (current.privateCycles || []).map((item) => {
+        if (item.id === cycleId) return { ...item, status: 'activo' };
+        if (item.status === 'activo') return { ...item, status: 'planeado' };
+        return item;
+      }),
+    }));
+    setPrivateFeedback({ type: 'success', text: 'Ciclo activo actualizado.' });
+  }
+
+  function handlePrivatePinSetup(event) {
+    event.preventDefault();
+
+    if (!isValidPrivatePin(privateSetupPin, privateVault)) {
+      setPrivateFeedback({
+        type: 'error',
+        text: `El PIN debe tener exactamente ${privatePinLength} digitos numericos.`,
+      });
+      return;
+    }
+
+    if (privateSetupPin !== privateSetupPinConfirm) {
+      setPrivateFeedback({ type: 'error', text: 'La confirmacion del PIN no coincide.' });
+      return;
+    }
+
+    markPersistenceReason('guardar:privateVault:setup-pin');
+    setDiaryData((current) => ({
+      ...current,
+      privateVault: {
+        ...(current.privateVault || defaultState.privateVault),
+        pin: privateSetupPin,
+      },
+    }));
+    setPrivateSetupPin('');
+    setPrivateSetupPinConfirm('');
+    setIsPrivateUnlocked(true);
+    setPrivateFeedback({
+      type: 'success',
+      text: 'PIN configurado correctamente.',
+    });
+  }
+
+  function handlePrivateUnlock(event) {
+    event.preventDefault();
+
+    if (privateUnlockPin !== privateVault.pin) {
+      setPrivateFeedback({ type: 'error', text: 'PIN incorrecto. Intenta de nuevo.' });
+      return;
+    }
+
+    setIsPrivateUnlocked(true);
+    setPrivateUnlockPin('');
+    setPrivateFeedback({ type: 'success', text: 'Area privada desbloqueada.' });
+  }
+
+  function handlePrivatePinUpdate(event) {
+    event.preventDefault();
+
+    if (privatePinUpdate.current !== privateVault.pin) {
+      setPrivateFeedback({ type: 'error', text: 'El PIN actual no coincide.' });
+      return;
+    }
+
+    if (!isValidPrivatePin(privatePinUpdate.next, privateVault)) {
+      setPrivateFeedback({
+        type: 'error',
+        text: `El nuevo PIN debe tener exactamente ${privatePinLength} digitos numericos.`,
+      });
+      return;
+    }
+
+    if (privatePinUpdate.next !== privatePinUpdate.confirm) {
+      setPrivateFeedback({ type: 'error', text: 'La confirmacion del nuevo PIN no coincide.' });
+      return;
+    }
+
+    markPersistenceReason('guardar:privateVault:update-pin');
+    setDiaryData((current) => ({
+      ...current,
+      privateVault: {
+        ...(current.privateVault || defaultState.privateVault),
+        pin: privatePinUpdate.next,
+      },
+    }));
+    setPrivatePinUpdate({ current: '', next: '', confirm: '' });
+    setPrivateFeedback({ type: 'success', text: 'PIN actualizado correctamente.' });
+  }
+
+  function handlePrivateAutoLockMinutesChange(event) {
+    const value = event.target.value;
+    setPrivateFeedback({ type: '', text: '' });
+    markPersistenceReason('guardar:privateVault:auto-lock');
+    setDiaryData((current) => ({
+      ...current,
+      privateVault: {
+        ...(current.privateVault || defaultState.privateVault),
+        autoLockMinutes: value,
+      },
+    }));
+  }
+
+  function handlePrivateExportBackup() {
+    const exportTimestamp = getCurrentDateTimeValue();
+    const payload = {
+      privateCycles: diaryData.privateCycles || [],
+      privateProducts: diaryData.privateProducts || [],
+      privatePayments: diaryData.privatePayments || [],
+      privateHormonalEntries: diaryData.privateHormonalEntries || [],
+      privateVault: {
+        ...(privateVault || defaultState.privateVault),
+        lastPrivateExportAt: exportTimestamp,
+      },
+    };
+
+    const fileSafeTimestamp = exportTimestamp.replace(/[:T]/g, '-');
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = downloadUrl;
+    link.download = `mi-diario-private-backup-${fileSafeTimestamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+
+    markPersistenceReason('exportar:private-backup');
+    setDiaryData((current) => ({
+      ...current,
+      privateVault: {
+        ...(current.privateVault || defaultState.privateVault),
+        lastPrivateExportAt: exportTimestamp,
+      },
+    }));
+    setPrivateFeedback({
+      type: 'success',
+      text: 'Respaldo privado exportado correctamente.',
+    });
+  }
+
+  function handlePrivateImportBackup(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const rawText = typeof reader.result === 'string' ? reader.result : '';
+        const parsed = JSON.parse(rawText);
+
+        if (
+          !parsed ||
+          typeof parsed !== 'object' ||
+          Array.isArray(parsed) ||
+          (!('privateCycles' in parsed) &&
+            !('privateProducts' in parsed) &&
+            !('privatePayments' in parsed) &&
+            !('privateHormonalEntries' in parsed) &&
+            !('privateVault' in parsed))
+        ) {
+          throw new Error('El archivo no corresponde a un respaldo privado valido.');
+        }
+
+        const migratedPrivate = migrateAppData(parsed);
+        const importTimestamp = getCurrentDateTimeValue();
+
+        markPersistenceReason('importar:private-backup');
+        setDiaryData((current) => ({
+          ...current,
+          privateCycles: migratedPrivate.privateCycles || [],
+          privateProducts: migratedPrivate.privateProducts || [],
+          privatePayments: migratedPrivate.privatePayments || [],
+          privateHormonalEntries: migratedPrivate.privateHormonalEntries || [],
+          privateVault: {
+            ...(migratedPrivate.privateVault || defaultState.privateVault),
+            lastPrivateImportAt: importTimestamp,
+          },
+        }));
+        setEditingPrivateCycleId(null);
+        setEditingPrivateProductId(null);
+        setEditingPrivatePaymentId(null);
+        setEditingPrivateEntryId(null);
+        resetPrivateCycleForm();
+        resetPrivateProductForm();
+        resetPrivatePaymentForm();
+        resetPrivateEntryForm();
+        lockPrivateModule();
+        setPrivateFeedback({
+          type: 'success',
+          text: 'Respaldo privado importado. Vuelve a desbloquear el area privada para revisar los datos.',
+        });
+      } catch (error) {
+        console.error('[Mi Diario][private] import:error', error);
+        setPrivateFeedback({
+          type: 'error',
+          text: error instanceof Error ? error.message : 'No se pudo importar el respaldo privado.',
+        });
+      } finally {
+        setPrivateBackupInputKey((current) => current + 1);
+      }
+    };
+
+    reader.onerror = () => {
+      setPrivateFeedback({
+        type: 'error',
+        text: 'No se pudo leer el archivo privado seleccionado.',
+      });
+      setPrivateBackupInputKey((current) => current + 1);
+    };
+
+    reader.readAsText(file);
   }
 
   function handleFoodSubmit(event) {
@@ -944,6 +2285,8 @@ function App() {
       protein: item.protein || '',
       carbs: item.carbs || '',
       fat: item.fat || '',
+      costMxn: item.costMxn || '',
+      caffeineMg: item.caffeineMg || '',
       notes: item.notes || '',
     };
 
@@ -988,6 +2331,8 @@ function App() {
       protein: template.protein || '',
       carbs: template.carbs || '',
       fat: template.fat || '',
+      costMxn: template.costMxn || '',
+      caffeineMg: template.caffeineMg || '',
       notes: template.notes || '',
     });
     setEditingFoodId(null);
@@ -1291,6 +2636,8 @@ function App() {
           <p className="hero-text">
             Sistema personal para registrar nutricion, hidratacion, suplementacion, entrenamiento, ayuno y progreso fisico.
           </p>
+          <p className="hero-build-label">Build: {appBuildLabel}</p>
+          <p className="hero-build-label">Sync: {syncStatusLabel}</p>
         </div>
 
         <div className="hero-panel">
@@ -1312,65 +2659,6 @@ function App() {
           </button>
         ))}
       </nav>
-
-      {isDevMode ? (
-        <SectionCard
-          title="Diagnostico de persistencia"
-          subtitle="Visible solo en desarrollo para revisar guardado local, respaldo y conteo de colecciones."
-          className="card-soft dev-storage-card"
-        >
-          <div className="dev-storage-grid">
-            <div className="mini-stat">
-              <span>Foods</span>
-              <strong>{persistenceDebugCounts.foods}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Hydration entries</span>
-              <strong>{persistenceDebugCounts.hydrationEntries}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Supplements</span>
-              <strong>{persistenceDebugCounts.supplements}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Supplement routines</span>
-              <strong>{persistenceDebugCounts.routines}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Fasting logs</span>
-              <strong>{persistenceDebugCounts.fastingLogs}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Exercises</span>
-              <strong>{persistenceDebugCounts.exercises}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Body metrics</span>
-              <strong>{persistenceDebugCounts.bodyMetrics}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Objectives</span>
-              <strong>{persistenceDebugCounts.objectives}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Ultimo load</span>
-              <strong>{debugLastLoadAt ? formatDateTimeHuman(debugLastLoadAt) : 'Sin dato'}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Ultimo save</span>
-              <strong>{debugLastSaveAt ? formatDateTimeHuman(debugLastSaveAt) : 'Sin dato'}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Ultimo export</span>
-              <strong>{backupMeta.lastExportAt ? formatDateTimeHuman(backupMeta.lastExportAt) : 'Sin dato'}</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Ultimo import</span>
-              <strong>{backupMeta.lastImportAt ? formatDateTimeHuman(backupMeta.lastImportAt) : 'Sin dato'}</strong>
-            </div>
-          </div>
-        </SectionCard>
-      ) : null}
 
       <main className="content">
         {activeTab === 'dashboard' ? (
@@ -1745,6 +3033,104 @@ function App() {
               </SectionCard>
             </div>
 
+          </>
+        ) : null}
+
+        {activeTab === 'settings' ? (
+          <>
+            <SectionCard
+              title="Sincronizacion"
+              subtitle="Cache local inmediata con snapshot remoto en Supabase para compartir tu diario entre dispositivos."
+              className="card-soft"
+            >
+              <div className="backup-panel">
+                <div className="backup-meta-grid">
+                  <div className="backup-meta-card">
+                    <span>Estado</span>
+                    <strong>{syncStatusLabel}</strong>
+                  </div>
+                  <div className="backup-meta-card">
+                    <span>Cuenta</span>
+                    <strong>{syncUserLabel}</strong>
+                  </div>
+                  <div className="backup-meta-card">
+                    <span>Ultima sincronizacion</span>
+                    <strong>{syncLastSyncedAt ? formatDateTimeHuman(syncLastSyncedAt) : 'Aun no sincronizado'}</strong>
+                  </div>
+                  <div className="backup-meta-card">
+                    <span>Dispositivo</span>
+                    <strong>{syncMeta.deviceId ? syncMeta.deviceId.slice(0, 12) : 'Pendiente'}</strong>
+                  </div>
+                </div>
+
+                <p className="section-helper">
+                  El snapshot remoto excluye <strong>privateVault</strong>, incluido el PIN del modulo privado. La
+                  estrategia de conflicto de esta fase es <strong>last write wins</strong> basada en <strong>updatedAt</strong>.
+                </p>
+
+                {remoteSyncEnabled ? (
+                  <>
+                    {syncUser ? (
+                      <div className="backup-actions">
+                        <button className="button button-primary" type="button" onClick={handleManualSync}>
+                          Sincronizar ahora
+                        </button>
+                        <button className="button button-secondary" type="button" onClick={handleSyncSignOut}>
+                          Cerrar sesion
+                        </button>
+                      </div>
+                    ) : (
+                      <form className="record-form objective-subform" onSubmit={handleSyncSignIn}>
+                        <div className="form-grid">
+                          <label className="field">
+                            <span>Correo</span>
+                            <input
+                              type="email"
+                              name="email"
+                              autoComplete="email"
+                              value={syncCredentials.email}
+                              onChange={handleSyncCredentialsChange}
+                              placeholder="tu-correo@ejemplo.com"
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Contrasena</span>
+                            <input
+                              type="password"
+                              name="password"
+                              autoComplete="current-password"
+                              value={syncCredentials.password}
+                              onChange={handleSyncCredentialsChange}
+                              placeholder="Minimo 6 caracteres"
+                            />
+                          </label>
+                        </div>
+                        <div className="form-actions">
+                          <button className="button button-primary" type="submit">
+                            Entrar y sincronizar
+                          </button>
+                          <button className="button button-secondary" type="button" onClick={handleSyncSignUp}>
+                            Crear cuenta
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </>
+                ) : (
+                  <p className="helper-text">
+                    Configura <strong>VITE_SUPABASE_URL</strong> y <strong>VITE_SUPABASE_ANON_KEY</strong> para habilitar
+                    la sincronizacion remota.
+                  </p>
+                )}
+
+                {syncFeedback.text ? (
+                  <div className={`backup-feedback backup-feedback-${syncFeedback.type || 'info'}`}>
+                    {syncFeedback.text}
+                  </div>
+                ) : null}
+              </div>
+            </SectionCard>
+
             <SectionCard
               title="Seguridad de datos"
               subtitle="Respalda tu diario antes de limpiar el navegador o mover la app a otro entorno."
@@ -1767,8 +3153,8 @@ function App() {
                 </div>
 
                 <p className="section-helper">
-                  El respaldo usa la misma persistencia local de la app y guarda todo el contenido actual bajo la key
-                  <strong> mi-diario-data</strong>.
+                  La app sigue usando <strong>mi-diario-data</strong> como cache local inmediata. El respaldo JSON sigue
+                  exportando el snapshot actual del navegador para recuperacion manual.
                 </p>
 
                 <div className="backup-actions">
@@ -1802,6 +3188,84 @@ function App() {
                 ) : null}
               </div>
             </SectionCard>
+
+            {isDevMode ? (
+              <SectionCard
+                title="Diagnostico de persistencia"
+                subtitle="Visible solo en desarrollo para revisar carga local, respaldo y conteo de colecciones."
+                className="card-soft dev-storage-card"
+              >
+                <details className="dev-storage-disclosure">
+                  <summary>Ver diagnostico tecnico</summary>
+                  <div className="dev-storage-grid">
+                    <div className="mini-stat">
+                      <span>Foods</span>
+                      <strong>{persistenceDebugCounts.foods}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Hydration entries</span>
+                      <strong>{persistenceDebugCounts.hydrationEntries}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Supplements</span>
+                      <strong>{persistenceDebugCounts.supplements}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Supplement routines</span>
+                      <strong>{persistenceDebugCounts.routines}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Fasting logs</span>
+                      <strong>{persistenceDebugCounts.fastingLogs}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Exercises</span>
+                      <strong>{persistenceDebugCounts.exercises}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Body metrics</span>
+                      <strong>{persistenceDebugCounts.bodyMetrics}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Objectives</span>
+                      <strong>{persistenceDebugCounts.objectives}</strong>
+                    </div>
+                  <div className="mini-stat">
+                    <span>Private entries</span>
+                    <strong>{persistenceDebugCounts.privateHormonalEntries}</strong>
+                  </div>
+                  <div className="mini-stat">
+                    <span>Private cycles</span>
+                    <strong>{persistenceDebugCounts.privateCycles}</strong>
+                  </div>
+                  <div className="mini-stat">
+                    <span>Private products</span>
+                    <strong>{persistenceDebugCounts.privateProducts}</strong>
+                  </div>
+                  <div className="mini-stat">
+                    <span>Private payments</span>
+                    <strong>{persistenceDebugCounts.privatePayments}</strong>
+                  </div>
+                    <div className="mini-stat">
+                      <span>Ultimo load</span>
+                      <strong>{debugLastLoadAt ? formatDateTimeHuman(debugLastLoadAt) : 'Sin dato'}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Ultimo save</span>
+                      <strong>{debugLastSaveAt ? formatDateTimeHuman(debugLastSaveAt) : 'Sin dato'}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Ultimo export</span>
+                      <strong>{backupMeta.lastExportAt ? formatDateTimeHuman(backupMeta.lastExportAt) : 'Sin dato'}</strong>
+                    </div>
+                    <div className="mini-stat">
+                      <span>Ultimo import</span>
+                      <strong>{backupMeta.lastImportAt ? formatDateTimeHuman(backupMeta.lastImportAt) : 'Sin dato'}</strong>
+                    </div>
+                  </div>
+                </details>
+              </SectionCard>
+            ) : null}
           </>
         ) : null}
 
@@ -1823,6 +3287,7 @@ function App() {
                         { value: 'comida', label: 'Comida' },
                         { value: 'cena', label: 'Cena' },
                         { value: 'snack', label: 'Snack' },
+                        { value: 'bebida', label: 'Bebida' },
                       ],
                     },
                     { name: 'name', label: 'Nombre del alimento', type: 'text', placeholder: 'Ej. Pechuga con arroz' },
@@ -1833,6 +3298,8 @@ function App() {
                     { name: 'protein', label: 'Proteina (g)', type: 'number', min: '0', step: '0.1' },
                     { name: 'carbs', label: 'Carbohidratos (g)', type: 'number', min: '0', step: '0.1' },
                     { name: 'fat', label: 'Grasa (g)', type: 'number', min: '0', step: '0.1' },
+                    { name: 'costMxn', label: 'Costo (MXN)', type: 'number', min: '0', step: '0.01' },
+                    { name: 'caffeineMg', label: 'Cafeina (mg)', type: 'number', min: '0', step: '1' },
                     { name: 'notes', label: 'Notas', type: 'textarea', placeholder: 'Como te sentiste, porcion, contexto...' },
                   ]}
                   formData={foodForm}
@@ -1864,6 +3331,8 @@ function App() {
                       <span className="entry-chip-strong">{item.protein || 0} g proteina</span>
                       <span>{item.carbs || 0} g carbos</span>
                       <span>{item.fat || 0} g grasa</span>
+                      {item.costMxn ? <span>{`$${Number(item.costMxn).toFixed(2)} MXN`}</span> : null}
+                      {item.caffeineMg ? <span>{`${item.caffeineMg} mg cafeina`}</span> : null}
                       {item.notes ? <span>{item.notes}</span> : null}
                     </>
                   )}
@@ -1906,6 +3375,7 @@ function App() {
                             { value: 'comida', label: 'Comida' },
                             { value: 'cena', label: 'Cena' },
                             { value: 'snack', label: 'Snack' },
+                            { value: 'bebida', label: 'Bebida' },
                           ],
                         },
                         { name: 'name', label: 'Nombre del alimento', type: 'text', placeholder: 'Ej. Yogurt griego' },
@@ -1916,6 +3386,8 @@ function App() {
                         { name: 'protein', label: 'Proteina (g)', type: 'number', min: '0', step: '0.1' },
                         { name: 'carbs', label: 'Carbohidratos (g)', type: 'number', min: '0', step: '0.1' },
                         { name: 'fat', label: 'Grasa (g)', type: 'number', min: '0', step: '0.1' },
+                        { name: 'costMxn', label: 'Costo (MXN)', type: 'number', min: '0', step: '0.01' },
+                        { name: 'caffeineMg', label: 'Cafeina (mg)', type: 'number', min: '0', step: '1' },
                         { name: 'notes', label: 'Notas opcionales', type: 'textarea', placeholder: 'Preparacion, marca o contexto...' },
                       ]}
                       formData={foodTemplateForm}
@@ -1962,6 +3434,8 @@ function App() {
                         <span>{item.protein || 0} g proteina</span>
                         <span>{item.carbs || 0} g carbohidratos</span>
                         <span>{item.fat || 0} g grasa</span>
+                        {item.costMxn ? <span>{`$${Number(item.costMxn).toFixed(2)} MXN`}</span> : null}
+                        {item.caffeineMg ? <span>{`${item.caffeineMg} mg cafeina`}</span> : null}
                       </div>
 
                       {item.notes ? <p className="food-template-notes">{item.notes}</p> : null}
@@ -3160,6 +4634,9 @@ function App() {
                       { name: 'chest', label: 'Pecho (cm)', type: 'number', min: '0', step: '0.1' },
                       { name: 'arm', label: 'Brazo (cm)', type: 'number', min: '0', step: '0.1' },
                       { name: 'leg', label: 'Pierna (cm)', type: 'number', min: '0', step: '0.1' },
+                      { name: 'calf', label: 'Pantorrilla (cm)', type: 'number', min: '0', step: '0.1' },
+                      { name: 'forearm', label: 'Antebrazo (cm)', type: 'number', min: '0', step: '0.1' },
+                      { name: 'upperBackTorso', label: 'Dorsal / torso superior (cm)', type: 'number', min: '0', step: '0.1' },
                       { name: 'hips', label: 'Cadera (cm)', type: 'number', min: '0', step: '0.1' },
                       { name: 'neck', label: 'Cuello (cm)', type: 'number', min: '0', step: '0.1' },
                       { name: 'bodyFat', label: 'Grasa corporal estimada (%)', type: 'number', min: '0', step: '0.1' },
@@ -3261,6 +4738,9 @@ function App() {
 
                       <div className="entry-details metrics-details">
                         <span>Cintura: {formatMetricText(item.waist, item.waist ? ' cm' : '')}</span>
+                        {item.calf ? <span>Pantorrilla: {formatMetricText(item.calf, ' cm')}</span> : null}
+                        {item.forearm ? <span>Antebrazo: {formatMetricText(item.forearm, ' cm')}</span> : null}
+                        {item.upperBackTorso ? <span>Dorsal / torso superior: {formatMetricText(item.upperBackTorso, ' cm')}</span> : null}
                         <span>IMC: {formatMetricText(item.bmi)}</span>
                         <span>Agua: {formatMetricText(item.totalBodyWater, item.totalBodyWater ? ' L' : '')}</span>
                         <span>Masa libre: {formatMetricText(item.fatFreeMass, item.fatFreeMass ? ' kg' : '')}</span>
@@ -3666,6 +5146,1297 @@ function App() {
               onDeleteMetric={(id) => deleteRecord('bodyMetrics', id, setEditingMetricId, resetMetricForm)}
             />
           </SectionCard>
+        ) : null}
+
+        {activeTab === 'private' ? (
+          <>
+            {!privateVault.pin ? (
+              <SectionCard
+                title="Acceso privado"
+                subtitle="Configura un PIN numerico para habilitar este espacio restringido de salud hormonal."
+                className="card-soft"
+              >
+                <div className="private-hero-grid">
+                  <div className="objective-progress-panel private-lead-panel">
+                    <div className="objective-progress-copy">
+                      <strong>PIN inicial de {privatePinLength} digitos</strong>
+                      <span>
+                        Esta fase protege visualmente el modulo privado y su respaldo separado. No equivale todavia a
+                        cifrado local fuerte.
+                      </span>
+                    </div>
+                    <form className="record-form objective-subform" onSubmit={handlePrivatePinSetup}>
+                      <div className="form-grid">
+                        <label className="field">
+                          <span>Nuevo PIN</span>
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            autoComplete="new-password"
+                            maxLength={privatePinLength}
+                            value={privateSetupPin}
+                            onChange={(event) => setPrivateSetupPin(event.target.value.replace(/\D/g, '').slice(0, privatePinLength))}
+                            placeholder={`PIN de ${privatePinLength} digitos`}
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Confirmar PIN</span>
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            autoComplete="new-password"
+                            maxLength={privatePinLength}
+                            value={privateSetupPinConfirm}
+                            onChange={(event) =>
+                              setPrivateSetupPinConfirm(event.target.value.replace(/\D/g, '').slice(0, privatePinLength))
+                            }
+                            placeholder="Repite el PIN"
+                          />
+                        </label>
+                      </div>
+                      <div className="form-actions">
+                        <button className="button button-primary" type="submit">Guardar PIN inicial</button>
+                      </div>
+                    </form>
+                  </div>
+                  <div className="backup-meta-grid private-backup-grid">
+                    <div className="backup-meta-card private-secondary-card">
+                      <span>Respaldo normal</span>
+                      <strong>Excluye esta area sensible</strong>
+                    </div>
+                    <div className="backup-meta-card private-secondary-card">
+                      <span>Respaldo privado</span>
+                      <strong>Se exporta por separado</strong>
+                    </div>
+                  </div>
+                </div>
+                {privateFeedback.text ? (
+                  <p
+                    className={`backup-feedback ${
+                      privateFeedback.type === 'success'
+                        ? 'backup-feedback-success'
+                        : privateFeedback.type === 'error'
+                          ? 'backup-feedback-error'
+                          : 'backup-feedback-info'
+                    }`}
+                  >
+                    {privateFeedback.text}
+                  </p>
+                ) : null}
+              </SectionCard>
+            ) : !isPrivateUnlocked ? (
+              <SectionCard
+                title="Acceso privado"
+                subtitle="Ingresa tu PIN para abrir el registro sensible y su respaldo separado."
+                className="card-soft"
+              >
+                <div className="private-hero-grid">
+                  <div className="objective-progress-panel private-lead-panel">
+                    <div className="objective-progress-copy">
+                      <strong>Privacidad visual basica</strong>
+                      <span>
+                        El PIN protege esta seccion dentro de la app, pero todavia no implementa cifrado local fuerte
+                        de los datos.
+                      </span>
+                    </div>
+                    <form className="record-form objective-subform" onSubmit={handlePrivateUnlock}>
+                      <div className="form-grid">
+                        <label className="field">
+                          <span>PIN</span>
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            autoComplete="current-password"
+                            maxLength={privatePinLength}
+                            value={privateUnlockPin}
+                            onChange={(event) => setPrivateUnlockPin(event.target.value.replace(/\D/g, '').slice(0, privatePinLength))}
+                            placeholder={`Ingresa tu PIN de ${privatePinLength} digitos`}
+                          />
+                        </label>
+                      </div>
+                      <div className="form-actions">
+                        <button className="button button-primary" type="submit">Desbloquear</button>
+                      </div>
+                    </form>
+                  </div>
+
+                  <div className="backup-meta-grid private-backup-grid">
+                    <div className="backup-meta-card private-secondary-card">
+                      <span>Ultimo respaldo privado exportado</span>
+                      <strong>
+                        {privateVault.lastPrivateExportAt
+                          ? formatDateTimeHuman(privateVault.lastPrivateExportAt)
+                          : 'Aun no exportado'}
+                      </strong>
+                    </div>
+                    <div className="backup-meta-card private-secondary-card">
+                      <span>Ultimo respaldo privado importado</span>
+                      <strong>
+                        {privateVault.lastPrivateImportAt
+                          ? formatDateTimeHuman(privateVault.lastPrivateImportAt)
+                          : 'Aun no importado'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+                {privateFeedback.text ? (
+                  <p
+                    className={`backup-feedback ${
+                      privateFeedback.type === 'success'
+                        ? 'backup-feedback-success'
+                        : privateFeedback.type === 'error'
+                          ? 'backup-feedback-error'
+                          : 'backup-feedback-info'
+                    }`}
+                  >
+                    {privateFeedback.text}
+                  </p>
+                ) : null}
+              </SectionCard>
+            ) : (
+              <>
+                <SectionCard
+                  title="Panel privado"
+                  subtitle="Registro sensible con acceso restringido, separado de los resumenes publicos y del respaldo general."
+                  className="card-soft"
+                >
+                  <div className="private-hero-grid">
+                    <div className="supplement-summary-grid">
+                      <div className="supplement-summary-card">
+                        <span>Entradas privadas</span>
+                        <strong>{privateEntries.length}</strong>
+                        <small>Quedan fuera de Dashboard, Semanal e Historial general.</small>
+                      </div>
+                      <div className="supplement-summary-card">
+                        <span>Auto-bloqueo</span>
+                        <strong>{Math.max(Number(privateVault.autoLockMinutes || 5), 1)} min</strong>
+                        <small>Se reinicia con actividad dentro del modulo desbloqueado.</small>
+                      </div>
+                      <div className="supplement-summary-card">
+                        <span>Respaldo privado</span>
+                        <strong>
+                          {privateVault.lastPrivateExportAt
+                            ? formatShortDateTimeHuman(privateVault.lastPrivateExportAt)
+                            : 'Aun no exportado'}
+                        </strong>
+                        <small>
+                          {privateVault.lastPrivateImportAt
+                            ? `Importado: ${formatShortDateTimeHuman(privateVault.lastPrivateImportAt)}`
+                            : 'Sin importacion privada todavia'}
+                        </small>
+                      </div>
+                    </div>
+
+                    <div className="objective-progress-panel private-lead-panel">
+                      <div className="private-lead-header">
+                        <div className="objective-progress-copy">
+                          <strong>Seguridad y acceso</strong>
+                          <span>Modulo privado con respaldo separado y bloqueo manual o automatico.</span>
+                        </div>
+                      </div>
+                      <div className="backup-actions private-access-actions">
+                        <button className="button button-secondary" type="button" onClick={() => lockPrivateModule('Area privada bloqueada manualmente.')}>
+                          Bloquear
+                        </button>
+                        <label className="field private-inline-field">
+                          <span>Auto-bloqueo (min)</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="120"
+                            value={privateVault.autoLockMinutes || '5'}
+                            onChange={handlePrivateAutoLockMinutesChange}
+                          />
+                        </label>
+                      </div>
+                      <div className="backup-actions private-access-actions">
+                        <button className="button button-primary" type="button" onClick={handlePrivateExportBackup}>
+                          Exportar respaldo privado
+                        </button>
+                        <label className="button button-secondary backup-import-button">
+                          Importar respaldo privado
+                          <input
+                            key={privateBackupInputKey}
+                            className="backup-file-input"
+                            type="file"
+                            accept="application/json,.json"
+                            onChange={handlePrivateImportBackup}
+                          />
+                        </label>
+                      </div>
+                      <div className="section-inline-actions section-inline-actions-tight">
+                        <button
+                          className="button button-secondary"
+                          type="button"
+                          onClick={() => setPrivateSecurityExpanded((current) => !current)}
+                        >
+                          {privateSecurityExpanded ? 'Ocultar seguridad y acceso' : 'Mostrar seguridad y acceso'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {privateSecurityExpanded ? (
+                    <div className="private-security-drawer">
+                      <p className="section-helper">
+                        Privacidad visual basica con PIN. El respaldo privado sigue separado del respaldo normal.
+                      </p>
+                      <form className="record-form objective-subform private-pin-form" onSubmit={handlePrivatePinUpdate}>
+                        <div className="form-grid">
+                          <label className="field">
+                            <span>PIN actual</span>
+                            <input
+                              type="password"
+                              inputMode="numeric"
+                              autoComplete="current-password"
+                              maxLength={privatePinLength}
+                              value={privatePinUpdate.current}
+                              onChange={(event) =>
+                                setPrivatePinUpdate((current) => ({
+                                  ...current,
+                                  current: event.target.value.replace(/\D/g, '').slice(0, privatePinLength),
+                                }))
+                              }
+                              placeholder="PIN actual"
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Nuevo PIN</span>
+                            <input
+                              type="password"
+                              inputMode="numeric"
+                              autoComplete="new-password"
+                              maxLength={privatePinLength}
+                              value={privatePinUpdate.next}
+                              onChange={(event) =>
+                                setPrivatePinUpdate((current) => ({
+                                  ...current,
+                                  next: event.target.value.replace(/\D/g, '').slice(0, privatePinLength),
+                                }))
+                              }
+                              placeholder={`Nuevo PIN de ${privatePinLength} digitos`}
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Confirmar nuevo PIN</span>
+                            <input
+                              type="password"
+                              inputMode="numeric"
+                              autoComplete="new-password"
+                              maxLength={privatePinLength}
+                              value={privatePinUpdate.confirm}
+                              onChange={(event) =>
+                                setPrivatePinUpdate((current) => ({
+                                  ...current,
+                                  confirm: event.target.value.replace(/\D/g, '').slice(0, privatePinLength),
+                                }))
+                              }
+                              placeholder="Confirmacion"
+                            />
+                          </label>
+                        </div>
+                        <div className="form-actions">
+                          <button className="button button-secondary" type="submit">Actualizar PIN</button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : null}
+
+                  {privateFeedback.text ? (
+                    <p
+                      className={`backup-feedback ${
+                        privateFeedback.type === 'success'
+                          ? 'backup-feedback-success'
+                          : privateFeedback.type === 'error'
+                            ? 'backup-feedback-error'
+                            : 'backup-feedback-info'
+                      }`}
+                    >
+                      {privateFeedback.text}
+                    </p>
+                  ) : null}
+                </SectionCard>
+
+                <div className="private-section-stack">
+                  <SectionCard
+                    title="Resumen operativo"
+                    subtitle="Estado actual y actividad reciente."
+                    className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-mode-card'}`.trim()}
+                  >
+                    {hasActivePrivateCycle ? (
+                      <div className="private-summary-grid">
+                        <div className="supplement-summary-card">
+                          <span>Ciclo activo</span>
+                          <strong>{privateSummary.activeCycle?.name || 'Sin ciclo activo.'}</strong>
+                          <small>{privateCycleTypeLabels[privateSummary.activeCycle?.type] || privateSummary.activeCycle?.type}</small>
+                        </div>
+                        <div className="supplement-summary-card">
+                          <span>Estado</span>
+                          <strong>{getPrivateCycleStatusPhrase(privateSummary.activeCycle?.status)}</strong>
+                          <small>
+                            {`${privateSummary.activeCycle?.startDate ? formatDate(privateSummary.activeCycle.startDate) : 'Sin inicio'} • ${
+                              privateSummary.activeCycle?.estimatedEndDate ? formatDate(privateSummary.activeCycle.estimatedEndDate) : 'Sin fin'
+                            }`}
+                          </small>
+                        </div>
+                        <div className="supplement-summary-card">
+                          <span>Proximo evento</span>
+                          <strong>
+                            {privateSummary.nextEvent
+                              ? privateSummary.nextEvent.name || privateEventTypeLabels[privateSummary.nextEvent.eventType] || 'Evento'
+                              : 'Sin evento proximo.'}
+                          </strong>
+                          <small>
+                            {privateSummary.nextEvent
+                              ? `${privateSummary.nextEvent.nextApplication
+                                  ? formatDateTimeHuman(privateSummary.nextEvent.nextApplication)
+                                  : privateSummary.nextEvent.date
+                                    ? `${formatDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` • ${privateSummary.nextEvent.time}` : ''}`
+                                    : 'Sin fecha'}${nextPrivateEventProduct?.name ? ` • ${nextPrivateEventProduct.name}` : ''}`
+                              : 'Sin evento proximo.'}
+                          </small>
+                        </div>
+                        <div className="supplement-summary-card">
+                          <span>Ultimo evento</span>
+                          <strong>{latestPrivateTimelineItem?.title || 'Aun no hay actividad privada.'}</strong>
+                          <small>
+                            {latestPrivateTimelineItem
+                              ? `${latestPrivateTimelineItem.date ? formatDate(latestPrivateTimelineItem.date) : 'Sin fecha'}${
+                                  latestPrivateTimelineItem.time ? ` • ${latestPrivateTimelineItem.time}` : ''
+                                }`
+                              : 'Registra un evento para comenzar.'}
+                          </small>
+                        </div>
+                        <div className="supplement-summary-card">
+                          <span>Saldo pendiente</span>
+                          <strong>{formatCurrencyMx(privateSummary.pendingBalance)}</strong>
+                          <small>Calculado con componentes y pagos.</small>
+                        </div>
+                        <div className="supplement-summary-card">
+                          <span>Total pagado</span>
+                          <strong>{formatCurrencyMx(privateSummary.totalPaid)}</strong>
+                          <small>Pagos confirmados del ciclo activo.</small>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="private-empty-state-panel">
+                        <div className="objective-progress-copy">
+                          <strong>Sin ciclo activo.</strong>
+                          <span>Crea o activa un ciclo para comenzar.</span>
+                        </div>
+                        <div className="section-inline-actions private-empty-actions">
+                          <button className="button button-primary" type="button" onClick={() => openPrivateForm('cycle')}>
+                            Crear o activar ciclo
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="Agenda del ciclo"
+                    subtitle="Agenda operativa del ciclo activo para hoy y los proximos dias."
+                    className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                  >
+                    {hasActivePrivateCycle ? (
+                      <div className="private-agenda-stack">
+                        <div className="private-agenda-summary-row">
+                          <div className="private-agenda-summary-card">
+                            <span>Ciclo activo</span>
+                            <strong>{activePrivateCycle?.name || 'Ciclo privado activo'}</strong>
+                            <small>{getPrivateCycleStatusPhrase(activePrivateCycle?.status)}</small>
+                          </div>
+                          <div className="private-agenda-summary-card">
+                            <span>Proximo evento relevante</span>
+                            {nextUpcomingEvent ? (
+                              <div className="private-agenda-next-summary">
+                                <strong>
+                                  {nextUpcomingEvent.name || privateEventTypeLabels[nextUpcomingEvent.eventType] || 'Evento'}
+                                </strong>
+                                <small>
+                                  {nextUpcomingEvent.scheduledDate ? formatDate(nextUpcomingEvent.scheduledDate) : 'Sin fecha'}
+                                  {nextUpcomingEvent.scheduledAt ? ` • ${formatAgendaTime(nextUpcomingEvent.scheduledAt)}` : ' • Sin hora'}
+                                </small>
+                                <div className="private-agenda-inline-meta">
+                                  <span className={getPrivateAgendaFlagClass(nextUpcomingEventPrimaryState)}>
+                                    {nextUpcomingEventPrimaryState}
+                                  </span>
+                                  <span>
+                                    {nextUpcomingEvent.category
+                                      ? privateCategoryLabels[nextUpcomingEvent.category] || nextUpcomingEvent.category
+                                      : privateEventTypeLabels[nextUpcomingEvent.eventType] || 'Evento'}
+                                  </span>
+                                  {nextUpcomingEvent.dose ? (
+                                    <span>{`${nextUpcomingEvent.dose} ${nextUpcomingEvent.unit || ''}`.trim()}</span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <strong>Aun no hay eventos programados.</strong>
+                                <small>Programa un evento para empezar.</small>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="private-agenda-mini-grid">
+                          {privateAgendaMicroSummary.map((item) => (
+                            <div
+                              className={`private-agenda-mini-card ${item.accent ? `private-agenda-mini-card-${item.accent}` : ''}`.trim()}
+                              key={item.label}
+                            >
+                              <span>{item.label}</span>
+                              <strong>{item.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="private-agenda-toolbar">
+                          <div className="section-copy-stack section-copy-stack-tight">
+                            <strong>Dia seleccionado: {selectedAgendaDateLabel}</strong>
+                            <small>
+                              {privateAgendaShowAll
+                                ? 'Mostrando proximos eventos del ciclo activo.'
+                                : selectedAgendaDate === currentDate
+                                  ? privateAgendaTodayEntries.length === 0
+                                    ? 'Sin eventos hoy.'
+                                    : privateAgendaTodayNextEntry
+                                      ? `Siguiente hoy: ${privateAgendaTodayNextEntry.name || 'Evento'}${privateAgendaTodayNextEntry.scheduledAt ? ` • ${formatAgendaTime(privateAgendaTodayNextEntry.scheduledAt)}` : ''}`
+                                      : `${privateAgendaTodayEntries.length} evento(s) programado(s) hoy.`
+                                  : `${selectedAgendaEvents.length} evento(s) programado(s).`}
+                            </small>
+                          </div>
+                          <div className="section-inline-actions section-inline-actions-tight">
+                            <button
+                              className="button button-secondary private-filter-button"
+                              type="button"
+                              onClick={() => {
+                                setPrivateAgendaShowAll(true);
+                                setPrivateAgendaSelectedDate(currentDate);
+                              }}
+                            >
+                              Ver todos
+                            </button>
+                            <button
+                              className="button button-secondary private-filter-button"
+                              type="button"
+                              onClick={() => openPrivateEventFormForDate(selectedAgendaDate)}
+                            >
+                              Ir a registrar evento
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="private-agenda-week-grid">
+                          {agendaDays.map((day) => (
+                            <button
+                              className={`private-agenda-day ${
+                                day.isToday ? 'private-agenda-day-today' : ''
+                              } ${day.count > 0 ? 'private-agenda-day-has-events' : ''} ${
+                                day.isNextWithEvent ? 'private-agenda-day-next' : ''
+                              } ${selectedAgendaDate === day.date && !privateAgendaShowAll ? 'private-agenda-day-selected' : ''}`.trim()}
+                              key={day.date}
+                              onClick={() => {
+                                setPrivateAgendaSelectedDate(day.date);
+                                setPrivateAgendaShowAll(false);
+                              }}
+                              type="button"
+                            >
+                              <span>{formatAgendaDayLabel(day.date)}</span>
+                              <strong>{formatAgendaShortDate(day.date)}</strong>
+                              <small>{day.count} evento(s)</small>
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="private-agenda-upcoming-list">
+                          {selectedAgendaEvents.length === 0 ? (
+                            <div className="private-agenda-empty">
+                              <p className="empty-state">
+                                {privateAgendaShowAll ? 'Aun no hay eventos programados.' : 'No hay eventos programados para este día.'}
+                              </p>
+                            </div>
+                          ) : null}
+                          {selectedAgendaEvents.slice(0, 5).map((item) => {
+                            const linkedProduct = privateProducts.find((product) => product.id === item.productId);
+                            const itemFlags = getPrivateAgendaFlags(item, {
+                              now: privateAgendaNow,
+                              currentDate,
+                              nextEventId: nextUpcomingEvent?.id || '',
+                            });
+                            const detailLine = getPrivateAgendaEventDetail(item, linkedProduct);
+
+                            return (
+                              <article className="private-agenda-upcoming-item" key={`agenda-${item.id}`}>
+                                <div className="private-agenda-event-row">
+                                  <div className="private-agenda-event-time">
+                                    <strong>{item.scheduledAt ? formatAgendaTime(item.scheduledAt) : 'Sin hora'}</strong>
+                                    <span>{item.scheduledDate ? formatDate(item.scheduledDate) : 'Sin fecha'}</span>
+                                  </div>
+                                  <div className="private-agenda-event-main">
+                                    <div className="private-agenda-event-head">
+                                      <div>
+                                        <strong>{item.name || 'Evento privado'}</strong>
+                                        {detailLine ? <span>{detailLine}</span> : <span>Evento privado del ciclo activo.</span>}
+                                      </div>
+                                      <span className={getPrivateEventChipClass(item.eventType)}>
+                                        {privateEventTypeLabels[item.eventType] || item.eventType || 'Evento'}
+                                      </span>
+                                    </div>
+                                    {itemFlags.length > 0 ? (
+                                      <div className="private-agenda-event-flags">
+                                        {itemFlags.map((flag) => (
+                                          <span className={getPrivateAgendaFlagClass(flag)} key={`${item.id}-${flag}`}>
+                                            {flag}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="private-empty-state-panel">
+                        <p className="empty-state">Activa un ciclo para ver agenda.</p>
+                        <div className="section-inline-actions section-inline-actions-tight">
+                          <button className="button button-primary" type="button" onClick={() => openPrivateForm('cycle')}>
+                            Crear o activar ciclo
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="Bitacora privada"
+                    subtitle={
+                      hasActivePrivateCycle
+                        ? 'Actividad reciente del ciclo activo.'
+                        : 'Actividad privada reciente.'
+                    }
+                    className={`card-soft private-primary-section ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                  >
+                    {hasActivePrivateCycle ? (
+                      <div className="section-inline-actions section-inline-actions-tight private-timeline-filters">
+                        <button
+                          className={`button private-filter-button ${privateTimelineFilter === 'all' ? 'button-primary' : 'button-secondary'}`}
+                          type="button"
+                          onClick={() => setPrivateTimelineFilter('all')}
+                        >
+                          Todo
+                        </button>
+                        <button
+                          className={`button private-filter-button ${privateTimelineFilter === 'events' ? 'button-primary' : 'button-secondary'}`}
+                          type="button"
+                          onClick={() => setPrivateTimelineFilter('events')}
+                        >
+                          Eventos
+                        </button>
+                        <button
+                          className={`button private-filter-button ${privateTimelineFilter === 'products' ? 'button-primary' : 'button-secondary'}`}
+                          type="button"
+                          onClick={() => setPrivateTimelineFilter('products')}
+                        >
+                          Compras / componentes
+                        </button>
+                        <button
+                          className={`button private-filter-button ${privateTimelineFilter === 'payments' ? 'button-primary' : 'button-secondary'}`}
+                          type="button"
+                          onClick={() => setPrivateTimelineFilter('payments')}
+                        >
+                          Pagos
+                        </button>
+                      </div>
+                    ) : null}
+                    <div className="metrics-card-list private-card-list private-timeline-list">
+                      {filteredPrivateTimeline.length === 0 ? (
+                        <p className="empty-state">{hasActivePrivateCycle ? 'Aun sin actividad.' : 'Aun sin actividad.'}</p>
+                      ) : null}
+                      {filteredPrivateTimeline.map((item) => {
+                        const linkedCycle = privateCycles.find((cycle) => cycle.id === item.cycleId);
+                        const linkedProduct = privateProducts.find((product) => product.id === item.productId);
+                        const canEdit = item.kind === 'entry' || item.kind === 'product' || item.kind === 'payment';
+
+                        return (
+                          <article className="metrics-card private-entry-card private-timeline-card" key={item.id}>
+                            <div className="metrics-card-top">
+                              <div>
+                                <strong>{item.title || 'Registro privado'}</strong>
+                                <span>
+                                  {item.date ? formatDate(item.date) : 'Sin fecha'}
+                                  {item.time ? ` • ${item.time}` : ''}
+                                </span>
+                              </div>
+                              <span className={getPrivateEventChipClass(item.eventType)}>
+                                {privateEventTypeLabels[item.eventType] || item.eventType || 'Evento'}
+                              </span>
+                            </div>
+                            <div className="entry-details">
+                              <span>{item.category ? privateCategoryLabels[item.category] || item.category : 'Sin categoria'}</span>
+                              <span>{linkedProduct?.name || 'Sin producto asociado'}</span>
+                              <span>{item.amountLabel || 'Sin valor asociado'}</span>
+                              <span>{item.secondary || 'Sin detalle adicional'}</span>
+                              <span>{linkedCycle?.name || 'Sin ciclo asociado'}</span>
+                            </div>
+                            {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
+                            {canEdit ? (
+                              <div className="entry-actions">
+                                <button
+                                  className="button button-secondary"
+                                  type="button"
+                                  onClick={() => {
+                                    bumpPrivateActivity();
+                                    if (item.kind === 'entry') {
+                                      duplicatePrivateEntry(item.sourceId);
+                                    } else if (item.kind === 'product') {
+                                      duplicatePrivateProduct(item.sourceId);
+                                    } else if (item.kind === 'payment') {
+                                      duplicatePrivatePayment(item.sourceId);
+                                    }
+                                  }}
+                                >
+                                  Duplicar
+                                </button>
+                                <button
+                                  className="button button-secondary"
+                                  type="button"
+                                  onClick={() => {
+                                    bumpPrivateActivity();
+                                    if (item.kind === 'entry') {
+                                      startEditing('privateHormonalEntries', item.sourceId, setPrivateEntryForm, setEditingPrivateEntryId, 'private');
+                                      openPrivateForm('event');
+                                    } else if (item.kind === 'product') {
+                                      startEditing('privateProducts', item.sourceId, setPrivateProductForm, setEditingPrivateProductId, 'private');
+                                      openPrivateForm('product');
+                                    } else if (item.kind === 'payment') {
+                                      startEditing('privatePayments', item.sourceId, setPrivatePaymentForm, setEditingPrivatePaymentId, 'private');
+                                      openPrivateForm('payment');
+                                    }
+                                  }}
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  className="button button-danger"
+                                  type="button"
+                                  onClick={() => {
+                                    bumpPrivateActivity();
+                                    if (item.kind === 'entry') {
+                                      deleteRecord('privateHormonalEntries', item.sourceId, setEditingPrivateEntryId, resetPrivateEntryForm);
+                                    } else if (item.kind === 'product') {
+                                      deleteRecord('privateProducts', item.sourceId, setEditingPrivateProductId, resetPrivateProductForm);
+                                    } else if (item.kind === 'payment') {
+                                      deleteRecord('privatePayments', item.sourceId, setEditingPrivatePaymentId, resetPrivatePaymentForm);
+                                    }
+                                  }}
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            ) : null}
+                          </article>
+                        );
+                      })}
+                    </div>
+                    {privateNextStepRecommendation ? (
+                      <p className="section-helper private-next-step">{privateNextStepRecommendation}</p>
+                    ) : null}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="Acciones rapidas"
+                    subtitle="Atajos para registrar actividad."
+                    className={`card-soft private-actions-panel ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                  >
+                    <div className="section-inline-actions">
+                      <button className="button button-primary" type="button" onClick={() => openPrivateForm('event')}>
+                        Nuevo evento
+                      </button>
+                      <button className="button button-secondary" type="button" onClick={() => openPrivateForm('payment')}>
+                        Nuevo pago
+                      </button>
+                      <button className="button button-secondary" type="button" onClick={() => openPrivateForm('product')}>
+                        Nuevo componente
+                      </button>
+                      <button className="button button-secondary" type="button" onClick={handlePrivateExportBackup}>
+                        Exportar respaldo privado
+                      </button>
+                    </div>
+                  </SectionCard>
+
+                  <div
+                    className={`split-layout private-layout private-block-cycles ${
+                      hasActivePrivateCycle ? '' : 'private-primary-focus'
+                    }`.trim()}
+                    ref={privateCycleSectionRef}
+                  >
+                    <SectionCard
+                      title="Ciclos privados"
+                      subtitle={
+                        hasActivePrivateCycle
+                          ? 'Gestiona ciclos, estados y ventana operativa.'
+                          : 'Empieza creando o activando un ciclo.'
+                      }
+                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-cycle-step-card'}`.trim()}
+                    >
+                      <div className="section-inline-actions section-inline-actions-tight">
+                        <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('cycle')}>
+                          {privateFormVisibility.cycle ? 'Ocultar formulario' : 'Mostrar formulario'}
+                        </button>
+                      </div>
+                      {privateFormVisibility.cycle ? (
+                        <RecordForm
+                          title="Nuevo ciclo privado"
+                          fields={[
+                            { name: 'name', label: 'Nombre del ciclo', type: 'text', placeholder: 'Ej. TRT primavera, seguimiento o soporte...' },
+                            {
+                              name: 'type',
+                              label: 'Tipo',
+                              type: 'select',
+                              options: Object.entries(privateCycleTypeLabels).map(([value, label]) => ({ value, label })),
+                            },
+                            { name: 'startDate', label: 'Fecha de inicio', type: 'date' },
+                            { name: 'estimatedEndDate', label: 'Fecha estimada de fin', type: 'date' },
+                            {
+                              name: 'status',
+                              label: 'Estado',
+                              type: 'select',
+                              options: Object.entries(privateCycleStatusLabels).map(([value, label]) => ({ value, label })),
+                            },
+                            { name: 'objective', label: 'Objetivo breve', type: 'text', placeholder: 'Objetivo principal del ciclo' },
+                            { name: 'notes', label: 'Notas privadas', type: 'textarea', placeholder: 'Contexto, criterios o limites privados...' },
+                          ]}
+                          formData={privateCycleForm}
+                          onChange={(event) => {
+                            bumpPrivateActivity();
+                            handleRecordFormChange(event, setPrivateCycleForm);
+                          }}
+                          onSubmit={handlePrivateCycleSubmit}
+                          onCancel={() => {
+                            resetPrivateCycleForm();
+                            setEditingPrivateCycleId(null);
+                          }}
+                          isEditing={Boolean(editingPrivateCycleId)}
+                        />
+                      ) : (
+                        <p className="section-helper">Abre el formulario cuando necesites crear, editar o activar un ciclo.</p>
+                      )}
+                    </SectionCard>
+
+                    <SectionCard
+                      title="Ciclo activo"
+                      subtitle={hasActivePrivateCycle ? 'Estado operativo y financiero del ciclo activo.' : 'Resumen actual.'}
+                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                    >
+                      {hasActivePrivateCycle ? (
+                        <div className="backup-meta-grid">
+                          <div className="backup-meta-card">
+                            <span>Nombre</span>
+                            <strong>{activePrivateCycle?.name || 'Sin ciclo activo'}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Tipo / estado</span>
+                            <strong>
+                              {`${privateCycleTypeLabels[activePrivateCycle.type] || activePrivateCycle.type} • ${
+                                privateCycleStatusLabels[activePrivateCycle.status] || activePrivateCycle.status
+                              }`}
+                            </strong>
+                            <small className="private-status-copy">
+                              <span className="metrics-source-chip">{getPrivateCycleStatusPhrase(activePrivateCycle.status)}</span>
+                            </small>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Inicio / fin estimado</span>
+                            <strong>
+                              {`${activePrivateCycle.startDate ? formatDate(activePrivateCycle.startDate) : 'Sin inicio'} • ${
+                                activePrivateCycle.estimatedEndDate ? formatDate(activePrivateCycle.estimatedEndDate) : 'Sin fin'
+                              }`}
+                            </strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Objetivo breve</span>
+                            <strong>{activePrivateCycle?.objective || 'Sin objetivo definido'}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Componentes asociados</span>
+                            <strong>{privateSummary.activeProductsCount}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Pagos asociados</span>
+                            <strong>{privateSummary.activePaymentsCount}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Eventos asociados</span>
+                            <strong>{privateSummary.activeEntriesCount}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Costo total</span>
+                            <strong>{formatCurrencyMx(activeCycleFinancialSummary.totalInvested)}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Pagado</span>
+                            <strong>{formatCurrencyMx(activeCycleFinancialSummary.totalPaid)}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Pendiente</span>
+                            <strong>{formatCurrencyMx(activeCycleFinancialSummary.pendingBalance)}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Proximo evento</span>
+                            <strong>
+                              {privateSummary.nextEvent
+                                ? privateSummary.nextEvent.name || privateEventTypeLabels[privateSummary.nextEvent.eventType] || 'Evento'
+                                : 'Sin evento proximo'}
+                            </strong>
+                            <small>
+                              {privateSummary.nextEvent
+                                ? `${privateSummary.nextEvent.nextApplication
+                                    ? formatDateTimeHuman(privateSummary.nextEvent.nextApplication)
+                                    : privateSummary.nextEvent.date
+                                      ? `${formatDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` • ${privateSummary.nextEvent.time}` : ''}`
+                                      : 'Sin fecha'}${nextPrivateEventProduct?.name ? ` • ${nextPrivateEventProduct.name}` : ''}`
+                                : 'Sin evento proximo'}
+                            </small>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="private-cycle-empty-card">
+                          <div className="objective-progress-copy">
+                            <strong>Sin ciclo activo.</strong>
+                            <span>Disponible cuando actives un ciclo.</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="metrics-card-list private-card-list">
+                        {privateCycles.length === 0 ? <p className="empty-state">Todavia no hay ciclos privados guardados.</p> : null}
+                        {privateCycles.map((item) => (
+                          <article className="metrics-card private-entry-card" key={item.id}>
+                            <div className="metrics-card-top">
+                              <div>
+                                <strong>{item.name || 'Ciclo sin nombre'}</strong>
+                                <span>{privateCycleTypeLabels[item.type] || item.type} • {privateCycleStatusLabels[item.status] || item.status}</span>
+                              </div>
+                              <span className="metrics-source-chip">{privateCycleStatusLabels[item.status] || item.status}</span>
+                            </div>
+                            <div className="entry-details">
+                              <span>{item.startDate ? `Inicio ${formatDate(item.startDate)}` : 'Inicio sin dato'}</span>
+                              <span>{item.estimatedEndDate ? `Fin ${formatDate(item.estimatedEndDate)}` : 'Fin sin dato'}</span>
+                              <span>{item.objective || 'Objetivo sin dato'}</span>
+                            </div>
+                            {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
+                            <div className="entry-actions">
+                              <button className="button button-primary" type="button" onClick={() => setPrivateCycleAsActive(item.id)}>
+                                {item.status === 'activo' ? 'Ciclo activo' : 'Marcar activo'}
+                              </button>
+                              <button
+                                className="button button-secondary"
+                                type="button"
+                                onClick={() => {
+                                  bumpPrivateActivity();
+                                  startEditing('privateCycles', item.id, setPrivateCycleForm, setEditingPrivateCycleId, 'private');
+                                }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                className="button button-danger"
+                                type="button"
+                                onClick={() => {
+                                  bumpPrivateActivity();
+                                  deleteRecord('privateCycles', item.id, setEditingPrivateCycleId, resetPrivateCycleForm);
+                                }}
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </SectionCard>
+                  </div>
+
+                  <div className="split-layout private-layout private-block-components" ref={privateProductSectionRef}>
+                    <SectionCard
+                      title="Componentes del ciclo"
+                      subtitle={hasActivePrivateCycle ? 'Asocia productos, soporte o compras al ciclo privado.' : 'Bloqueado hasta activar un ciclo.'}
+                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-compact-card private-empty-tight private-blocked-card'}`.trim()}
+                    >
+                      <div className="section-inline-actions section-inline-actions-tight">
+                        <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('product')}>
+                          {privateFormVisibility.product ? 'Ocultar formulario' : 'Mostrar formulario'}
+                        </button>
+                      </div>
+                      {!hasActivePrivateCycle && privateFormVisibility.product ? (
+                        <div className={`private-inline-alert ${privateBlockedTarget === 'product' ? 'private-inline-alert-focus' : ''}`.trim()}>
+                          <p>{getPrivateBlockedCopy('product')}</p>
+                          <button className="button button-secondary private-blocked-cta" type="button" onClick={() => openPrivateForm('cycle')}>
+                            Crear o activar ciclo
+                          </button>
+                        </div>
+                      ) : privateFormVisibility.product ? (
+                        <>
+                          <RecordForm
+                            title="Nuevo componente"
+                            fields={[
+                              {
+                                name: 'cycleId',
+                                label: 'Ciclo privado',
+                                type: 'select',
+                                options: [{ value: '', label: 'Sin ciclo' }, ...privateCycleOptions],
+                              },
+                              { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Testosterona, oxandrolona, soporte hepatica...' },
+                              {
+                                name: 'category',
+                                label: 'Categoria',
+                                type: 'select',
+                                options: Object.entries(privateCategoryLabels).map(([value, label]) => ({ value, label })),
+                              },
+                              { name: 'presentation', label: 'Presentacion', type: 'text', placeholder: 'Vial 10 ml, blister, estudio...' },
+                              { name: 'purchasedQuantity', label: 'Cantidad comprada', type: 'text', placeholder: 'Ej. 2' },
+                              { name: 'unit', label: 'Unidad', type: 'text', placeholder: 'viales, cajas, ml, tabs...' },
+                              { name: 'totalCost', label: 'Costo total', type: 'number', min: '0', step: '0.01' },
+                              { name: 'supplier', label: 'Proveedor o fuente', type: 'text', placeholder: 'Origen o referencia privada' },
+                              { name: 'purchaseDate', label: 'Fecha de compra', type: 'date' },
+                              {
+                                name: 'status',
+                                label: 'Estatus',
+                                type: 'select',
+                                options: Object.entries(privateProductStatusLabels).map(([value, label]) => ({ value, label })),
+                              },
+                              { name: 'notes', label: 'Notas privadas', type: 'textarea', placeholder: 'Detalles de calidad, seguimiento o contexto...' },
+                            ]}
+                            formData={privateProductForm}
+                            onChange={(event) => {
+                              bumpPrivateActivity();
+                              handleRecordFormChange(event, setPrivateProductForm);
+                            }}
+                            onSubmit={handlePrivateProductSubmit}
+                            onCancel={() => {
+                              resetPrivateProductForm();
+                              setEditingPrivateProductId(null);
+                            }}
+                            isEditing={Boolean(editingPrivateProductId)}
+                            submitDisabled={privateProductSubmitDisabled}
+                          />
+                        </>
+                      ) : (
+                        <p className="section-helper">
+                          {hasActivePrivateCycle
+                            ? 'Muestra el formulario cuando necesites agregar un componente.'
+                            : 'Se habilita con un ciclo activo.'}
+                        </p>
+                      )}
+                    </SectionCard>
+
+                    {hasActivePrivateCycle ? (
+                      <SectionCard
+                        title="Productos del ciclo"
+                        subtitle="Inventario operativo del ciclo activo."
+                        className="card-soft"
+                      >
+                        <div className="metrics-card-list private-card-list">
+                          {activeCycleProducts.length === 0 ? <p className="empty-state">Aun sin productos.</p> : null}
+                          {activeCycleProducts.map((item) => {
+                            const linkedCycle = privateCycles.find((cycle) => cycle.id === item.cycleId);
+                            return (
+                              <article className="metrics-card private-entry-card" key={item.id}>
+                                <div className="metrics-card-top">
+                                  <div>
+                                    <strong>{item.name || 'Componente sin nombre'}</strong>
+                                    <span>{linkedCycle?.name || 'Sin ciclo'} • {privateProductStatusLabels[item.status] || item.status}</span>
+                                  </div>
+                                  <span className="metrics-source-chip">{privateCategoryLabels[item.category] || item.category}</span>
+                                </div>
+                                <div className="entry-details">
+                                  <span>{item.presentation || 'Presentacion sin dato'}</span>
+                                  <span>{item.purchasedQuantity || '0'} {item.unit || ''}</span>
+                                  <span>{formatCurrencyMx(item.totalCost)}</span>
+                                  <span>{item.supplier || 'Proveedor sin dato'}</span>
+                                  <span>{item.purchaseDate ? formatDate(item.purchaseDate) : 'Compra sin fecha'}</span>
+                                </div>
+                                {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
+                                <div className="entry-actions">
+                                  <button
+                                    className="button button-secondary"
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      duplicatePrivateProduct(item.id);
+                                    }}
+                                  >
+                                    Duplicar
+                                  </button>
+                                  <button
+                                    className="button button-secondary"
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      startEditing('privateProducts', item.id, setPrivateProductForm, setEditingPrivateProductId, 'private');
+                                    }}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    className="button button-danger"
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      deleteRecord('privateProducts', item.id, setEditingPrivateProductId, resetPrivateProductForm);
+                                    }}
+                                  >
+                                    Eliminar
+                                  </button>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      </SectionCard>
+                    ) : null}
+                  </div>
+
+                  <div className="split-layout private-layout private-block-payments" ref={privatePaymentSectionRef}>
+                    <SectionCard
+                      title="Pagos del ciclo"
+                      subtitle={hasActivePrivateCycle ? 'Registra pagos del ciclo activo.' : 'Bloqueado hasta activar un ciclo.'}
+                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-compact-card private-empty-tight private-blocked-card'}`.trim()}
+                    >
+                      <div className="section-inline-actions section-inline-actions-tight">
+                        <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('payment')}>
+                          {privateFormVisibility.payment ? 'Ocultar formulario' : 'Mostrar formulario'}
+                        </button>
+                      </div>
+                      {!hasActivePrivateCycle && privateFormVisibility.payment ? (
+                        <div className={`private-inline-alert ${privateBlockedTarget === 'payment' ? 'private-inline-alert-focus' : ''}`.trim()}>
+                          <p>{getPrivateBlockedCopy('payment')}</p>
+                          <button className="button button-secondary private-blocked-cta" type="button" onClick={() => openPrivateForm('cycle')}>
+                            Crear o activar ciclo
+                          </button>
+                        </div>
+                      ) : privateFormVisibility.payment ? (
+                        <>
+                          <RecordForm
+                            title="Nuevo pago privado"
+                            fields={[
+                              {
+                                name: 'cycleId',
+                                label: 'Ciclo privado',
+                                type: 'select',
+                                options: [{ value: '', label: 'Sin ciclo' }, ...privateCycleOptions],
+                              },
+                              { name: 'concept', label: 'Concepto', type: 'text', placeholder: 'Ej. Pago vial, analitica, soporte...' },
+                              { name: 'date', label: 'Fecha', type: 'date' },
+                              { name: 'amount', label: 'Monto', type: 'number', min: '0', step: '0.01' },
+                              { name: 'method', label: 'Metodo', type: 'text', placeholder: 'Transferencia, efectivo, tarjeta...' },
+                              {
+                                name: 'status',
+                                label: 'Estado',
+                                type: 'select',
+                                options: Object.entries(privatePaymentStatusLabels).map(([value, label]) => ({ value, label })),
+                              },
+                              { name: 'notes', label: 'Notas', type: 'textarea', placeholder: 'Observaciones del pago o saldo...' },
+                            ]}
+                            formData={privatePaymentForm}
+                            onChange={(event) => {
+                              bumpPrivateActivity();
+                              handleRecordFormChange(event, setPrivatePaymentForm);
+                            }}
+                            onSubmit={handlePrivatePaymentSubmit}
+                            onCancel={() => {
+                              resetPrivatePaymentForm();
+                              setEditingPrivatePaymentId(null);
+                            }}
+                            isEditing={Boolean(editingPrivatePaymentId)}
+                            submitDisabled={privatePaymentSubmitDisabled}
+                          />
+                        </>
+                      ) : (
+                        <p className="section-helper">
+                          {hasActivePrivateCycle
+                            ? 'Muestra el formulario cuando necesites registrar un pago.'
+                            : 'Se habilita con un ciclo activo.'}
+                        </p>
+                      )}
+                    </SectionCard>
+
+                    {hasActivePrivateCycle ? (
+                      <SectionCard
+                        title="Resumen de pagos"
+                        subtitle="Estado financiero del ciclo activo."
+                        className="card-soft"
+                      >
+                        <div className="backup-meta-grid">
+                          <div className="backup-meta-card">
+                            <span>Costo total acumulado</span>
+                            <strong>{formatCurrencyMx(privateSummary.totalInvested)}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Total pagado</span>
+                            <strong>{formatCurrencyMx(privateSummary.totalPaid)}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Saldo pendiente</span>
+                            <strong>{formatCurrencyMx(privateSummary.pendingBalance)}</strong>
+                          </div>
+                          <div className="backup-meta-card">
+                            <span>Pagos registrados</span>
+                            <strong>{privateSummary.activePaymentsCount}</strong>
+                          </div>
+                        </div>
+                        <div className="metrics-card-list private-card-list">
+                          {activeCyclePayments.length === 0 ? <p className="empty-state">Aun sin pagos.</p> : null}
+                          {activeCyclePayments.map((item) => {
+                            const linkedCycle = privateCycles.find((cycle) => cycle.id === item.cycleId);
+                            return (
+                              <article className="metrics-card private-entry-card" key={item.id}>
+                                <div className="metrics-card-top">
+                                  <div>
+                                    <strong>{item.concept || 'Pago sin concepto'}</strong>
+                                    <span>{linkedCycle?.name || 'Sin ciclo'} • {item.date ? formatDate(item.date) : 'Sin fecha'}</span>
+                                  </div>
+                                  <span className="metrics-source-chip">{privatePaymentStatusLabels[item.status] || item.status}</span>
+                                </div>
+                                <div className="entry-details">
+                                  <span>{formatCurrencyMx(item.amount)}</span>
+                                  <span>{item.method || 'Metodo sin dato'}</span>
+                                  <span>{privatePaymentStatusLabels[item.status] || item.status}</span>
+                                </div>
+                                {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
+                                <div className="entry-actions">
+                                  <button
+                                    className="button button-secondary"
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      duplicatePrivatePayment(item.id);
+                                    }}
+                                  >
+                                    Duplicar
+                                  </button>
+                                  <button
+                                    className="button button-secondary"
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      startEditing('privatePayments', item.id, setPrivatePaymentForm, setEditingPrivatePaymentId, 'private');
+                                    }}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    className="button button-danger"
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      deleteRecord('privatePayments', item.id, setEditingPrivatePaymentId, resetPrivatePaymentForm);
+                                    }}
+                                  >
+                                    Eliminar
+                                  </button>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      </SectionCard>
+                    ) : null}
+                  </div>
+
+                  <div className="split-layout private-layout private-block-events" ref={privateEventSectionRef}>
+                    <SectionCard
+                      title="Eventos privados"
+                      subtitle={hasActivePrivateCycle ? 'Captura eventos, aplicaciones o controles.' : 'Bloqueado hasta activar un ciclo.'}
+                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-compact-card private-empty-tight private-blocked-card'}`.trim()}
+                    >
+                      <div className="section-inline-actions section-inline-actions-tight">
+                        <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('event')}>
+                          {privateFormVisibility.event ? 'Ocultar formulario' : 'Mostrar formulario'}
+                        </button>
+                      </div>
+                      {!hasActivePrivateCycle && privateFormVisibility.event ? (
+                        <div className={`private-inline-alert ${privateBlockedTarget === 'event' ? 'private-inline-alert-focus' : ''}`.trim()}>
+                          <p>{getPrivateBlockedCopy('event')}</p>
+                          <button className="button button-secondary private-blocked-cta" type="button" onClick={() => openPrivateForm('cycle')}>
+                            Crear o activar ciclo
+                          </button>
+                        </div>
+                      ) : privateFormVisibility.event ? (
+                        <>
+                          <RecordForm
+                            title="Registro privado"
+                            fields={[
+                              { name: 'date', label: 'Fecha', type: 'date' },
+                              { name: 'time', label: 'Hora', type: 'time' },
+                              {
+                                name: 'cycleId',
+                                label: 'Ciclo privado',
+                                type: 'select',
+                                options: [{ value: '', label: 'Sin ciclo' }, ...privateCycleOptions],
+                              },
+                              {
+                                name: 'productId',
+                                label: 'Producto asociado',
+                                type: 'select',
+                                options: [{ value: '', label: 'Sin producto' }, ...privateProductOptions],
+                              },
+                              {
+                                name: 'eventType',
+                                label: 'Tipo de evento',
+                                type: 'select',
+                                options: Object.entries(privateEventTypeLabels).map(([value, label]) => ({ value, label })),
+                              },
+                              { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Aplicacion TRT, toma, sintoma, analitica...' },
+                              {
+                                name: 'category',
+                                label: 'Categoria',
+                                type: 'select',
+                                options: Object.entries(privateCategoryLabels).map(([value, label]) => ({ value, label })),
+                              },
+                              { name: 'dose', label: 'Dosis', type: 'text', placeholder: 'Ej. 125' },
+                              { name: 'unit', label: 'Unidad', type: 'text', placeholder: 'mg, ml, caps, UI...' },
+                              { name: 'route', label: 'Via', type: 'text', placeholder: 'IM, SC, oral...' },
+                              { name: 'frequency', label: 'Frecuencia', type: 'text', placeholder: 'Semanal, ED, EOD...' },
+                              { name: 'nextApplication', label: 'Proximo evento / aplicacion', type: 'datetime-local' },
+                              { name: 'notes', label: 'Notas privadas', type: 'textarea', placeholder: 'Observaciones sensibles solo para este modulo...' },
+                            ]}
+                            formData={privateEntryForm}
+                            onChange={(event) => {
+                              bumpPrivateActivity();
+                              const { name, value } = event.target;
+                              setPrivateEntryForm((current) => {
+                                if (name === 'cycleId') {
+                                  return { ...current, cycleId: value, productId: '' };
+                                }
+                                return { ...current, [name]: value };
+                              });
+                            }}
+                            onSubmit={handlePrivateEntrySubmit}
+                            onCancel={() => {
+                              resetPrivateEntryForm();
+                              setEditingPrivateEntryId(null);
+                            }}
+                            isEditing={Boolean(editingPrivateEntryId)}
+                            submitDisabled={privateEventSubmitDisabled}
+                          />
+                        </>
+                      ) : (
+                        <p className="section-helper">
+                          {hasActivePrivateCycle
+                            ? 'Abre el formulario para registrar actividad privada.'
+                            : 'Se habilita con un ciclo activo.'}
+                        </p>
+                      )}
+                    </SectionCard>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
         ) : null}
       </main>
     </div>
