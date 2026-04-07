@@ -1,4 +1,5 @@
 import { defaultState, STORAGE_KEY } from '../data/defaultState';
+import { repairPrivateCycle2026Data } from './domain/private';
 import { normalizeDateString } from './date';
 
 export const APP_STORAGE_KEYS = [STORAGE_KEY];
@@ -355,6 +356,18 @@ function normalizePrivateVault(privateVault) {
 export function migrateAppData(parsed = {}) {
   const hydrationSource = parsed.hydrationEntries ?? parsed.hydration;
   const routinesSource = parsed.routines ?? parsed.supplementRoutines;
+  const privateSeedVersion = Number(parsed.privateSeedVersion) || 0;
+  const normalizedPrivateCycles = normalizePrivateCycles(parsed.privateCycles);
+  const normalizedPrivateProducts = normalizePrivateProducts(parsed.privateProducts);
+  const normalizedPrivatePayments = normalizePrivatePayments(parsed.privatePayments);
+  const normalizedPrivateEntries = normalizePrivateHormonalEntries(parsed.privateHormonalEntries);
+  const seededPrivate = repairPrivateCycle2026Data({
+    privateCycles: normalizedPrivateCycles,
+    privateProducts: normalizedPrivateProducts,
+    privatePayments: normalizedPrivatePayments,
+    privateHormonalEntries: normalizedPrivateEntries,
+    privateSeedVersion,
+  });
   const migrated = {
     foods: normalizeFoods(parsed.foods),
     foodTemplates: normalizeFoodTemplates(parsed.foodTemplates),
@@ -365,11 +378,12 @@ export function migrateAppData(parsed = {}) {
     bodyMetrics: normalizeBodyMetrics(parsed.bodyMetrics),
     fastingProtocols: normalizeFastingProtocols(parsed.fastingProtocols),
     fastingLogs: normalizeFastingLogs(parsed.fastingLogs),
-    privateCycles: normalizePrivateCycles(parsed.privateCycles),
-    privateProducts: normalizePrivateProducts(parsed.privateProducts),
-    privatePayments: normalizePrivatePayments(parsed.privatePayments),
-    privateHormonalEntries: normalizePrivateHormonalEntries(parsed.privateHormonalEntries),
+    privateCycles: seededPrivate.privateCycles,
+    privateProducts: seededPrivate.privateProducts,
+    privatePayments: seededPrivate.privatePayments,
+    privateHormonalEntries: seededPrivate.privateHormonalEntries,
     privateVault: normalizePrivateVault(parsed.privateVault),
+    privateSeedVersion: seededPrivate.privateSeedVersion,
     objectives: normalizeObjectives(parsed.objectives),
     goals: normalizeGoals(parsed.goals),
     syncMeta: normalizeSyncMeta(parsed.syncMeta),

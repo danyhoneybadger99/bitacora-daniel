@@ -62,6 +62,7 @@ import {
   getPrivateCycleFinancialSummary,
   getPrivatePinLength,
   isValidPrivatePin,
+  repairPrivateCycle2026Data,
   privateCategoryLabels,
   privateCycleStatusLabels,
   privateCycleTypeLabels,
@@ -168,6 +169,42 @@ function formatShortDateTimeHuman(value) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(parsed).replace(',', ' ·');
+}
+
+function formatPrivateDate(value) {
+  if (!value) return 'Sin fecha';
+
+  const parsed = new Date(`${normalizeDateString(value)}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return 'Sin fecha';
+
+  return new Intl.DateTimeFormat('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+    .format(parsed)
+    .replace(/\.$/, '')
+    .toLowerCase();
+}
+
+function formatPrivateDateTimeHuman(value) {
+  if (!value) return 'Sin fecha';
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Sin fecha';
+
+  return new Intl.DateTimeFormat('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+    .format(parsed)
+    .replace(',', ' ·')
+    .replace(/\b(a\.?\s?m\.?)\b/i, 'a. m.')
+    .replace(/\b(p\.?\s?m\.?)\b/i, 'p. m.')
+    .toLowerCase();
 }
 
 function getPrivateAgendaDateTime(entry) {
@@ -342,6 +379,10 @@ function getPrivateAgendaEventDetail(item, linkedProduct) {
 function App() {
   const currentDate = getToday();
   const isDevMode = import.meta.env.DEV;
+  const canShowPrivateRepair =
+    Boolean(import.meta.env.DEV) &&
+    !Boolean(import.meta.env.PROD) &&
+    (typeof window === 'undefined' || ['localhost', '127.0.0.1'].includes(window.location.hostname));
   const appBuildLabel = __APP_BUILD_LABEL__;
   const remoteSyncEnabled = isSupabaseConfigured;
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -426,6 +467,7 @@ function App() {
   const privateProductSectionRef = useRef(null);
   const privatePaymentSectionRef = useRef(null);
   const privateEventSectionRef = useRef(null);
+  const privateFinancialSummaryRef = useRef(null);
 
   useEffect(() => {
     document.title = 'Bitacora Daniel';
@@ -539,6 +581,23 @@ function App() {
     openPrivateForm('event', {
       focusSelector: 'input[name="time"], input[name="name"], select[name="eventType"], textarea[name="notes"]',
     });
+  }
+
+  function scrollToPrivateSection(sectionKey) {
+    const targetMap = {
+      cycle: privateCycleSectionRef,
+      event: privateEventSectionRef,
+      product: privateProductSectionRef,
+      payment: privatePaymentSectionRef,
+      financial: privateFinancialSummaryRef,
+    };
+
+    const targetNode = targetMap[sectionKey]?.current;
+    if (!targetNode) return;
+
+    window.setTimeout(() => {
+      targetNode.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 40);
   }
 
   function getPrivateBlockedCopy(formKey) {
@@ -1058,7 +1117,7 @@ function App() {
     ? 'Todos los proximos'
     : selectedAgendaDate === currentDate
       ? 'Hoy'
-      : formatDate(selectedAgendaDate);
+      : formatPrivateDate(selectedAgendaDate);
   const privateAgendaMicroSummary = useMemo(
     () => [
       {
@@ -1467,6 +1526,11 @@ function lockPrivateModule(feedbackText = '') {
     };
   }
 
+  function handleRecordFormChange(event, setter) {
+    const { name, value } = event.target;
+    setter((current) => ({ ...current, [name]: value }));
+  }
+
   function handleFastingProtocolChange(event) {
     const { name, value } = event.target;
 
@@ -1700,6 +1764,7 @@ function lockPrivateModule(feedbackText = '') {
           privatePayments: diaryData.privatePayments || defaultState.privatePayments,
           privateHormonalEntries: diaryData.privateHormonalEntries || defaultState.privateHormonalEntries,
           privateVault: diaryData.privateVault || defaultState.privateVault,
+          privateSeedVersion: diaryData.privateSeedVersion || defaultState.privateSeedVersion,
           backupMeta: {
             ...(migratedData.backupMeta || defaultState.backupMeta),
             lastImportAt: getCurrentDateTimeValue(),
@@ -2127,6 +2192,41 @@ function lockPrivateModule(feedbackText = '') {
     }));
   }
 
+  function handleRepairPrivateCycle2026() {
+    bumpPrivateActivity();
+    const repaired = repairPrivateCycle2026Data({
+      privateCycles: diaryData.privateCycles || [],
+      privateProducts: diaryData.privateProducts || [],
+      privatePayments: diaryData.privatePayments || [],
+      privateHormonalEntries: diaryData.privateHormonalEntries || [],
+      privateSeedVersion: diaryData.privateSeedVersion || 0,
+    });
+    const repairedCycle = repaired.privateCycles.find(
+      (item) => String(item.name || '').trim().toLowerCase() === 'ciclo 2026'
+    );
+
+    markPersistenceReason('reparar:private-cycle-2026');
+    setDiaryData((current) => ({
+      ...current,
+      privateCycles: repaired.privateCycles,
+      privateProducts: repaired.privateProducts,
+      privatePayments: repaired.privatePayments,
+      privateHormonalEntries: repaired.privateHormonalEntries,
+      privateSeedVersion: repaired.privateSeedVersion,
+    }));
+
+    if (repairedCycle?.id) {
+      setPrivateEntryForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
+      setPrivateProductForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
+      setPrivatePaymentForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
+    }
+
+    setPrivateFeedback({
+      type: 'success',
+      text: `Ciclo 2026 reparado: ${repaired.privateProducts.filter((item) => item.cycleId === repairedCycle?.id).length} productos y ${repaired.privatePayments.filter((item) => item.cycleId === repairedCycle?.id).length} pagos listos.`,
+    });
+  }
+
   function handlePrivateExportBackup() {
     const exportTimestamp = getCurrentDateTimeValue();
     const payload = {
@@ -2134,6 +2234,7 @@ function lockPrivateModule(feedbackText = '') {
       privateProducts: diaryData.privateProducts || [],
       privatePayments: diaryData.privatePayments || [],
       privateHormonalEntries: diaryData.privateHormonalEntries || [],
+      privateSeedVersion: diaryData.privateSeedVersion || defaultState.privateSeedVersion,
       privateVault: {
         ...(privateVault || defaultState.privateVault),
         lastPrivateExportAt: exportTimestamp,
@@ -2200,6 +2301,7 @@ function lockPrivateModule(feedbackText = '') {
           privateProducts: migratedPrivate.privateProducts || [],
           privatePayments: migratedPrivate.privatePayments || [],
           privateHormonalEntries: migratedPrivate.privateHormonalEntries || [],
+          privateSeedVersion: migratedPrivate.privateSeedVersion || current.privateSeedVersion || defaultState.privateSeedVersion,
           privateVault: {
             ...(migratedPrivate.privateVault || defaultState.privateVault),
             lastPrivateImportAt: importTimestamp,
@@ -5273,7 +5375,7 @@ function lockPrivateModule(feedbackText = '') {
                       <span>Ultimo respaldo privado exportado</span>
                       <strong>
                         {privateVault.lastPrivateExportAt
-                          ? formatDateTimeHuman(privateVault.lastPrivateExportAt)
+                          ? formatPrivateDateTimeHuman(privateVault.lastPrivateExportAt)
                           : 'Aun no exportado'}
                       </strong>
                     </div>
@@ -5281,7 +5383,7 @@ function lockPrivateModule(feedbackText = '') {
                       <span>Ultimo respaldo privado importado</span>
                       <strong>
                         {privateVault.lastPrivateImportAt
-                          ? formatDateTimeHuman(privateVault.lastPrivateImportAt)
+                          ? formatPrivateDateTimeHuman(privateVault.lastPrivateImportAt)
                           : 'Aun no importado'}
                       </strong>
                     </div>
@@ -5372,6 +5474,13 @@ function lockPrivateModule(feedbackText = '') {
                           />
                         </label>
                       </div>
+                      {canShowPrivateRepair ? (
+                        <div className="section-inline-actions section-inline-actions-tight">
+                          <button className="button button-secondary" type="button" onClick={handleRepairPrivateCycle2026}>
+                            Reparar datos del ciclo 2026
+                          </button>
+                        </div>
+                      ) : null}
                       <div className="section-inline-actions section-inline-actions-tight">
                         <button
                           className="button button-secondary"
@@ -5482,8 +5591,8 @@ function lockPrivateModule(feedbackText = '') {
                           <span>Estado</span>
                           <strong>{getPrivateCycleStatusPhrase(privateSummary.activeCycle?.status)}</strong>
                           <small>
-                            {`${privateSummary.activeCycle?.startDate ? formatDate(privateSummary.activeCycle.startDate) : 'Sin inicio'} • ${
-                              privateSummary.activeCycle?.estimatedEndDate ? formatDate(privateSummary.activeCycle.estimatedEndDate) : 'Sin fin'
+                            {`${privateSummary.activeCycle?.startDate ? formatPrivateDate(privateSummary.activeCycle.startDate) : 'Sin inicio'} • ${
+                              privateSummary.activeCycle?.estimatedEndDate ? formatPrivateDate(privateSummary.activeCycle.estimatedEndDate) : 'Sin fin'
                             }`}
                           </small>
                         </div>
@@ -5497,9 +5606,9 @@ function lockPrivateModule(feedbackText = '') {
                           <small>
                             {privateSummary.nextEvent
                               ? `${privateSummary.nextEvent.nextApplication
-                                  ? formatDateTimeHuman(privateSummary.nextEvent.nextApplication)
+                                  ? formatPrivateDateTimeHuman(privateSummary.nextEvent.nextApplication)
                                   : privateSummary.nextEvent.date
-                                    ? `${formatDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` • ${privateSummary.nextEvent.time}` : ''}`
+                                    ? `${formatPrivateDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` • ${privateSummary.nextEvent.time}` : ''}`
                                     : 'Sin fecha'}${nextPrivateEventProduct?.name ? ` • ${nextPrivateEventProduct.name}` : ''}`
                               : 'Sin evento proximo.'}
                           </small>
@@ -5509,7 +5618,7 @@ function lockPrivateModule(feedbackText = '') {
                           <strong>{latestPrivateTimelineItem?.title || 'Aun no hay actividad privada.'}</strong>
                           <small>
                             {latestPrivateTimelineItem
-                              ? `${latestPrivateTimelineItem.date ? formatDate(latestPrivateTimelineItem.date) : 'Sin fecha'}${
+                              ? `${latestPrivateTimelineItem.date ? formatPrivateDate(latestPrivateTimelineItem.date) : 'Sin fecha'}${
                                   latestPrivateTimelineItem.time ? ` • ${latestPrivateTimelineItem.time}` : ''
                                 }`
                               : 'Registra un evento para comenzar.'}
@@ -5542,6 +5651,30 @@ function lockPrivateModule(feedbackText = '') {
                   </SectionCard>
 
                   <SectionCard
+                    title="Navegacion interna"
+                    subtitle="Accesos rapidos a las secciones del modulo."
+                    className="card-soft private-nav-band"
+                  >
+                    <div className="section-inline-actions private-nav-actions">
+                      <button className="button button-secondary private-nav-button" type="button" onClick={() => scrollToPrivateSection('cycle')}>
+                        Ciclos
+                      </button>
+                      <button className="button button-secondary private-nav-button" type="button" onClick={() => scrollToPrivateSection('event')}>
+                        Eventos
+                      </button>
+                      <button className="button button-secondary private-nav-button" type="button" onClick={() => scrollToPrivateSection('product')}>
+                        Productos
+                      </button>
+                      <button className="button button-secondary private-nav-button" type="button" onClick={() => scrollToPrivateSection('payment')}>
+                        Pagos
+                      </button>
+                      <button className="button button-secondary private-nav-button" type="button" onClick={() => scrollToPrivateSection('financial')}>
+                        Resumen financiero
+                      </button>
+                    </div>
+                  </SectionCard>
+
+                  <SectionCard
                     title="Agenda del ciclo"
                     subtitle="Agenda operativa del ciclo activo para hoy y los proximos dias."
                     className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
@@ -5562,7 +5695,7 @@ function lockPrivateModule(feedbackText = '') {
                                   {nextUpcomingEvent.name || privateEventTypeLabels[nextUpcomingEvent.eventType] || 'Evento'}
                                 </strong>
                                 <small>
-                                  {nextUpcomingEvent.scheduledDate ? formatDate(nextUpcomingEvent.scheduledDate) : 'Sin fecha'}
+                                  {nextUpcomingEvent.scheduledDate ? formatPrivateDate(nextUpcomingEvent.scheduledDate) : 'Sin fecha'}
                                   {nextUpcomingEvent.scheduledAt ? ` • ${formatAgendaTime(nextUpcomingEvent.scheduledAt)}` : ' • Sin hora'}
                                 </small>
                                 <div className="private-agenda-inline-meta">
@@ -5680,7 +5813,7 @@ function lockPrivateModule(feedbackText = '') {
                                 <div className="private-agenda-event-row">
                                   <div className="private-agenda-event-time">
                                     <strong>{item.scheduledAt ? formatAgendaTime(item.scheduledAt) : 'Sin hora'}</strong>
-                                    <span>{item.scheduledDate ? formatDate(item.scheduledDate) : 'Sin fecha'}</span>
+                                    <span>{item.scheduledDate ? formatPrivateDate(item.scheduledDate) : 'Sin fecha'}</span>
                                   </div>
                                   <div className="private-agenda-event-main">
                                     <div className="private-agenda-event-head">
@@ -5776,7 +5909,7 @@ function lockPrivateModule(feedbackText = '') {
                               <div>
                                 <strong>{item.title || 'Registro privado'}</strong>
                                 <span>
-                                  {item.date ? formatDate(item.date) : 'Sin fecha'}
+                                  {item.date ? formatPrivateDate(item.date) : 'Sin fecha'}
                                   {item.time ? ` • ${item.time}` : ''}
                                 </span>
                               </div>
@@ -5884,62 +6017,9 @@ function lockPrivateModule(feedbackText = '') {
                     ref={privateCycleSectionRef}
                   >
                     <SectionCard
-                      title="Ciclos privados"
-                      subtitle={
-                        hasActivePrivateCycle
-                          ? 'Gestiona ciclos, estados y ventana operativa.'
-                          : 'Empieza creando o activando un ciclo.'
-                      }
-                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-cycle-step-card'}`.trim()}
-                    >
-                      <div className="section-inline-actions section-inline-actions-tight">
-                        <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('cycle')}>
-                          {privateFormVisibility.cycle ? 'Ocultar formulario' : 'Mostrar formulario'}
-                        </button>
-                      </div>
-                      {privateFormVisibility.cycle ? (
-                        <RecordForm
-                          title="Nuevo ciclo privado"
-                          fields={[
-                            { name: 'name', label: 'Nombre del ciclo', type: 'text', placeholder: 'Ej. TRT primavera, seguimiento o soporte...' },
-                            {
-                              name: 'type',
-                              label: 'Tipo',
-                              type: 'select',
-                              options: Object.entries(privateCycleTypeLabels).map(([value, label]) => ({ value, label })),
-                            },
-                            { name: 'startDate', label: 'Fecha de inicio', type: 'date' },
-                            { name: 'estimatedEndDate', label: 'Fecha estimada de fin', type: 'date' },
-                            {
-                              name: 'status',
-                              label: 'Estado',
-                              type: 'select',
-                              options: Object.entries(privateCycleStatusLabels).map(([value, label]) => ({ value, label })),
-                            },
-                            { name: 'objective', label: 'Objetivo breve', type: 'text', placeholder: 'Objetivo principal del ciclo' },
-                            { name: 'notes', label: 'Notas privadas', type: 'textarea', placeholder: 'Contexto, criterios o limites privados...' },
-                          ]}
-                          formData={privateCycleForm}
-                          onChange={(event) => {
-                            bumpPrivateActivity();
-                            handleRecordFormChange(event, setPrivateCycleForm);
-                          }}
-                          onSubmit={handlePrivateCycleSubmit}
-                          onCancel={() => {
-                            resetPrivateCycleForm();
-                            setEditingPrivateCycleId(null);
-                          }}
-                          isEditing={Boolean(editingPrivateCycleId)}
-                        />
-                      ) : (
-                        <p className="section-helper">Abre el formulario cuando necesites crear, editar o activar un ciclo.</p>
-                      )}
-                    </SectionCard>
-
-                    <SectionCard
                       title="Ciclo activo"
                       subtitle={hasActivePrivateCycle ? 'Estado operativo y financiero del ciclo activo.' : 'Resumen actual.'}
-                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                      className={`card-soft private-secondary-pane ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
                     >
                       {hasActivePrivateCycle ? (
                         <div className="backup-meta-grid">
@@ -5961,8 +6041,8 @@ function lockPrivateModule(feedbackText = '') {
                           <div className="backup-meta-card">
                             <span>Inicio / fin estimado</span>
                             <strong>
-                              {`${activePrivateCycle.startDate ? formatDate(activePrivateCycle.startDate) : 'Sin inicio'} • ${
-                                activePrivateCycle.estimatedEndDate ? formatDate(activePrivateCycle.estimatedEndDate) : 'Sin fin'
+                              {`${activePrivateCycle.startDate ? formatPrivateDate(activePrivateCycle.startDate) : 'Sin inicio'} • ${
+                                activePrivateCycle.estimatedEndDate ? formatPrivateDate(activePrivateCycle.estimatedEndDate) : 'Sin fin'
                               }`}
                             </strong>
                           </div>
@@ -6004,9 +6084,9 @@ function lockPrivateModule(feedbackText = '') {
                             <small>
                               {privateSummary.nextEvent
                                 ? `${privateSummary.nextEvent.nextApplication
-                                    ? formatDateTimeHuman(privateSummary.nextEvent.nextApplication)
+                                    ? formatPrivateDateTimeHuman(privateSummary.nextEvent.nextApplication)
                                     : privateSummary.nextEvent.date
-                                      ? `${formatDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` • ${privateSummary.nextEvent.time}` : ''}`
+                                      ? `${formatPrivateDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` • ${privateSummary.nextEvent.time}` : ''}`
                                       : 'Sin fecha'}${nextPrivateEventProduct?.name ? ` • ${nextPrivateEventProduct.name}` : ''}`
                                 : 'Sin evento proximo'}
                             </small>
@@ -6032,8 +6112,8 @@ function lockPrivateModule(feedbackText = '') {
                               <span className="metrics-source-chip">{privateCycleStatusLabels[item.status] || item.status}</span>
                             </div>
                             <div className="entry-details">
-                              <span>{item.startDate ? `Inicio ${formatDate(item.startDate)}` : 'Inicio sin dato'}</span>
-                              <span>{item.estimatedEndDate ? `Fin ${formatDate(item.estimatedEndDate)}` : 'Fin sin dato'}</span>
+                              <span>{item.startDate ? `Inicio ${formatPrivateDate(item.startDate)}` : 'Inicio sin dato'}</span>
+                              <span>{item.estimatedEndDate ? `Fin ${formatPrivateDate(item.estimatedEndDate)}` : 'Fin sin dato'}</span>
                               <span>{item.objective || 'Objetivo sin dato'}</span>
                             </div>
                             {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
@@ -6047,6 +6127,9 @@ function lockPrivateModule(feedbackText = '') {
                                 onClick={() => {
                                   bumpPrivateActivity();
                                   startEditing('privateCycles', item.id, setPrivateCycleForm, setEditingPrivateCycleId, 'private');
+                                  openPrivateForm('cycle', {
+                                    focusSelector: 'input[name="name"], select[name="type"], input[name="startDate"], textarea[name="notes"]',
+                                  });
                                 }}
                               >
                                 Editar
@@ -6066,13 +6149,67 @@ function lockPrivateModule(feedbackText = '') {
                         ))}
                       </div>
                     </SectionCard>
+
+                    <SectionCard
+                      title="Ciclos privados"
+                      subtitle={
+                        hasActivePrivateCycle
+                          ? 'Gestiona ciclos, estados y ventana operativa.'
+                          : 'Empieza creando o activando un ciclo.'
+                      }
+                      className={`card-soft private-form-pane ${hasActivePrivateCycle ? '' : 'private-cycle-step-card'}`.trim()}
+                    >
+                      <div className="section-inline-actions section-inline-actions-tight">
+                        <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('cycle')}>
+                          {privateFormVisibility.cycle ? 'Ocultar formulario' : 'Mostrar formulario'}
+                        </button>
+                      </div>
+                      {privateFormVisibility.cycle ? (
+                        <RecordForm
+                          title="Nuevo ciclo privado"
+                          fields={[
+                            { name: 'name', label: 'Nombre del ciclo', type: 'text', placeholder: 'Ej. Ciclo 2026, definicion o seguimiento...' },
+                            {
+                              name: 'type',
+                              label: 'Tipo',
+                              type: 'select',
+                              options: Object.entries(privateCycleTypeLabels).map(([value, label]) => ({ value, label })),
+                            },
+                            { name: 'startDate', label: 'Fecha de inicio', type: 'date' },
+                            { name: 'estimatedEndDate', label: 'Fecha estimada de fin', type: 'date' },
+                            {
+                              name: 'status',
+                              label: 'Estado',
+                              type: 'select',
+                              options: Object.entries(privateCycleStatusLabels).map(([value, label]) => ({ value, label })),
+                            },
+                            { name: 'objective', label: 'Objetivo breve', type: 'text', placeholder: 'Objetivo principal del ciclo' },
+                            { name: 'notes', label: 'Notas privadas', type: 'textarea', placeholder: 'Contexto, criterios o limites privados...' },
+                          ]}
+                          formData={privateCycleForm}
+                          onChange={(event) => {
+                            bumpPrivateActivity();
+                            handleRecordFormChange(event, setPrivateCycleForm);
+                          }}
+                          onSubmit={handlePrivateCycleSubmit}
+                          onCancel={() => {
+                            resetPrivateCycleForm();
+                            setEditingPrivateCycleId(null);
+                          }}
+                          isEditing={Boolean(editingPrivateCycleId)}
+                          submitLabel={editingPrivateCycleId ? 'Guardar ciclo' : 'Crear ciclo'}
+                        />
+                      ) : (
+                        <p className="section-helper">Abre el formulario cuando necesites crear, editar o activar un ciclo.</p>
+                      )}
+                    </SectionCard>
                   </div>
 
                   <div className="split-layout private-layout private-block-components" ref={privateProductSectionRef}>
                     <SectionCard
                       title="Componentes del ciclo"
-                      subtitle={hasActivePrivateCycle ? 'Asocia productos, soporte o compras al ciclo privado.' : 'Bloqueado hasta activar un ciclo.'}
-                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-compact-card private-empty-tight private-blocked-card'}`.trim()}
+                      subtitle={hasActivePrivateCycle ? 'Asocia productos y soporte al ciclo activo.' : 'Bloqueado hasta activar un ciclo.'}
+                      className={`card-soft private-form-pane ${hasActivePrivateCycle ? '' : 'private-compact-card private-empty-tight private-blocked-card'}`.trim()}
                     >
                       <div className="section-inline-actions section-inline-actions-tight">
                         <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('product')}>
@@ -6089,7 +6226,7 @@ function lockPrivateModule(feedbackText = '') {
                       ) : privateFormVisibility.product ? (
                         <>
                           <RecordForm
-                            title="Nuevo componente"
+                            title="Nuevo componente del ciclo"
                             fields={[
                               {
                                 name: 'cycleId',
@@ -6097,7 +6234,7 @@ function lockPrivateModule(feedbackText = '') {
                                 type: 'select',
                                 options: [{ value: '', label: 'Sin ciclo' }, ...privateCycleOptions],
                               },
-                              { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Testosterona, oxandrolona, soporte hepatica...' },
+                              { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Masteron, Testosterona, Primo, soporte...' },
                               {
                                 name: 'category',
                                 label: 'Categoria',
@@ -6130,6 +6267,7 @@ function lockPrivateModule(feedbackText = '') {
                             }}
                             isEditing={Boolean(editingPrivateProductId)}
                             submitDisabled={privateProductSubmitDisabled}
+                            submitLabel={editingPrivateProductId ? 'Guardar componente' : 'Guardar componente'}
                           />
                         </>
                       ) : (
@@ -6144,8 +6282,8 @@ function lockPrivateModule(feedbackText = '') {
                     {hasActivePrivateCycle ? (
                       <SectionCard
                         title="Productos del ciclo"
-                        subtitle="Inventario operativo del ciclo activo."
-                        className="card-soft"
+                        subtitle="Inventario operativo y compras del ciclo activo."
+                        className="card-soft private-secondary-pane"
                       >
                         <div className="metrics-card-list private-card-list">
                           {activeCycleProducts.length === 0 ? <p className="empty-state">Aun sin productos.</p> : null}
@@ -6165,7 +6303,7 @@ function lockPrivateModule(feedbackText = '') {
                                   <span>{item.purchasedQuantity || '0'} {item.unit || ''}</span>
                                   <span>{formatCurrencyMx(item.totalCost)}</span>
                                   <span>{item.supplier || 'Proveedor sin dato'}</span>
-                                  <span>{item.purchaseDate ? formatDate(item.purchaseDate) : 'Compra sin fecha'}</span>
+                                  <span>{item.purchaseDate ? formatPrivateDate(item.purchaseDate) : 'Compra sin fecha'}</span>
                                 </div>
                                 {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
                                 <div className="entry-actions">
@@ -6182,9 +6320,12 @@ function lockPrivateModule(feedbackText = '') {
                                   <button
                                     className="button button-secondary"
                                     type="button"
-                                    onClick={() => {
+                                  onClick={() => {
                                       bumpPrivateActivity();
                                       startEditing('privateProducts', item.id, setPrivateProductForm, setEditingPrivateProductId, 'private');
+                                      openPrivateForm('product', {
+                                        focusSelector: 'input[name="name"], select[name="category"], input[name="purchaseDate"], textarea[name="notes"]',
+                                      });
                                     }}
                                   >
                                     Editar
@@ -6211,8 +6352,8 @@ function lockPrivateModule(feedbackText = '') {
                   <div className="split-layout private-layout private-block-payments" ref={privatePaymentSectionRef}>
                     <SectionCard
                       title="Pagos del ciclo"
-                      subtitle={hasActivePrivateCycle ? 'Registra pagos del ciclo activo.' : 'Bloqueado hasta activar un ciclo.'}
-                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-compact-card private-empty-tight private-blocked-card'}`.trim()}
+                      subtitle={hasActivePrivateCycle ? 'Registra pagos y avance financiero del ciclo activo.' : 'Bloqueado hasta activar un ciclo.'}
+                      className={`card-soft private-form-pane ${hasActivePrivateCycle ? '' : 'private-compact-card private-empty-tight private-blocked-card'}`.trim()}
                     >
                       <div className="section-inline-actions section-inline-actions-tight">
                         <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('payment')}>
@@ -6261,6 +6402,7 @@ function lockPrivateModule(feedbackText = '') {
                             }}
                             isEditing={Boolean(editingPrivatePaymentId)}
                             submitDisabled={privatePaymentSubmitDisabled}
+                            submitLabel={editingPrivatePaymentId ? 'Guardar pago' : 'Guardar pago'}
                           />
                         </>
                       ) : (
@@ -6273,11 +6415,12 @@ function lockPrivateModule(feedbackText = '') {
                     </SectionCard>
 
                     {hasActivePrivateCycle ? (
-                      <SectionCard
-                        title="Resumen de pagos"
-                        subtitle="Estado financiero del ciclo activo."
-                        className="card-soft"
-                      >
+                      <div ref={privateFinancialSummaryRef}>
+                        <SectionCard
+                          title="Resumen de pagos"
+                          subtitle="Estado financiero del ciclo activo."
+                          className="card-soft private-secondary-pane"
+                        >
                         <div className="backup-meta-grid">
                           <div className="backup-meta-card">
                             <span>Costo total acumulado</span>
@@ -6305,7 +6448,7 @@ function lockPrivateModule(feedbackText = '') {
                                 <div className="metrics-card-top">
                                   <div>
                                     <strong>{item.concept || 'Pago sin concepto'}</strong>
-                                    <span>{linkedCycle?.name || 'Sin ciclo'} • {item.date ? formatDate(item.date) : 'Sin fecha'}</span>
+                                    <span>{linkedCycle?.name || 'Sin ciclo'} • {item.date ? formatPrivateDate(item.date) : 'Sin fecha'}</span>
                                   </div>
                                   <span className="metrics-source-chip">{privatePaymentStatusLabels[item.status] || item.status}</span>
                                 </div>
@@ -6332,6 +6475,9 @@ function lockPrivateModule(feedbackText = '') {
                                     onClick={() => {
                                       bumpPrivateActivity();
                                       startEditing('privatePayments', item.id, setPrivatePaymentForm, setEditingPrivatePaymentId, 'private');
+                                      openPrivateForm('payment', {
+                                        focusSelector: 'input[name="concept"], input[name="date"], input[name="amount"], textarea[name="notes"]',
+                                      });
                                     }}
                                   >
                                     Editar
@@ -6351,15 +6497,16 @@ function lockPrivateModule(feedbackText = '') {
                             );
                           })}
                         </div>
-                      </SectionCard>
+                        </SectionCard>
+                      </div>
                     ) : null}
                   </div>
 
                   <div className="split-layout private-layout private-block-events" ref={privateEventSectionRef}>
                     <SectionCard
                       title="Eventos privados"
-                      subtitle={hasActivePrivateCycle ? 'Captura eventos, aplicaciones o controles.' : 'Bloqueado hasta activar un ciclo.'}
-                      className={`card-soft ${hasActivePrivateCycle ? '' : 'private-compact-card private-empty-tight private-blocked-card'}`.trim()}
+                      subtitle={hasActivePrivateCycle ? 'Captura aplicaciones, controles, incidencias o seguimiento del ciclo.' : 'Bloqueado hasta activar un ciclo.'}
+                      className={`card-soft private-form-pane ${hasActivePrivateCycle ? '' : 'private-compact-card private-empty-tight private-blocked-card'}`.trim()}
                     >
                       <div className="section-inline-actions section-inline-actions-tight">
                         <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('event')}>
@@ -6398,7 +6545,7 @@ function lockPrivateModule(feedbackText = '') {
                                 type: 'select',
                                 options: Object.entries(privateEventTypeLabels).map(([value, label]) => ({ value, label })),
                               },
-                              { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Aplicacion TRT, toma, sintoma, analitica...' },
+                              { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Aplicacion Masteron, control, sintoma...' },
                               {
                                 name: 'category',
                                 label: 'Categoria',
@@ -6430,6 +6577,7 @@ function lockPrivateModule(feedbackText = '') {
                             }}
                             isEditing={Boolean(editingPrivateEntryId)}
                             submitDisabled={privateEventSubmitDisabled}
+                            submitLabel={editingPrivateEntryId ? 'Guardar evento' : 'Guardar evento'}
                           />
                         </>
                       ) : (

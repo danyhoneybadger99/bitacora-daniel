@@ -1,3 +1,4 @@
+import { createPrivateCycle2026SeedData } from '../utils/domain/private';
 import { getToday } from '../utils/date';
 
 const defaultFastingProtocols = [
@@ -111,6 +112,12 @@ function createDefaultSyncMeta() {
   };
 }
 
+export function createPrivateSeedData() {
+  return createPrivateCycle2026SeedData();
+}
+
+const privateSeedData = createPrivateSeedData();
+
 export const defaultState = {
   foods: [],
   foodTemplates: [],
@@ -121,11 +128,12 @@ export const defaultState = {
   bodyMetrics: [],
   fastingProtocols: defaultFastingProtocols,
   fastingLogs: [],
-  privateCycles: [],
-  privateProducts: [],
-  privatePayments: [],
-  privateHormonalEntries: [],
+  privateCycles: privateSeedData.privateCycles,
+  privateProducts: privateSeedData.privateProducts,
+  privatePayments: privateSeedData.privatePayments,
+  privateHormonalEntries: privateSeedData.privateHormonalEntries,
   privateVault: createDefaultPrivateVault(),
+  privateSeedVersion: privateSeedData.privateSeedVersion,
   objectives: [createDefaultObjective()],
   goals: {
     calories: '2200',

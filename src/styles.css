@@ -1625,12 +1625,13 @@ button {
 
 .private-section-stack {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .private-layout {
   grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
   align-items: start;
+  gap: 14px;
 }
 
 .private-block-cycles {
@@ -1651,6 +1652,34 @@ button {
 
 .private-lead-panel {
   background: linear-gradient(180deg, rgba(248, 250, 248, 0.98), rgba(243, 246, 243, 0.94));
+}
+
+.private-section-stack .card-soft {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.private-nav-band {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.private-nav-actions {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.private-nav-button {
+  min-height: 34px;
+  padding: 8px 12px;
+}
+
+.private-layout .private-secondary-pane {
+  order: 1;
+}
+
+.private-layout .private-form-pane {
+  order: 2;
 }
 
 .private-lead-header {
@@ -1696,6 +1725,10 @@ button {
   gap: 12px;
 }
 
+.private-card-list .entry-actions {
+  margin-top: 6px;
+}
+
 .private-timeline-list {
   gap: 8px;
 }
@@ -1703,6 +1736,10 @@ button {
 .private-timeline-card {
   border-left: 3px solid #d8e0db;
   padding-left: 16px;
+}
+
+.private-entry-card {
+  gap: 10px;
 }
 
 .private-entry-card .entry-details span {
@@ -1850,15 +1887,21 @@ button {
 }
 
 .private-layout .record-form {
-  gap: 14px;
+  gap: 12px;
 }
 
 .private-layout .form-grid {
-  gap: 10px;
+  gap: 9px;
 }
 
 .private-layout .field span {
   font-size: 0.88rem;
+}
+
+.private-layout .form-title-row p {
+  margin-top: 6px;
+  font-size: 0.86rem;
+  line-height: 1.35;
 }
 
 .private-layout .field input,
@@ -1869,6 +1912,10 @@ button {
 
 .private-layout .field textarea {
   min-height: 92px;
+}
+
+.private-layout .section-helper {
+  margin-top: 4px;
 }
 
 .private-event-chip {
@@ -2714,11 +2761,23 @@ button {
 
   .private-layout .record-form,
   .private-layout .form-grid {
-    gap: 10px;
+    gap: 8px;
+  }
+
+  .private-nav-actions .button {
+    flex: 1 1 140px;
   }
 
   .private-layout .field textarea {
-    min-height: 84px;
+    min-height: 76px;
+  }
+
+  .private-card-list {
+    gap: 10px;
+  }
+
+  .private-card-list .entry-actions .button {
+    flex: 1 1 calc(50% - 6px);
   }
 
   .private-agenda-toolbar,
@@ -2836,6 +2895,11 @@ button {
   .private-agenda-event-head {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .private-card-list .entry-actions .button {
+    width: 100%;
+    flex-basis: 100%;
   }
 
   .entry-details {
