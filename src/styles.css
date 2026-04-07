@@ -122,6 +122,15 @@ button {
   padding-bottom: 4px;
 }
 
+.tabs::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tabs::-webkit-scrollbar-thumb {
+  background: rgba(98, 111, 123, 0.28);
+  border-radius: 999px;
+}
+
 .tab-button {
   border: none;
   border-radius: 999px;
@@ -2497,14 +2506,15 @@ button {
 
 @media (max-width: 720px) {
   .app-shell {
-    width: min(100% - 18px, 1180px);
-    padding: 18px 0 30px;
+    width: min(100% - 14px, 1180px);
+    padding: 12px 0 24px;
   }
 
   .hero {
-    gap: 16px;
-    padding: 20px;
-    margin-bottom: 18px;
+    gap: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+    border-radius: 20px;
   }
 
   .hero-panel,
@@ -2514,22 +2524,39 @@ button {
   }
 
   .hero h1 {
-    font-size: clamp(1.7rem, 9vw, 2.35rem);
+    font-size: clamp(1.58rem, 8.2vw, 2.2rem);
     line-height: 1.02;
   }
 
+  .eyebrow {
+    margin-bottom: 6px;
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+  }
+
   .hero-text {
-    margin-top: 10px;
-    font-size: 0.95rem;
-    line-height: 1.45;
+    margin-top: 8px;
+    font-size: 0.9rem;
+    line-height: 1.38;
   }
 
   .hero-build-label {
+    margin-top: 8px;
     font-size: 0.74rem;
   }
 
+  .hero-date {
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .hero-date strong {
+    margin-top: 6px;
+    font-size: 0.94rem;
+  }
+
   .content {
-    gap: 16px;
+    gap: 14px;
   }
 
   .summary-grid,
@@ -2564,7 +2591,7 @@ button {
   .backup-meta-card,
   .metrics-card,
   .private-agenda-summary-card {
-    padding: 16px;
+    padding: 14px;
     border-radius: 18px;
   }
 
@@ -2595,26 +2622,103 @@ button {
   }
 
   .tabs {
-    gap: 6px;
-    margin-bottom: 18px;
-    padding-bottom: 6px;
-    scroll-padding-inline: 8px;
+    gap: 7px;
+    margin-bottom: 14px;
+    padding: 0 14px 8px 2px;
+    margin-inline: -2px;
+    scroll-padding-inline: 14px;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent 100%);
   }
 
   .tab-button {
     min-height: 40px;
-    padding: 9px 12px;
-    font-size: 0.88rem;
+    padding: 9px 13px;
+    font-size: 0.85rem;
   }
 
   .progress-card-top,
   .metrics-card-top,
   .card-header {
-    gap: 10px;
+    gap: 8px;
   }
 
   .dashboard-compact-card {
     min-height: 0;
+    padding: 14px;
+    gap: 8px;
+  }
+
+  .dashboard-compact-card .card-header {
+    margin-bottom: 6px;
+  }
+
+  .dashboard-snapshot strong {
+    font-size: 1.06rem;
+  }
+
+  .dashboard-snapshot p {
+    font-size: 0.84rem;
+  }
+
+  .dashboard-snapshot small {
+    font-size: 0.74rem;
+  }
+
+  .progress-card {
+    min-height: 0;
+    padding: 14px 14px 13px;
+  }
+
+  .progress-card-top strong {
+    font-size: 1.18rem;
+  }
+
+  .progress-card p,
+  .progress-card small {
+    margin-top: 6px;
+  }
+
+  .progress-track {
+    margin-top: 10px;
+    height: 8px;
+  }
+
+  .alert-banner {
+    padding: 10px 12px;
+    border-radius: 16px;
+    font-size: 0.88rem;
+  }
+
+  .mini-stat,
+  .weekly-note,
+  .summary-item {
+    padding: 10px 11px;
+    border-radius: 15px;
+  }
+
+  .section-inline-actions {
+    margin-top: 10px;
+  }
+
+  .section-inline-actions-tight {
+    margin-bottom: 8px;
+  }
+
+  .entry-item,
+  .history-item {
+    padding: 13px;
+    gap: 12px;
+  }
+
+  .private-layout .record-form,
+  .private-layout .form-grid {
+    gap: 10px;
+  }
+
+  .private-layout .field textarea {
+    min-height: 84px;
   }
 
   .private-agenda-toolbar,
@@ -2656,7 +2760,7 @@ button {
   }
 
   .fasting-live-card {
-    padding: 16px;
+    padding: 14px;
   }
 
   .fasting-live-metrics {
@@ -2666,8 +2770,8 @@ button {
 
 @media (max-width: 480px) {
   .app-shell {
-    width: calc(100% - 12px);
-    padding-top: 14px;
+    width: calc(100% - 10px);
+    padding-top: 10px;
   }
 
   .hero,
@@ -2680,26 +2784,43 @@ button {
   .backup-meta-card,
   .metrics-card,
   .private-agenda-summary-card {
-    padding: 14px;
-    border-radius: 16px;
+    padding: 12px;
+    border-radius: 15px;
+  }
+
+  .hero {
+    gap: 10px;
+    margin-bottom: 12px;
   }
 
   .hero h1 {
-    font-size: clamp(1.55rem, 8vw, 2rem);
+    font-size: clamp(1.46rem, 7.4vw, 1.9rem);
   }
 
   .hero-text {
-    font-size: 0.92rem;
+    margin-top: 7px;
+    font-size: 0.88rem;
+    line-height: 1.34;
   }
 
   .hero-build-label {
     font-size: 0.72rem;
   }
 
+  .hero-date {
+    padding: 11px 12px;
+  }
+
   .tab-button {
     min-height: 38px;
-    padding: 8px 11px;
-    font-size: 0.84rem;
+    padding: 8px 10px;
+    font-size: 0.82rem;
+  }
+
+  .tabs {
+    padding-right: 12px;
+    padding-bottom: 7px;
+    gap: 6px;
   }
 
   .form-actions .button,
@@ -2719,5 +2840,20 @@ button {
 
   .entry-details {
     gap: 6px;
+  }
+
+  .progress-card,
+  .dashboard-compact-card,
+  .fasting-live-card {
+    padding: 12px;
+  }
+
+  .progress-card-top strong,
+  .dashboard-snapshot strong {
+    font-size: 1rem;
+  }
+
+  .summary-item strong {
+    font-size: 1.08rem;
   }
 }

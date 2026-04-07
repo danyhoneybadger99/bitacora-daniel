@@ -579,6 +579,14 @@ function App() {
 
   useEffect(() => {
     if (!hasLoadedData) return;
+
+    // Avoid bumping updatedAt when the app is only hydrating an already-persisted snapshot
+    // from local storage or from Supabase. Real edits create a new diaryData object and
+    // should continue through the normal updatedAt flow.
+    if (diaryData === latestPersistedDataRef.current) {
+      return;
+    }
+
     const saveTimestamp = getCurrentDateTimeValue();
     const dataToPersist = markDataUpdated(diaryData, {
       updatedAt: saveTimestamp,
@@ -628,14 +636,14 @@ function App() {
 
         const localSnapshot = latestPersistedDataRef.current;
 
-        if (!remoteSnapshot?.data) {
+        if (!remoteSnapshot?.payload) {
           setHasResolvedRemoteSnapshot(true);
           setSyncStatus(localSnapshot.syncMeta?.updatedAt ? 'pending' : 'synced');
           return;
         }
 
         const mergedRemoteData = mergeRemoteSnapshot({
-          remoteData: migrateAppData(remoteSnapshot.data),
+          remoteData: migrateAppData(remoteSnapshot.payload),
           localData: localSnapshot,
           deviceId: syncDeviceIdRef.current || localSnapshot.syncMeta?.deviceId || createDeviceId(),
           lastSyncedAt: remoteSnapshot.last_synced_at || remoteSnapshot.updated_at || getCurrentDateTimeValue(),

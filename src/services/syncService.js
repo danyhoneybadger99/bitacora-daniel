@@ -68,6 +68,7 @@ export function sanitizeDataForRemote(data) {
   const nextData = ensureSyncMeta(data);
   const { privateVault, ...rest } = nextData;
 
+  // Keep device-local lock data out of Supabase in phase 1.
   return {
     ...rest,
     syncMeta: {
@@ -101,6 +102,7 @@ export function compareSnapshotRecency(localData, remoteData) {
   const localValue = getSyncComparableValue(localData);
   const remoteValue = getSyncComparableValue(remoteData);
 
+  // Phase 1 conflict strategy: last write wins based on updatedAt.
   if (remoteValue > localValue) return 'remote';
   if (localValue > remoteValue) return 'local';
   return 'equal';
@@ -156,23 +158,25 @@ export async function fetchRemoteSnapshot(userId) {
 
   const { data, error } = await supabase
     .from(SYNC_TABLE)
-    .select('data, updated_at, last_synced_at, schema_version, device_id')
+    .select('payload, updated_at, last_synced_at, user_id')
     .eq('user_id', userId)
     .maybeSingle();
 
   if (error) throw error;
   if (!data) return null;
 
+  const payload = data.payload || {};
+
   return {
     ...data,
-    data: {
-      ...(data.data || {}),
+    payload: {
+      ...payload,
       syncMeta: {
-        ...(data.data?.syncMeta || {}),
-        updatedAt: data.updated_at || data.data?.syncMeta?.updatedAt || '',
-        lastSyncedAt: data.last_synced_at || data.data?.syncMeta?.lastSyncedAt || '',
-        schemaVersion: data.schema_version || data.data?.syncMeta?.schemaVersion || SYNC_SCHEMA_VERSION,
-        deviceId: data.device_id || data.data?.syncMeta?.deviceId || '',
+        ...(payload.syncMeta || {}),
+        updatedAt: data.updated_at || payload.syncMeta?.updatedAt || '',
+        lastSyncedAt: data.last_synced_at || payload.syncMeta?.lastSyncedAt || '',
+        schemaVersion: payload.syncMeta?.schemaVersion || SYNC_SCHEMA_VERSION,
+        deviceId: payload.syncMeta?.deviceId || '',
       },
     },
   };
@@ -189,11 +193,9 @@ export async function pushRemoteSnapshot({ userId, data }) {
 
   const row = {
     user_id: userId,
-    data: payload,
+    payload,
     updated_at: timestamp,
     last_synced_at: lastSyncedAt,
-    schema_version: payload.syncMeta.schemaVersion || SYNC_SCHEMA_VERSION,
-    device_id: payload.syncMeta.deviceId || '',
   };
 
   const { data: response, error } = await supabase
