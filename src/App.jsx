@@ -71,7 +71,7 @@ import {
   privateProductStatusLabels,
 } from './utils/domain/private';
 import {
-  compareSnapshotRecency,
+  chooseSnapshotWinner,
   createDeviceId,
   ensureSyncMeta,
   fetchRemoteSnapshot,
@@ -694,12 +694,15 @@ function App() {
         if (cancelled) return;
 
         const localSnapshot = latestPersistedDataRef.current;
+        console.log('LOCAL STATE BEFORE MERGE:', localSnapshot);
 
         if (!remoteSnapshot?.payload) {
           setHasResolvedRemoteSnapshot(true);
           setSyncStatus(localSnapshot.syncMeta?.updatedAt ? 'pending' : 'synced');
           return;
         }
+
+        console.log('REMOTE SNAPSHOT:', remoteSnapshot.payload);
 
         const mergedRemoteData = mergeRemoteSnapshot({
           remoteData: migrateAppData(remoteSnapshot.payload),
@@ -708,7 +711,7 @@ function App() {
           lastSyncedAt: remoteSnapshot.last_synced_at || remoteSnapshot.updated_at || getCurrentDateTimeValue(),
         });
 
-        const winner = compareSnapshotRecency(localSnapshot, mergedRemoteData);
+        const winner = chooseSnapshotWinner(localSnapshot, mergedRemoteData);
 
         if (winner === 'remote') {
           skipNextRemoteSyncRef.current = true;
@@ -1947,6 +1950,40 @@ function lockPrivateModule(feedbackText = '') {
     try {
       setSyncStatus('syncing');
       const currentSnapshot = latestPersistedDataRef.current;
+      console.log('LOCAL STATE BEFORE MERGE:', currentSnapshot);
+
+      const remoteSnapshot = await fetchRemoteSnapshot(syncUser.id);
+
+      if (remoteSnapshot?.payload) {
+        console.log('REMOTE SNAPSHOT:', remoteSnapshot.payload);
+
+        const mergedRemoteData = mergeRemoteSnapshot({
+          remoteData: migrateAppData(remoteSnapshot.payload),
+          localData: currentSnapshot,
+          deviceId: syncDeviceIdRef.current || currentSnapshot.syncMeta?.deviceId || createDeviceId(),
+          lastSyncedAt: remoteSnapshot.last_synced_at || remoteSnapshot.updated_at || getCurrentDateTimeValue(),
+        });
+
+        const winner = chooseSnapshotWinner(currentSnapshot, mergedRemoteData);
+
+        if (winner === 'remote') {
+          skipNextRemoteSyncRef.current = true;
+          latestPersistedDataRef.current = mergedRemoteData;
+          saveAppData(mergedRemoteData);
+          setDiaryData(mergedRemoteData);
+          setGoalForm(mergedRemoteData.goals || defaultState.goals);
+          setObjectiveForm(
+            (mergedRemoteData.objectives && mergedRemoteData.objectives[0]) ||
+              defaultState.objectives?.[0] ||
+              createEmptyObjective()
+          );
+          setSyncLastSyncedAt(mergedRemoteData.syncMeta?.lastSyncedAt || '');
+          setSyncStatus('synced');
+          setSyncFeedback({ type: 'success', text: 'Snapshot remoto aplicado correctamente.' });
+          return;
+        }
+      }
+
       const syncResult = await pushRemoteSnapshot({
         userId: syncUser.id,
         data: currentSnapshot,

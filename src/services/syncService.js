@@ -108,6 +108,38 @@ export function compareSnapshotRecency(localData, remoteData) {
   return 'equal';
 }
 
+function getComparableSnapshot(data = {}) {
+  const sanitized = sanitizeDataForRemote(data);
+
+  return {
+    ...sanitized,
+    backupMeta: {
+      lastExportAt: '',
+      lastImportAt: '',
+    },
+    syncMeta: {
+      updatedAt: '',
+      lastSyncedAt: '',
+      deviceId: '',
+      schemaVersion: sanitized.syncMeta?.schemaVersion || SYNC_SCHEMA_VERSION,
+    },
+  };
+}
+
+export function isEffectivelyDefaultSnapshot(data = {}) {
+  return JSON.stringify(getComparableSnapshot(data)) === JSON.stringify(getComparableSnapshot(defaultState));
+}
+
+export function chooseSnapshotWinner(localData, remoteData) {
+  const localIsDefault = isEffectivelyDefaultSnapshot(localData);
+  const remoteIsDefault = isEffectivelyDefaultSnapshot(remoteData);
+
+  if (localIsDefault && !remoteIsDefault) return 'remote';
+  if (remoteIsDefault && !localIsDefault) return 'local';
+
+  return compareSnapshotRecency(localData, remoteData);
+}
+
 export async function getSupabaseSession() {
   if (!isSupabaseConfigured || !supabase) return null;
   const { data, error } = await supabase.auth.getSession();
