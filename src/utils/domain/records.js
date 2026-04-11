@@ -164,6 +164,44 @@ export const supplementFilterOptions = [
   { value: 'otro', label: 'Otro' },
 ];
 
+export const recommendedSupplementChecklist = [
+  {
+    key: 'd3-k2',
+    name: 'D3 con K2',
+    category: 'vitamina',
+    daytime: 'manana',
+    foodRelation: 'con-comida',
+  },
+  {
+    key: 'magnesio-glicinato',
+    name: 'Magnesio glicinato',
+    category: 'mineral',
+    daytime: 'noche',
+    foodRelation: 'despues-comer',
+  },
+  {
+    key: 'potasio',
+    name: 'Potasio',
+    category: 'mineral',
+    daytime: 'mediodia',
+    foodRelation: 'con-comida',
+  },
+  {
+    key: 'omega-3',
+    name: 'Omega 3',
+    category: 'suplemento',
+    daytime: 'manana',
+    foodRelation: 'con-comida',
+  },
+  {
+    key: 'multivitaminico',
+    name: 'Multivitaminico',
+    category: 'vitamina',
+    daytime: 'manana',
+    foodRelation: 'con-comida',
+  },
+];
+
 export const exerciseModalityLabels = {
   cardio: 'Cardio',
   pesas: 'Pesas',

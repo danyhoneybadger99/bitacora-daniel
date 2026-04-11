@@ -115,6 +115,12 @@ function normalizeFastingLogs(items) {
     : [];
 }
 
+function normalizeFastingFreeDays(items) {
+  if (!Array.isArray(items)) return [];
+
+  return [...new Set(items.map((item) => normalizeDateString(item)).filter(Boolean))];
+}
+
 function normalizeObjectives(items) {
   return Array.isArray(items) && items.length > 0
     ? items.map((item) => ({
@@ -378,6 +384,7 @@ export function migrateAppData(parsed = {}) {
     bodyMetrics: normalizeBodyMetrics(parsed.bodyMetrics),
     fastingProtocols: normalizeFastingProtocols(parsed.fastingProtocols),
     fastingLogs: normalizeFastingLogs(parsed.fastingLogs),
+    fastingFreeDays: normalizeFastingFreeDays(parsed.fastingFreeDays),
     privateCycles: seededPrivate.privateCycles,
     privateProducts: seededPrivate.privateProducts,
     privatePayments: seededPrivate.privatePayments,

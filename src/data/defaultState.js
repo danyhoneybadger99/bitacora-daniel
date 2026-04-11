@@ -128,6 +128,7 @@ export const defaultState = {
   bodyMetrics: [],
   fastingProtocols: defaultFastingProtocols,
   fastingLogs: [],
+  fastingFreeDays: [],
   privateCycles: privateSeedData.privateCycles,
   privateProducts: privateSeedData.privateProducts,
   privatePayments: privateSeedData.privatePayments,

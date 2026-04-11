@@ -6,6 +6,7 @@ import {
   getFastingDatesInsideRange,
   getFastingHoursInsideRange,
   getFastingRecordDate,
+  isFastingFreeDay,
   getWeeklyFastingStatus,
 } from './fasting';
 import { getHydrationMl } from './records';
@@ -17,6 +18,7 @@ export function buildWeeklySummary({
   hydrationBaseGoal,
   proteinGoal,
   weekReferenceDate,
+  fastingFreeDays = [],
 }) {
   const start = getStartOfWeek(weekReferenceDate);
   const end = getEndOfWeek(weekReferenceDate);
@@ -25,6 +27,7 @@ export function buildWeeklySummary({
   const exercises = diaryData.exercises.filter((item) => item.date && isDateInRange(item.date, start, end));
   const supplements = diaryData.supplements.filter((item) => item.date && isDateInRange(item.date, start, end));
   const fastingLogs = diaryData.fastingLogs.filter((item) => doesFastingOverlapWeek(item, start, end, fastingNow));
+  const weeklyFastingFreeDays = [...new Set((fastingFreeDays || []).filter((item) => item && isDateInRange(item, start, end)))];
   const bodyMetrics = sortByDateDesc(
     diaryData.bodyMetrics.filter((item) => item.date && isDateInRange(item.date, start, end))
   );
@@ -91,7 +94,9 @@ export function buildWeeklySummary({
   const weeklyFastingEntries = fastingLogs.map((item) => {
     const recordDate = getFastingRecordDate(item);
     const protocol = findFastingProtocolForDate(diaryData.fastingProtocols || [], recordDate || start);
-    const status = getWeeklyFastingStatus(item, protocol, fastingNow);
+    const status = isFastingFreeDay(weeklyFastingFreeDays, recordDate)
+      ? 'libre'
+      : getWeeklyFastingStatus(item, protocol, fastingNow);
 
     return {
       item,
@@ -104,6 +109,7 @@ export function buildWeeklySummary({
   const fastingCompleted = weeklyFastingEntries.filter((entry) => entry.status === 'cumplido').length;
   const fastingInProgress = weeklyFastingEntries.filter((entry) => entry.status === 'en curso').length;
   const fastingDeviations = weeklyFastingEntries.filter((entry) => entry.status === 'roto').length;
+  const fastingFreeDaysCount = weeklyFastingFreeDays.length;
   const fastingHours = weeklyFastingEntries.reduce((total, entry) => total + entry.overlapHours, 0);
   const omadCompleted = weeklyFastingEntries.filter((entry) => {
     const expectedProtocolText = String(entry.item.expectedProtocol || formatProtocolLabel(entry.protocol) || '').toLowerCase();
@@ -139,6 +145,7 @@ export function buildWeeklySummary({
     fastingCompleted,
     fastingInProgress,
     fastingDeviations,
+    fastingFreeDays: fastingFreeDaysCount,
     fastingHours,
     fastingLogsCount: fastingLogs.length,
     fastingDays: fastingDates.length,

@@ -190,6 +190,13 @@ export function getFastingRecordDate(log, fallbackDate = '') {
   return normalizeDateString(log?.date || log?.actualStartDateTime || log?.actualBreakDateTime || fallbackDate);
 }
 
+export function isFastingFreeDay(freeDays = [], dateString = '') {
+  const targetDate = normalizeDateString(dateString);
+  if (!targetDate) return false;
+
+  return (freeDays || []).some((item) => normalizeDateString(item) === targetDate);
+}
+
 export function getFastingTimeRange(log, nowTimestamp = Date.now()) {
   if (!log?.actualStartDateTime) return null;
 
