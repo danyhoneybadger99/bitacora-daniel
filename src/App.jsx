@@ -53,14 +53,18 @@ import {
 } from './utils/domain/objectives';
 import { getPersistenceCollectionCounts, isValidAppDataPayload } from './utils/domain/persistenceDebug';
 import {
+  buildPrivateHormonalWeeklySummary,
+  buildPrivateOperationalAlerts,
   buildPrivateSummary,
   buildPrivateTimeline,
   createEmptyPrivateCycle,
+  createEmptyPrivateDailyCheck,
   createEmptyPrivateEntry,
   createEmptyPrivatePayment,
   createEmptyPrivateProduct,
   getPrivateActiveCycle,
   getPrivateCycleFinancialSummary,
+  privateDailyRetentionLabels,
   getPrivatePinLength,
   isValidPrivatePin,
   repairPrivateCycle2026Data,
@@ -75,8 +79,11 @@ import {
   chooseSnapshotWinner,
   createDeviceId,
   ensureSyncMeta,
+  explainSnapshotWinner,
   fetchRemoteSnapshot,
+  getSnapshotSummary,
   getSupabaseSession,
+  logSyncDebug,
   markDataSynced,
   markDataUpdated,
   mergeRemoteSnapshot,
@@ -263,6 +270,16 @@ function formatAgendaTime(value) {
     .replace(/\b(p\.?\s?m\.?)\b/i, 'p. m.');
 }
 
+function formatPrivateScaleValue(value) {
+  if (!value) return 'Sin dato';
+  return `${value}/5`;
+}
+
+function formatPrivateAverageValue(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return 'Sin dato';
+  return `${Number(value).toFixed(1)}/5`;
+}
+
 function normalizeTextToken(value) {
   return String(value || '')
     .normalize('NFD')
@@ -404,6 +421,8 @@ function getPrivateAgendaEventDetail(item, linkedProduct) {
 
 function App() {
   const currentDate = getToday();
+  const currentWeekStart = getStartOfWeek(currentDate);
+  const currentWeekEnd = getEndOfWeek(currentDate);
   const isDevMode = import.meta.env.DEV;
   const canShowPrivateRepair =
     Boolean(import.meta.env.DEV) &&
@@ -431,6 +450,7 @@ function App() {
   const [privateCycleForm, setPrivateCycleForm] = useState(createEmptyPrivateCycle);
   const [privateProductForm, setPrivateProductForm] = useState(createEmptyPrivateProduct);
   const [privatePaymentForm, setPrivatePaymentForm] = useState(createEmptyPrivatePayment);
+  const [privateDailyCheckForm, setPrivateDailyCheckForm] = useState(createEmptyPrivateDailyCheck);
   const [editingFoodId, setEditingFoodId] = useState(null);
   const [editingHydrationId, setEditingHydrationId] = useState(null);
   const [editingFoodTemplateId, setEditingFoodTemplateId] = useState(null);
@@ -443,6 +463,7 @@ function App() {
   const [editingPrivateCycleId, setEditingPrivateCycleId] = useState(null);
   const [editingPrivateProductId, setEditingPrivateProductId] = useState(null);
   const [editingPrivatePaymentId, setEditingPrivatePaymentId] = useState(null);
+  const [editingPrivateDailyCheckId, setEditingPrivateDailyCheckId] = useState(null);
   const [weekReferenceDate, setWeekReferenceDate] = useState(currentDate);
   const [showAllRecentFoods, setShowAllRecentFoods] = useState(false);
   const [showFoodTemplateBuilder, setShowFoodTemplateBuilder] = useState(true);
@@ -488,8 +509,11 @@ function App() {
   const latestPersistedDataRef = useRef(defaultState);
   const syncDebounceTimeoutRef = useRef(null);
   const skipNextRemoteSyncRef = useRef(false);
+  const syncRefreshInFlightRef = useRef(false);
+  const lastSyncRefreshAtRef = useRef(0);
   const privateAutoLockTimeoutRef = useRef(null);
   const privateCycleSectionRef = useRef(null);
+  const privateDailyCheckSectionRef = useRef(null);
   const privateProductSectionRef = useRef(null);
   const privatePaymentSectionRef = useRef(null);
   const privateEventSectionRef = useRef(null);
@@ -555,6 +579,47 @@ function App() {
       subscription?.unsubscribe?.();
     };
   }, [isOnline, remoteSyncEnabled]);
+
+  useEffect(() => {
+    if (!remoteSyncEnabled || !hasLoadedData || !hasResolvedRemoteSnapshot || !syncUser) return undefined;
+
+    const handleForegroundSync = () => {
+      if (document.visibilityState !== 'visible') return;
+      pullRemoteSnapshotAndHydrate({ reason: 'visibility-return' })
+        .then((result) => {
+          if (result.status === 'hydrated-remote' || result.status === 'equal') {
+            setSyncStatus('synced');
+          }
+        })
+        .catch((error) => {
+          logSyncDebug('foreground-pull:error', {
+            message: error instanceof Error ? error.message : String(error),
+          });
+        });
+    };
+
+    const handleWindowFocus = () => {
+      pullRemoteSnapshotAndHydrate({ reason: 'window-focus' })
+        .then((result) => {
+          if (result.status === 'hydrated-remote' || result.status === 'equal') {
+            setSyncStatus('synced');
+          }
+        })
+        .catch((error) => {
+          logSyncDebug('focus-pull:error', {
+            message: error instanceof Error ? error.message : String(error),
+          });
+        });
+    };
+
+    document.addEventListener('visibilitychange', handleForegroundSync);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleForegroundSync);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [hasLoadedData, hasResolvedRemoteSnapshot, remoteSyncEnabled, syncUser, isOnline]);
 
   function togglePrivateForm(formKey) {
     setPrivateFormVisibility((current) => ({
@@ -639,6 +704,89 @@ function App() {
     }
   }
 
+  function applyHydratedSnapshot(snapshot, options = {}) {
+    if (!snapshot) return;
+
+    latestPersistedDataRef.current = snapshot;
+    saveAppData(snapshot);
+    skipNextRemoteSyncRef.current = true;
+    setDiaryData(snapshot);
+    setGoalForm(snapshot.goals || defaultState.goals);
+    setObjectiveForm(
+      (snapshot.objectives && snapshot.objectives[0]) ||
+        defaultState.objectives?.[0] ||
+        createEmptyObjective()
+    );
+    setSyncLastSyncedAt(snapshot.syncMeta?.lastSyncedAt || '');
+
+    if (options.feedbackText) {
+      setSyncFeedback({ type: 'success', text: options.feedbackText });
+    }
+  }
+
+  async function pullRemoteSnapshotAndHydrate({ reason = 'manual', force = false } = {}) {
+    if (!remoteSyncEnabled || !syncUser || !isOnline) return { status: 'skipped', winner: 'local' };
+    if (syncRefreshInFlightRef.current) return { status: 'busy', winner: 'local' };
+
+    const now = Date.now();
+    if (!force && now - lastSyncRefreshAtRef.current < 12000) {
+      return { status: 'throttled', winner: 'local' };
+    }
+
+    syncRefreshInFlightRef.current = true;
+    lastSyncRefreshAtRef.current = now;
+
+    try {
+      const localSnapshot = latestPersistedDataRef.current;
+      logSyncDebug('reconcile:local-before', {
+        reason,
+        summary: getSnapshotSummary(localSnapshot),
+      });
+      console.log('LOCAL STATE BEFORE MERGE:', localSnapshot);
+
+      const remoteSnapshot = await fetchRemoteSnapshot(syncUser.id);
+
+      if (!remoteSnapshot?.payload) {
+        logSyncDebug('reconcile:no-remote', { reason });
+        return { status: 'no-remote', winner: 'local', localSnapshot };
+      }
+
+      console.log('REMOTE SNAPSHOT:', remoteSnapshot.payload);
+
+      const mergedRemoteData = mergeRemoteSnapshot({
+        remoteData: migrateAppData(remoteSnapshot.payload),
+        localData: localSnapshot,
+        deviceId: syncDeviceIdRef.current || localSnapshot.syncMeta?.deviceId || createDeviceId(),
+        lastSyncedAt: remoteSnapshot.last_synced_at || remoteSnapshot.updated_at || getCurrentDateTimeValue(),
+      });
+
+      const decision = explainSnapshotWinner(localSnapshot, mergedRemoteData);
+      logSyncDebug('reconcile:decision', {
+        reason,
+        winner: decision.winner,
+        why: decision.reason,
+        local: getSnapshotSummary(localSnapshot),
+        remote: getSnapshotSummary(mergedRemoteData),
+        localValue: decision.localValue,
+        remoteValue: decision.remoteValue,
+      });
+
+      if (decision.winner === 'remote') {
+        applyHydratedSnapshot(mergedRemoteData);
+        return { status: 'hydrated-remote', winner: 'remote', remoteSnapshot: mergedRemoteData };
+      }
+
+      if (decision.winner === 'equal') {
+        setSyncLastSyncedAt(mergedRemoteData.syncMeta?.lastSyncedAt || '');
+        return { status: 'equal', winner: 'equal', remoteSnapshot: mergedRemoteData, localSnapshot };
+      }
+
+      return { status: 'keep-local', winner: 'local', remoteSnapshot: mergedRemoteData, localSnapshot };
+    } finally {
+      syncRefreshInFlightRef.current = false;
+    }
+  }
+
   useEffect(() => {
     const loadedData = loadAppData();
     const preparedData = ensureSyncMeta(
@@ -715,50 +863,16 @@ function App() {
     setSyncStatus('syncing');
     setHasResolvedRemoteSnapshot(false);
 
-    fetchRemoteSnapshot(syncUser.id)
-      .then((remoteSnapshot) => {
+    pullRemoteSnapshotAndHydrate({ reason: 'initial-session', force: true })
+      .then((result) => {
         if (cancelled) return;
-
-        const localSnapshot = latestPersistedDataRef.current;
-        console.log('LOCAL STATE BEFORE MERGE:', localSnapshot);
-
-        if (!remoteSnapshot?.payload) {
-          setHasResolvedRemoteSnapshot(true);
-          setSyncStatus(localSnapshot.syncMeta?.updatedAt ? 'pending' : 'synced');
-          return;
-        }
-
-        console.log('REMOTE SNAPSHOT:', remoteSnapshot.payload);
-
-        const mergedRemoteData = mergeRemoteSnapshot({
-          remoteData: migrateAppData(remoteSnapshot.payload),
-          localData: localSnapshot,
-          deviceId: syncDeviceIdRef.current || localSnapshot.syncMeta?.deviceId || createDeviceId(),
-          lastSyncedAt: remoteSnapshot.last_synced_at || remoteSnapshot.updated_at || getCurrentDateTimeValue(),
-        });
-
-        const winner = chooseSnapshotWinner(localSnapshot, mergedRemoteData);
-
-        if (winner === 'remote') {
-          skipNextRemoteSyncRef.current = true;
-          latestPersistedDataRef.current = mergedRemoteData;
-          saveAppData(mergedRemoteData);
-          setDiaryData(mergedRemoteData);
-          setGoalForm(mergedRemoteData.goals || defaultState.goals);
-          setObjectiveForm(
-            (mergedRemoteData.objectives && mergedRemoteData.objectives[0]) ||
-              defaultState.objectives?.[0] ||
-              createEmptyObjective()
-          );
-          setSyncLastSyncedAt(mergedRemoteData.syncMeta?.lastSyncedAt || '');
+        if (result.status === 'hydrated-remote' || result.status === 'equal') {
           setSyncStatus('synced');
-        } else if (winner === 'equal') {
-          setSyncLastSyncedAt(mergedRemoteData.syncMeta?.lastSyncedAt || '');
-          setSyncStatus('synced');
+        } else if (result.status === 'no-remote') {
+          setSyncStatus(result.localSnapshot?.syncMeta?.updatedAt ? 'pending' : 'synced');
         } else {
           setSyncStatus('pending');
         }
-
         setHasResolvedRemoteSnapshot(true);
       })
       .catch((error) => {
@@ -796,6 +910,9 @@ function App() {
       try {
         setSyncStatus('syncing');
         const currentSnapshot = latestPersistedDataRef.current;
+        logSyncDebug('autosync:queued-push', {
+          summary: getSnapshotSummary(currentSnapshot),
+        });
         const syncResult = await pushRemoteSnapshot({
           userId: syncUser.id,
           data: currentSnapshot,
@@ -804,10 +921,18 @@ function App() {
           deviceId: syncDeviceIdRef.current || currentSnapshot.syncMeta?.deviceId || createDeviceId(),
           lastSyncedAt: syncResult.lastSyncedAt || getCurrentDateTimeValue(),
         });
-        latestPersistedDataRef.current = syncedSnapshot;
-        saveAppData(syncedSnapshot);
-        setSyncLastSyncedAt(syncedSnapshot.syncMeta?.lastSyncedAt || '');
-        setSyncStatus('synced');
+        applyHydratedSnapshot(syncedSnapshot);
+        const reconcileResult = await pullRemoteSnapshotAndHydrate({ reason: 'post-push-confirmation', force: true });
+        if (reconcileResult.status === 'hydrated-remote' || reconcileResult.status === 'equal' || reconcileResult.status === 'keep-local' || reconcileResult.status === 'no-remote') {
+          setSyncStatus('synced');
+          if (reconcileResult.status === 'hydrated-remote') {
+            setSyncFeedback({ type: 'success', text: 'Snapshot remoto confirmado y aplicado.' });
+          } else {
+            setSyncFeedback({ type: 'success', text: 'Cambios locales enviados y confirmados.' });
+          }
+        } else {
+          setSyncStatus('pending');
+        }
       } catch (error) {
         setSyncStatus(isOnline ? 'error' : 'offline');
         setSyncFeedback({
@@ -1040,6 +1165,11 @@ function App() {
     }),
   [diaryData.privateHormonalEntries]
   );
+  const privateDailyChecks = useMemo(
+    () =>
+      sortByDateDesc(diaryData.privateDailyChecks || []).sort((a, b) => String(b.id || '').localeCompare(String(a.id || ''))),
+    [diaryData.privateDailyChecks]
+  );
   const activePrivateCycle = useMemo(() => getPrivateActiveCycle(privateCycles), [privateCycles]);
   const hasActivePrivateCycle = Boolean(activePrivateCycle);
   const privateSummary = useMemo(
@@ -1068,6 +1198,14 @@ function App() {
   const activeCycleEntries = useMemo(
     () => (activePrivateCycle ? privateEntries.filter((item) => item.cycleId === activePrivateCycle.id) : []),
     [activePrivateCycle, privateEntries]
+  );
+  const activeCycleDailyChecks = useMemo(
+    () => (activePrivateCycle ? privateDailyChecks.filter((item) => item.cycleId === activePrivateCycle.id) : []),
+    [activePrivateCycle, privateDailyChecks]
+  );
+  const todayPrivateDailyCheck = useMemo(
+    () => activeCycleDailyChecks.find((item) => item.date === currentDate) || null,
+    [activeCycleDailyChecks, currentDate]
   );
   const privateTimeline = useMemo(
     () =>
@@ -1228,8 +1366,88 @@ function App() {
     if (activeCycleProducts.length === 0) return 'Agrega un componente al ciclo activo.';
     if (activeCycleEntries.length === 0) return 'Registra un evento para alimentar la bitacora.';
     if (activeCyclePayments.length === 0) return 'Registra un pago para reflejar el avance financiero.';
+    if (!todayPrivateDailyCheck) return 'Completa el chequeo diario para capturar energia, animo y sueño.';
     return '';
-  }, [activePrivateCycle, activeCycleEntries.length, activeCyclePayments.length, activeCycleProducts.length]);
+  }, [activePrivateCycle, activeCycleEntries.length, activeCyclePayments.length, activeCycleProducts.length, todayPrivateDailyCheck]);
+  const privateHormonalWeeklySummary = useMemo(
+    () =>
+      buildPrivateHormonalWeeklySummary({
+        activeCycle: activePrivateCycle,
+        privateEntries,
+        privateProducts,
+        privatePayments,
+        privateDailyChecks,
+        weekStart: currentWeekStart,
+        weekEnd: currentWeekEnd,
+        currentDate,
+        now: new Date(),
+      }),
+    [
+      activePrivateCycle,
+      privateEntries,
+      privateProducts,
+      privatePayments,
+      privateDailyChecks,
+      currentWeekStart,
+      currentWeekEnd,
+      currentDate,
+    ]
+  );
+  const privateOperationalAlerts = useMemo(
+    () =>
+      buildPrivateOperationalAlerts({
+        activeCycle: activePrivateCycle,
+        privateEntries,
+        privatePayments,
+        privateDailyChecks,
+        weekStart: currentWeekStart,
+        weekEnd: currentWeekEnd,
+        currentDate,
+        now: new Date(),
+      }),
+    [activePrivateCycle, privateEntries, privatePayments, privateDailyChecks, currentWeekStart, currentWeekEnd, currentDate]
+  );
+  const privateDailySummaryCards = useMemo(
+    () => [
+      {
+        label: 'Chequeo de hoy',
+        value: todayPrivateDailyCheck ? 'Registrado' : 'Pendiente',
+        detail: todayPrivateDailyCheck ? formatPrivateDate(todayPrivateDailyCheck.date) : 'Completa el registro diario.',
+      },
+      {
+        label: 'Energia semanal',
+        value: formatPrivateAverageValue(privateHormonalWeeklySummary.energyAverage),
+        detail: 'Promedio de energia percibida.',
+      },
+      {
+        label: 'Sueño semanal',
+        value: formatPrivateAverageValue(privateHormonalWeeklySummary.sleepAverage),
+        detail: 'Promedio semanal de sueño.',
+      },
+      {
+        label: 'Animo semanal',
+        value: formatPrivateAverageValue(privateHormonalWeeklySummary.moodAverage),
+        detail: 'Promedio semanal de estado de animo.',
+      },
+    ],
+    [
+      todayPrivateDailyCheck,
+      privateHormonalWeeklySummary.energyAverage,
+      privateHormonalWeeklySummary.moodAverage,
+      privateHormonalWeeklySummary.sleepAverage,
+    ]
+  );
+  const privateDailyScaleFieldOptions = useMemo(
+    () => [
+      { value: '', label: 'Sin registrar' },
+      { value: '1', label: '1 - Muy bajo' },
+      { value: '2', label: '2 - Bajo' },
+      { value: '3', label: '3 - Medio' },
+      { value: '4', label: '4 - Bueno' },
+      { value: '5', label: '5 - Muy bueno' },
+    ],
+    []
+  );
   const persistenceDebugCounts = useMemo(() => getPersistenceCollectionCounts(diaryData), [diaryData]);
 
   useEffect(() => {
@@ -1318,13 +1536,18 @@ function lockPrivateModule(feedbackText = '') {
   }, [isPrivateUnlocked, privateVault.autoLockMinutes]);
 
   useEffect(() => {
-    if (editingPrivateEntryId || editingPrivateProductId || editingPrivatePaymentId) return;
+    if (editingPrivateEntryId || editingPrivateProductId || editingPrivatePaymentId || editingPrivateDailyCheckId) return;
 
     const activeCycleId = activePrivateCycle?.id || '';
     setPrivateEntryForm((current) => (current.cycleId === activeCycleId ? current : { ...current, cycleId: activeCycleId, productId: '' }));
     setPrivateProductForm((current) => (current.cycleId === activeCycleId ? current : { ...current, cycleId: activeCycleId }));
     setPrivatePaymentForm((current) => (current.cycleId === activeCycleId ? current : { ...current, cycleId: activeCycleId }));
-  }, [activePrivateCycle, editingPrivateEntryId, editingPrivatePaymentId, editingPrivateProductId]);
+    setPrivateDailyCheckForm((current) =>
+      current.cycleId === activeCycleId && current.date === currentDate
+        ? current
+        : { ...current, cycleId: activeCycleId, date: current.date || currentDate || getToday() }
+    );
+  }, [activePrivateCycle, editingPrivateDailyCheckId, editingPrivateEntryId, editingPrivatePaymentId, editingPrivateProductId, currentDate]);
 
   useEffect(() => {
     if (!isPrivateUnlocked) return;
@@ -1734,6 +1957,14 @@ function lockPrivateModule(feedbackText = '') {
     });
   }
 
+  function resetPrivateDailyCheckForm() {
+    setPrivateDailyCheckForm({
+      ...createEmptyPrivateDailyCheck(),
+      cycleId: activePrivateCycle?.id || '',
+      date: currentDate,
+    });
+  }
+
   function handleGoalSubmit(event) {
     event.preventDefault();
     markPersistenceReason('guardar:goals');
@@ -1789,6 +2020,7 @@ function lockPrivateModule(feedbackText = '') {
     delete payload.privateProducts;
     delete payload.privatePayments;
     delete payload.privateHormonalEntries;
+    delete payload.privateDailyChecks;
     delete payload.privateVault;
 
     const fileSafeTimestamp = exportTimestamp.replace(/[:T]/g, '-');
@@ -1832,6 +2064,7 @@ function lockPrivateModule(feedbackText = '') {
           privateProducts: diaryData.privateProducts || defaultState.privateProducts,
           privatePayments: diaryData.privatePayments || defaultState.privatePayments,
           privateHormonalEntries: diaryData.privateHormonalEntries || defaultState.privateHormonalEntries,
+          privateDailyChecks: diaryData.privateDailyChecks || defaultState.privateDailyChecks,
           privateVault: diaryData.privateVault || defaultState.privateVault,
           privateSeedVersion: diaryData.privateSeedVersion || defaultState.privateSeedVersion,
           backupMeta: {
@@ -1907,6 +2140,7 @@ function lockPrivateModule(feedbackText = '') {
     resetPrivateCycleForm();
     resetPrivateProductForm();
     resetPrivatePaymentForm();
+    resetPrivateDailyCheckForm();
     setEditingFoodId(null);
     setEditingHydrationId(null);
     setEditingFoodTemplateId(null);
@@ -1919,6 +2153,7 @@ function lockPrivateModule(feedbackText = '') {
     setEditingPrivateCycleId(null);
     setEditingPrivateProductId(null);
     setEditingPrivatePaymentId(null);
+    setEditingPrivateDailyCheckId(null);
     setBackupInputKey((current) => current + 1);
     setPrivateBackupInputKey((current) => current + 1);
     setPrivateSetupPin('');
@@ -2015,41 +2250,15 @@ function lockPrivateModule(feedbackText = '') {
 
     try {
       setSyncStatus('syncing');
-      const currentSnapshot = latestPersistedDataRef.current;
-      console.log('LOCAL STATE BEFORE MERGE:', currentSnapshot);
+      const initialResult = await pullRemoteSnapshotAndHydrate({ reason: 'manual-sync-preflight', force: true });
 
-      const remoteSnapshot = await fetchRemoteSnapshot(syncUser.id);
-
-      if (remoteSnapshot?.payload) {
-        console.log('REMOTE SNAPSHOT:', remoteSnapshot.payload);
-
-        const mergedRemoteData = mergeRemoteSnapshot({
-          remoteData: migrateAppData(remoteSnapshot.payload),
-          localData: currentSnapshot,
-          deviceId: syncDeviceIdRef.current || currentSnapshot.syncMeta?.deviceId || createDeviceId(),
-          lastSyncedAt: remoteSnapshot.last_synced_at || remoteSnapshot.updated_at || getCurrentDateTimeValue(),
-        });
-
-        const winner = chooseSnapshotWinner(currentSnapshot, mergedRemoteData);
-
-        if (winner === 'remote') {
-          skipNextRemoteSyncRef.current = true;
-          latestPersistedDataRef.current = mergedRemoteData;
-          saveAppData(mergedRemoteData);
-          setDiaryData(mergedRemoteData);
-          setGoalForm(mergedRemoteData.goals || defaultState.goals);
-          setObjectiveForm(
-            (mergedRemoteData.objectives && mergedRemoteData.objectives[0]) ||
-              defaultState.objectives?.[0] ||
-              createEmptyObjective()
-          );
-          setSyncLastSyncedAt(mergedRemoteData.syncMeta?.lastSyncedAt || '');
-          setSyncStatus('synced');
-          setSyncFeedback({ type: 'success', text: 'Snapshot remoto aplicado correctamente.' });
-          return;
-        }
+      if (initialResult.status === 'hydrated-remote') {
+        setSyncStatus('synced');
+        setSyncFeedback({ type: 'success', text: 'Snapshot remoto cargado y aplicado.' });
+        return;
       }
 
+      const currentSnapshot = latestPersistedDataRef.current;
       const syncResult = await pushRemoteSnapshot({
         userId: syncUser.id,
         data: currentSnapshot,
@@ -2058,11 +2267,24 @@ function lockPrivateModule(feedbackText = '') {
         deviceId: syncDeviceIdRef.current || currentSnapshot.syncMeta?.deviceId || createDeviceId(),
         lastSyncedAt: syncResult.lastSyncedAt || getCurrentDateTimeValue(),
       });
-      latestPersistedDataRef.current = syncedSnapshot;
-      saveAppData(syncedSnapshot);
-      setSyncLastSyncedAt(syncedSnapshot.syncMeta?.lastSyncedAt || '');
-      setSyncStatus('synced');
-      setSyncFeedback({ type: 'success', text: 'Snapshot sincronizado con Supabase.' });
+      applyHydratedSnapshot(syncedSnapshot);
+
+      const confirmationResult = await pullRemoteSnapshotAndHydrate({ reason: 'manual-sync-confirmation', force: true });
+
+      if (confirmationResult.status === 'hydrated-remote') {
+        setSyncStatus('synced');
+        setSyncFeedback({ type: 'success', text: 'Snapshot remoto confirmado y aplicado.' });
+      } else if (
+        confirmationResult.status === 'equal' ||
+        confirmationResult.status === 'keep-local' ||
+        confirmationResult.status === 'no-remote'
+      ) {
+        setSyncStatus('synced');
+        setSyncFeedback({ type: 'success', text: 'Cambios locales enviados y confirmados.' });
+      } else {
+        setSyncStatus('pending');
+        setSyncFeedback({ type: 'info', text: 'La sincronizacion quedo pendiente de confirmacion.' });
+      }
     } catch (error) {
       setSyncStatus(isOnline ? 'error' : 'offline');
       setSyncFeedback({
@@ -2131,6 +2353,22 @@ function lockPrivateModule(feedbackText = '') {
     }
     upsertRecord('privatePayments', privatePaymentForm, editingPrivatePaymentId, resetPrivatePaymentForm, setEditingPrivatePaymentId);
     setPrivateFeedback({ type: 'success', text: 'Pago privado guardado correctamente.' });
+  }
+
+  function handlePrivateDailyCheckSubmit(event) {
+    event.preventDefault();
+    if (!activePrivateCycle) {
+      setPrivateFeedback({ type: 'info', text: 'Primero crea o activa un ciclo para registrar el chequeo diario.' });
+      return;
+    }
+    upsertRecord(
+      'privateDailyChecks',
+      privateDailyCheckForm,
+      editingPrivateDailyCheckId,
+      resetPrivateDailyCheckForm,
+      setEditingPrivateDailyCheckId
+    );
+    setPrivateFeedback({ type: 'success', text: 'Chequeo diario guardado correctamente.' });
   }
 
   function duplicatePrivateProduct(id) {
@@ -2302,6 +2540,7 @@ function lockPrivateModule(feedbackText = '') {
       privateProducts: diaryData.privateProducts || [],
       privatePayments: diaryData.privatePayments || [],
       privateHormonalEntries: diaryData.privateHormonalEntries || [],
+      privateDailyChecks: diaryData.privateDailyChecks || [],
       privateSeedVersion: diaryData.privateSeedVersion || 0,
     });
     const repairedCycle = repaired.privateCycles.find(
@@ -2315,6 +2554,7 @@ function lockPrivateModule(feedbackText = '') {
       privateProducts: repaired.privateProducts,
       privatePayments: repaired.privatePayments,
       privateHormonalEntries: repaired.privateHormonalEntries,
+      privateDailyChecks: repaired.privateDailyChecks,
       privateSeedVersion: repaired.privateSeedVersion,
     }));
 
@@ -2322,6 +2562,7 @@ function lockPrivateModule(feedbackText = '') {
       setPrivateEntryForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
       setPrivateProductForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
       setPrivatePaymentForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
+      setPrivateDailyCheckForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
     }
 
     setPrivateFeedback({
@@ -2337,6 +2578,7 @@ function lockPrivateModule(feedbackText = '') {
       privateProducts: diaryData.privateProducts || [],
       privatePayments: diaryData.privatePayments || [],
       privateHormonalEntries: diaryData.privateHormonalEntries || [],
+      privateDailyChecks: diaryData.privateDailyChecks || [],
       privateSeedVersion: diaryData.privateSeedVersion || defaultState.privateSeedVersion,
       privateVault: {
         ...(privateVault || defaultState.privateVault),
@@ -2389,6 +2631,7 @@ function lockPrivateModule(feedbackText = '') {
             !('privateProducts' in parsed) &&
             !('privatePayments' in parsed) &&
             !('privateHormonalEntries' in parsed) &&
+            !('privateDailyChecks' in parsed) &&
             !('privateVault' in parsed))
         ) {
           throw new Error('El archivo no corresponde a un respaldo privado valido.');
@@ -2404,6 +2647,7 @@ function lockPrivateModule(feedbackText = '') {
           privateProducts: migratedPrivate.privateProducts || [],
           privatePayments: migratedPrivate.privatePayments || [],
           privateHormonalEntries: migratedPrivate.privateHormonalEntries || [],
+          privateDailyChecks: migratedPrivate.privateDailyChecks || [],
           privateSeedVersion: migratedPrivate.privateSeedVersion || current.privateSeedVersion || defaultState.privateSeedVersion,
           privateVault: {
             ...(migratedPrivate.privateVault || defaultState.privateVault),
@@ -2414,10 +2658,12 @@ function lockPrivateModule(feedbackText = '') {
         setEditingPrivateProductId(null);
         setEditingPrivatePaymentId(null);
         setEditingPrivateEntryId(null);
+        setEditingPrivateDailyCheckId(null);
         resetPrivateCycleForm();
         resetPrivateProductForm();
         resetPrivatePaymentForm();
         resetPrivateEntryForm();
+        resetPrivateDailyCheckForm();
         lockPrivateModule();
         setPrivateFeedback({
           type: 'success',
@@ -2910,24 +3156,41 @@ function lockPrivateModule(feedbackText = '') {
     <div className="app-shell">
       <header className="hero hero-modern">
         <div className="hero-copy">
-          <p className="eyebrow">SEGUIMIENTO PERSONAL</p>
-          <h1>Bitacora Daniel</h1>
-          <p className="hero-text">
-            Sistema personal para registrar nutricion, hidratacion, suplementacion, entrenamiento, ayuno y progreso fisico.
-          </p>
-          <div className="hero-signature" aria-label="Autor">
-            <span className="hero-signature-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img" focusable="false">
-                <path
-                  d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm0 2a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H7Zm5 2.75A4.25 4.25 0 1 1 7.75 12 4.25 4.25 0 0 1 12 7.75Zm0 2A2.25 2.25 0 1 0 14.25 12 2.25 2.25 0 0 0 12 9.75ZM17.3 6.7a1 1 0 1 1-1 1 1 1 0 0 1 1-1Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </span>
-            <span>daniel.redondo88</span>
+          <div className="hero-brand-block">
+            <div className="hero-title-block">
+              <p className="eyebrow">SEGUIMIENTO PERSONAL</p>
+              <h1>Bitacora Daniel</h1>
+            </div>
+            <p className="hero-text">
+              Sistema personal para registrar nutricion, hidratacion, suplementacion, entrenamiento, ayuno y progreso fisico.
+            </p>
+            <div className="hero-identity-strip" aria-label="Identidad profesional">
+              <span className="hero-identity-chip">Ingeniero Mecánico</span>
+              <span className="hero-identity-chip">Consejero en adicciones</span>
+            </div>
+            <p className="hero-value">Te ayudo a cumplir tus metas</p>
+            <a
+              className="hero-signature"
+              href="https://instagram.com/Daniel.Arredondo88"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Instagram Daniel.Arredondo88"
+            >
+              <span className="hero-signature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img" focusable="false">
+                  <path
+                    d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm0 2a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H7Zm5 2.75A4.25 4.25 0 1 1 7.75 12 4.25 4.25 0 0 1 12 7.75Zm0 2A2.25 2.25 0 1 0 14.25 12 2.25 2.25 0 0 0 12 9.75ZM17.3 6.7a1 1 0 1 1-1 1 1 1 0 0 1 1-1Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+              <span>Daniel.Arredondo88</span>
+            </a>
+            <div className="hero-meta-row">
+              <p className="hero-build-label">Build: {appBuildLabel}</p>
+              <p className="hero-build-label">Sync: {syncStatusLabel}</p>
+            </div>
           </div>
-          <p className="hero-build-label">Build: {appBuildLabel}</p>
-          <p className="hero-build-label">Sync: {syncStatusLabel}</p>
         </div>
 
         <div className="hero-panel">
@@ -6088,6 +6351,302 @@ function lockPrivateModule(feedbackText = '') {
                   </SectionCard>
 
                   <SectionCard
+                    title="Estado diario hormonal"
+                    subtitle={hasActivePrivateCycle ? 'Chequeo rapido para leer energia, animo, sueño y señales del dia.' : 'Disponible cuando exista un ciclo activo.'}
+                    className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                  >
+                    {hasActivePrivateCycle ? (
+                      <div className="private-daily-stack" ref={privateDailyCheckSectionRef}>
+                        <div className="private-weekly-grid private-daily-summary-grid">
+                          {privateDailySummaryCards.map((item) => (
+                            <article className="private-weekly-card" key={item.label}>
+                              <span>{item.label}</span>
+                              <strong>{item.value}</strong>
+                              <small>{item.detail}</small>
+                            </article>
+                          ))}
+                        </div>
+
+                        <RecordForm
+                          title={editingPrivateDailyCheckId ? 'Editar chequeo diario' : 'Nuevo chequeo diario'}
+                          fields={[
+                            {
+                              type: 'section',
+                              name: 'daily-check-overview',
+                              label: 'Registro diario',
+                              hint: 'Un registro corto al día permite detectar patrones, efectos secundarios y adherencia sin saturar la bitácora.',
+                            },
+                            {
+                              name: 'date',
+                              label: 'Fecha',
+                              type: 'date',
+                              hint: 'Fecha del chequeo. Mantenerla exacta ayuda a leer patrones semanales.',
+                            },
+                            {
+                              name: 'cycleId',
+                              label: 'Ciclo privado',
+                              type: 'select',
+                              options: privateCycleOptions,
+                              hint: 'Asocia el chequeo al ciclo correcto para que el resumen semanal y las alertas salgan bien.',
+                            },
+                            {
+                              type: 'section',
+                              name: 'daily-check-metrics',
+                              label: 'Parámetros hormonales / físicos',
+                              hint: 'Usa una escala simple del 1 al 5. Lo importante es la consistencia diaria, no la precisión clínica absoluta.',
+                            },
+                            {
+                              name: 'energy',
+                              label: 'Energía',
+                              type: 'select',
+                              options: privateDailyScaleFieldOptions,
+                              hint: 'Nivel de energía percibido durante el día.',
+                            },
+                            {
+                              name: 'mood',
+                              label: 'Estado de ánimo',
+                              type: 'select',
+                              options: privateDailyScaleFieldOptions,
+                              hint: 'Cómo te sentiste hoy a nivel emocional.',
+                            },
+                            {
+                              name: 'libido',
+                              label: 'Libido',
+                              type: 'select',
+                              options: privateDailyScaleFieldOptions,
+                              hint: 'Indicador útil del estado hormonal general.',
+                            },
+                            {
+                              name: 'sleep',
+                              label: 'Sueño',
+                              type: 'select',
+                              options: privateDailyScaleFieldOptions,
+                              hint: 'Calidad general del sueño de la noche previa.',
+                            },
+                            {
+                              name: 'focus',
+                              label: 'Enfoque / claridad mental',
+                              type: 'select',
+                              options: privateDailyScaleFieldOptions,
+                              hint: 'Qué tan claro o concentrado te sentiste hoy.',
+                            },
+                            {
+                              name: 'appetite',
+                              label: 'Apetito',
+                              type: 'select',
+                              options: privateDailyScaleFieldOptions,
+                              hint: 'Útil para leer hambre, adherencia y tolerancia del protocolo.',
+                            },
+                            {
+                              name: 'retention',
+                              label: 'Retención / inflamación',
+                              type: 'select',
+                              options: Object.entries(privateDailyRetentionLabels).map(([value, label]) => ({ value, label })),
+                              hint: 'Marca el nivel percibido de retención, pesadez o inflamación.',
+                            },
+                            {
+                              name: 'sideEffects',
+                              label: 'Efectos secundarios',
+                              type: 'text',
+                              placeholder: 'Ej. acne leve, irritabilidad o dolor post aplicacion',
+                              hint: 'Resume cualquier efecto secundario o cambio relevante del día.',
+                            },
+                            {
+                              type: 'section',
+                              name: 'daily-check-notes',
+                              label: 'Notas / observaciones',
+                              hint: 'Añade aquí contexto útil para el coach o para leer el patrón después.',
+                            },
+                            {
+                              name: 'notes',
+                              label: 'Observaciones privadas',
+                              type: 'textarea',
+                              placeholder: 'Ej. me senti con baja energia en la tarde pero mejoro despues de comer',
+                              hint: 'Observaciones libres, señales del día o cualquier detalle importante.',
+                              rows: 3,
+                            },
+                          ]}
+                          formData={privateDailyCheckForm}
+                          onChange={(event) => {
+                            bumpPrivateActivity();
+                            handleRecordFormChange(event, setPrivateDailyCheckForm);
+                          }}
+                          onSubmit={handlePrivateDailyCheckSubmit}
+                          onCancel={() => {
+                            resetPrivateDailyCheckForm();
+                            setEditingPrivateDailyCheckId(null);
+                          }}
+                          isEditing={Boolean(editingPrivateDailyCheckId)}
+                          submitLabel={editingPrivateDailyCheckId ? 'Guardar chequeo' : 'Guardar chequeo'}
+                        />
+
+                        <div className="metrics-card-list private-card-list">
+                          {activeCycleDailyChecks.length === 0 ? (
+                            <p className="empty-state">Aun no hay chequeos diarios del ciclo activo.</p>
+                          ) : null}
+                          {activeCycleDailyChecks.slice(0, 4).map((item) => (
+                            <article className="metrics-card private-entry-card" key={item.id}>
+                              <div className="metrics-card-top">
+                                <div>
+                                  <strong>{item.date === currentDate ? 'Chequeo de hoy' : formatPrivateDate(item.date)}</strong>
+                                  <span>{item.date === currentDate ? 'Lectura diaria del ciclo activo.' : 'Registro diario del ciclo activo.'}</span>
+                                </div>
+                                <span className="metrics-source-chip">{item.retention ? privateDailyRetentionLabels[item.retention] || item.retention : 'Sin retencion'}</span>
+                              </div>
+                              <div className="entry-details">
+                                <span>Energía: {formatPrivateScaleValue(item.energy)}</span>
+                                <span>Ánimo: {formatPrivateScaleValue(item.mood)}</span>
+                                <span>Sueño: {formatPrivateScaleValue(item.sleep)}</span>
+                                <span>Enfoque: {formatPrivateScaleValue(item.focus)}</span>
+                                <span>Libido: {formatPrivateScaleValue(item.libido)}</span>
+                                <span>Apetito: {formatPrivateScaleValue(item.appetite)}</span>
+                              </div>
+                              {item.sideEffects ? <p className="metrics-notes">Efectos secundarios: {item.sideEffects}</p> : null}
+                              {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
+                              <div className="entry-actions">
+                                <button
+                                  className="button button-secondary"
+                                  type="button"
+                                  onClick={() => {
+                                    bumpPrivateActivity();
+                                    startEditing('privateDailyChecks', item.id, setPrivateDailyCheckForm, setEditingPrivateDailyCheckId, 'private');
+                                    window.setTimeout(() => {
+                                      privateDailyCheckSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    }, 60);
+                                  }}
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  className="button button-danger"
+                                  type="button"
+                                  onClick={() => {
+                                    bumpPrivateActivity();
+                                    deleteRecord('privateDailyChecks', item.id, setEditingPrivateDailyCheckId, resetPrivateDailyCheckForm);
+                                  }}
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="private-empty-state-panel">
+                        <p className="empty-state">Activa un ciclo para registrar tu chequeo diario.</p>
+                        <div className="section-inline-actions section-inline-actions-tight">
+                          <button className="button button-primary" type="button" onClick={() => openPrivateForm('cycle')}>
+                            Crear o activar ciclo
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="Resumen semanal hormonal"
+                    subtitle="Lectura ejecutiva del protocolo activo durante la semana actual."
+                    className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                  >
+                    {hasActivePrivateCycle ? (
+                      <div className="private-weekly-grid">
+                        <article className="private-weekly-card">
+                          <span>Aplicaciones esta semana</span>
+                          <strong>{privateHormonalWeeklySummary.weeklyApplicationsCount}</strong>
+                          <small>Eventos tipo aplicación registrados entre {formatPrivateDate(currentWeekStart)} y {formatPrivateDate(currentWeekEnd)}.</small>
+                        </article>
+                        <article className="private-weekly-card">
+                          <span>Próxima aplicación</span>
+                          <strong>
+                            {privateHormonalWeeklySummary.nextApplication
+                              ? privateHormonalWeeklySummary.nextApplication.name || 'Aplicación programada'
+                              : 'Sin próxima aplicación'}
+                          </strong>
+                          <small>
+                            {privateHormonalWeeklySummary.nextApplication
+                              ? privateHormonalWeeklySummary.nextApplication.nextApplication
+                                ? formatPrivateDateTimeHuman(privateHormonalWeeklySummary.nextApplication.nextApplication)
+                                : `${privateHormonalWeeklySummary.nextApplication.date ? formatPrivateDate(privateHormonalWeeklySummary.nextApplication.date) : 'Sin fecha'}${privateHormonalWeeklySummary.nextApplication.time ? ` • ${privateHormonalWeeklySummary.nextApplication.time}` : ''}`
+                              : 'Aún no hay una aplicación futura registrada.'}
+                          </small>
+                        </article>
+                        <article className="private-weekly-card">
+                          <span>Compuestos activos</span>
+                          <strong>{privateHormonalWeeklySummary.activeCompoundNames.length}</strong>
+                          <small>
+                            {privateHormonalWeeklySummary.activeCompoundNames.length > 0
+                              ? privateHormonalWeeklySummary.activeCompoundNames.slice(0, 4).join(', ')
+                              : 'Sin compuestos activos registrados.'}
+                          </small>
+                        </article>
+                        <article className="private-weekly-card">
+                          <span>Pagos</span>
+                          <strong>{`${privateHormonalWeeklySummary.paidCount} pagado(s)`}</strong>
+                          <small>
+                            {privateHormonalWeeklySummary.pendingCount > 0
+                              ? `${privateHormonalWeeklySummary.pendingCount} pendiente(s) • ${formatCurrencyMx(privateHormonalWeeklySummary.totalPending)}`
+                              : `Pendiente: ${formatCurrencyMx(0)}`}
+                          </small>
+                        </article>
+                        <article className="private-weekly-card">
+                          <span>Síntomas repetidos</span>
+                          <strong>
+                            {privateHormonalWeeklySummary.repeatedSymptoms.length > 0
+                              ? privateHormonalWeeklySummary.repeatedSymptoms.length
+                              : 'Ninguno'}
+                          </strong>
+                          <small>
+                            {privateHormonalWeeklySummary.repeatedSymptoms.length > 0
+                              ? privateHormonalWeeklySummary.repeatedSymptoms
+                                  .slice(0, 3)
+                                  .map((item) => `${item.label} (${item.count})`)
+                                  .join(', ')
+                              : 'Sin síntomas repetidos esta semana.'}
+                          </small>
+                        </article>
+                        <article className="private-weekly-card">
+                          <span>Promedios semanales</span>
+                          <strong>
+                            {`E ${formatPrivateAverageValue(privateHormonalWeeklySummary.energyAverage)} · S ${formatPrivateAverageValue(privateHormonalWeeklySummary.sleepAverage)}`}
+                          </strong>
+                          <small>{`Ánimo ${formatPrivateAverageValue(privateHormonalWeeklySummary.moodAverage)}`}</small>
+                        </article>
+                        <article className="private-weekly-card">
+                          <span>Adherencia básica</span>
+                          <strong>{`${privateHormonalWeeklySummary.adherenceRate}%`}</strong>
+                          <small>{`${privateHormonalWeeklySummary.trackedDaysCount}/7 días con seguimiento real.`}</small>
+                        </article>
+                      </div>
+                    ) : (
+                      <div className="private-empty-state-panel">
+                        <p className="empty-state">Activa un ciclo para ver el resumen semanal.</p>
+                      </div>
+                    )}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="Alertas operativas"
+                    subtitle="Atención puntual para sostener el seguimiento sin saturar la vista."
+                    className="card-soft"
+                  >
+                    <div className="private-alert-grid">
+                      {privateOperationalAlerts.length === 0 ? (
+                        <div className="private-alert-card private-alert-card-success">
+                          <strong>Sin alertas operativas.</strong>
+                          <small>El seguimiento actual se ve al día.</small>
+                        </div>
+                      ) : null}
+                      {privateOperationalAlerts.map((item) => (
+                        <div className={`private-alert-card private-alert-card-${item.tone || 'neutral'}`.trim()} key={item.id}>
+                          <strong>{item.title}</strong>
+                          <small>{item.body}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </SectionCard>
+
+                  <SectionCard
                     title="Bitacora privada"
                     subtitle={
                       hasActivePrivateCycle
@@ -6402,23 +6961,72 @@ function lockPrivateModule(feedbackText = '') {
                         <RecordForm
                           title="Nuevo ciclo privado"
                           fields={[
-                            { name: 'name', label: 'Nombre del ciclo', type: 'text', placeholder: 'Ej. Ciclo 2026, definicion o seguimiento...' },
+                            {
+                              type: 'section',
+                              name: 'cycle-overview',
+                              label: 'Registro diario',
+                              hint: 'Define el contexto base del ciclo para que el resumen operativo, la agenda y los movimientos financieros queden bien ligados.',
+                            },
+                            {
+                              name: 'name',
+                              label: 'Nombre del ciclo',
+                              type: 'text',
+                              placeholder: 'Ej. Ciclo 2026',
+                              hint: 'Usa un nombre corto y reconocible. Te ayudará a identificarlo rápido en la vista operativa.',
+                            },
                             {
                               name: 'type',
                               label: 'Tipo',
                               type: 'select',
                               options: Object.entries(privateCycleTypeLabels).map(([value, label]) => ({ value, label })),
+                              hint: 'Sirve para clasificar el enfoque general del ciclo, por ejemplo TRT, definido o personalizado.',
                             },
-                            { name: 'startDate', label: 'Fecha de inicio', type: 'date' },
-                            { name: 'estimatedEndDate', label: 'Fecha estimada de fin', type: 'date' },
+                            {
+                              name: 'startDate',
+                              label: 'Fecha de inicio',
+                              type: 'date',
+                              hint: 'Fecha real en que comenzó el ciclo. Se usa para ordenar y resumir el seguimiento.',
+                            },
+                            {
+                              name: 'estimatedEndDate',
+                              label: 'Fecha estimada de fin',
+                              type: 'date',
+                              hint: 'Fecha prevista de cierre. Puedes ajustarla después si el plan cambia.',
+                            },
                             {
                               name: 'status',
                               label: 'Estado',
                               type: 'select',
                               options: Object.entries(privateCycleStatusLabels).map(([value, label]) => ({ value, label })),
+                              hint: 'Indica si el ciclo está planeado, activo, pausado o finalizado.',
                             },
-                            { name: 'objective', label: 'Objetivo breve', type: 'text', placeholder: 'Objetivo principal del ciclo' },
-                            { name: 'notes', label: 'Notas privadas', type: 'textarea', placeholder: 'Contexto, criterios o limites privados...' },
+                            {
+                              type: 'section',
+                              name: 'cycle-parameters',
+                              label: 'Parámetros hormonales / físicos',
+                              hint: 'Aquí defines el propósito general del ciclo y el resultado esperado, sin entrar todavía al detalle de productos o eventos.',
+                            },
+                            {
+                              name: 'objective',
+                              label: 'Objetivo breve',
+                              type: 'text',
+                              placeholder: 'Ej. Definir músculo',
+                              hint: 'Resume el propósito principal. Ayuda a leer el ciclo sin tener que abrir notas largas.',
+                            },
+                            {
+                              type: 'section',
+                              name: 'cycle-notes-section',
+                              label: 'Notas / observaciones',
+                              hint: 'Usa este espacio para contexto privado, límites, instrucciones o cualquier observación sensible.',
+                            },
+                            {
+                              name: 'notes',
+                              label: 'Notas privadas',
+                              type: 'textarea',
+                              placeholder: 'Ej. seguimiento privado de compuestos, aplicaciones, pagos y observaciones relevantes...',
+                              hint: 'Cualquier criterio privado, ajuste o comentario importante del ciclo.',
+                              rows: 4,
+                            },
                           ]}
                           formData={privateCycleForm}
                           onChange={(event) => {
@@ -6463,31 +7071,96 @@ function lockPrivateModule(feedbackText = '') {
                             title="Nuevo componente del ciclo"
                             fields={[
                               {
+                                type: 'section',
+                                name: 'product-cycle-link',
+                                label: 'Suplementación / intervención',
+                                hint: 'Asocia cada producto, soporte o intervención al ciclo correcto para mantener el costo y el inventario bien conectados.',
+                              },
+                              {
                                 name: 'cycleId',
                                 label: 'Ciclo privado',
                                 type: 'select',
                                 options: [{ value: '', label: 'Sin ciclo' }, ...privateCycleOptions],
+                                hint: 'Selecciona el ciclo al que pertenece esta compra o componente.',
                               },
-                              { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Masteron, Testosterona, Primo, soporte...' },
+                              {
+                                name: 'name',
+                                label: 'Nombre',
+                                type: 'text',
+                                placeholder: 'Ej. Masteron, Testosterona, Primo, soporte...',
+                                hint: 'Nombre del producto o apoyo usado dentro del ciclo.',
+                              },
                               {
                                 name: 'category',
                                 label: 'Categoria',
                                 type: 'select',
                                 options: Object.entries(privateCategoryLabels).map(([value, label]) => ({ value, label })),
+                                hint: 'Clasifica el componente para que la bitácora y el resumen sean más claros.',
                               },
-                              { name: 'presentation', label: 'Presentacion', type: 'text', placeholder: 'Vial 10 ml, blister, estudio...' },
-                              { name: 'purchasedQuantity', label: 'Cantidad comprada', type: 'text', placeholder: 'Ej. 2' },
-                              { name: 'unit', label: 'Unidad', type: 'text', placeholder: 'viales, cajas, ml, tabs...' },
-                              { name: 'totalCost', label: 'Costo total', type: 'number', min: '0', step: '0.01' },
-                              { name: 'supplier', label: 'Proveedor o fuente', type: 'text', placeholder: 'Origen o referencia privada' },
-                              { name: 'purchaseDate', label: 'Fecha de compra', type: 'date' },
+                              {
+                                name: 'presentation',
+                                label: 'Presentacion',
+                                type: 'text',
+                                placeholder: 'Ej. vial 10 ml, blister, caja o estudio...',
+                                hint: 'Describe la forma del producto para reconocerlo rápido.',
+                              },
+                              {
+                                name: 'purchasedQuantity',
+                                label: 'Cantidad comprada',
+                                type: 'text',
+                                placeholder: 'Ej. 2',
+                                hint: 'Cantidad total adquirida para el ciclo.',
+                              },
+                              {
+                                name: 'unit',
+                                label: 'Unidad',
+                                type: 'text',
+                                placeholder: 'Ej. viales, cajas, ml o tabs',
+                                hint: 'Unidad de referencia de la compra o inventario.',
+                              },
+                              {
+                                name: 'totalCost',
+                                label: 'Costo total',
+                                type: 'number',
+                                min: '0',
+                                step: '0.01',
+                                placeholder: 'Ej. 2800',
+                                hint: 'Costo total conocido del componente. Si aún no lo confirmas, déjalo vacío.',
+                              },
+                              {
+                                name: 'supplier',
+                                label: 'Proveedor o fuente',
+                                type: 'text',
+                                placeholder: 'Ej. coach, farmacia, proveedor privado...',
+                                hint: 'Origen o referencia privada de la compra.',
+                              },
+                              {
+                                name: 'purchaseDate',
+                                label: 'Fecha de compra',
+                                type: 'date',
+                                hint: 'Fecha en que se adquirió el producto o servicio.',
+                              },
                               {
                                 name: 'status',
                                 label: 'Estatus',
                                 type: 'select',
                                 options: Object.entries(privateProductStatusLabels).map(([value, label]) => ({ value, label })),
+                                hint: 'Útil para saber si está pendiente, comprado, en uso, terminado o descartado.',
                               },
-                              { name: 'notes', label: 'Notas privadas', type: 'textarea', placeholder: 'Detalles de calidad, seguimiento o contexto...' },
+                              {
+                                type: 'section',
+                                name: 'product-notes-section',
+                                label: 'Notas / observaciones',
+                                hint: 'Registra detalles de calidad, seguimiento, lote o cualquier contexto útil del componente.',
+                              },
+                              {
+                                name: 'notes',
+                                label: 'Notas privadas',
+                                type: 'textarea',
+                                placeholder: 'Ej. compra inicial, calidad observada, costo pendiente de confirmar...',
+                                hint: 'Cualquier comentario relevante del producto o compra.',
+                                rows: 4,
+                              },
                             ]}
                             formData={privateProductForm}
                             onChange={(event) => {
@@ -6607,22 +7280,68 @@ function lockPrivateModule(feedbackText = '') {
                             title="Nuevo pago privado"
                             fields={[
                               {
+                                type: 'section',
+                                name: 'payment-cycle-link',
+                                label: 'Registro diario',
+                                hint: 'Cada pago queda ligado al ciclo para que el resumen financiero y el saldo pendiente sean confiables.',
+                              },
+                              {
                                 name: 'cycleId',
                                 label: 'Ciclo privado',
                                 type: 'select',
                                 options: [{ value: '', label: 'Sin ciclo' }, ...privateCycleOptions],
+                                hint: 'Selecciona el ciclo al que corresponde este movimiento.',
                               },
-                              { name: 'concept', label: 'Concepto', type: 'text', placeholder: 'Ej. Pago vial, analitica, soporte...' },
-                              { name: 'date', label: 'Fecha', type: 'date' },
-                              { name: 'amount', label: 'Monto', type: 'number', min: '0', step: '0.01' },
-                              { name: 'method', label: 'Metodo', type: 'text', placeholder: 'Transferencia, efectivo, tarjeta...' },
+                              {
+                                name: 'concept',
+                                label: 'Concepto',
+                                type: 'text',
+                                placeholder: 'Ej. Pago vial, analítica, soporte o envío...',
+                                hint: 'Describe brevemente qué estás pagando.',
+                              },
+                              {
+                                name: 'date',
+                                label: 'Fecha',
+                                type: 'date',
+                                hint: 'Fecha real del movimiento.',
+                              },
+                              {
+                                name: 'amount',
+                                label: 'Monto',
+                                type: 'number',
+                                min: '0',
+                                step: '0.01',
+                                placeholder: 'Ej. 1450',
+                                hint: 'Monto pagado o confirmado para este movimiento.',
+                              },
+                              {
+                                name: 'method',
+                                label: 'Metodo',
+                                type: 'text',
+                                placeholder: 'Ej. transferencia, efectivo o tarjeta',
+                                hint: 'Método usado para el pago.',
+                              },
                               {
                                 name: 'status',
                                 label: 'Estado',
                                 type: 'select',
                                 options: Object.entries(privatePaymentStatusLabels).map(([value, label]) => ({ value, label })),
+                                hint: 'Permite distinguir si el pago ya quedó cubierto, pendiente o en validación.',
                               },
-                              { name: 'notes', label: 'Notas', type: 'textarea', placeholder: 'Observaciones del pago o saldo...' },
+                              {
+                                type: 'section',
+                                name: 'payment-notes-section',
+                                label: 'Notas / observaciones',
+                                hint: 'Úsalo para saldo restante, referencia bancaria, acuerdo de pago o cualquier aclaración.',
+                              },
+                              {
+                                name: 'notes',
+                                label: 'Notas',
+                                type: 'textarea',
+                                placeholder: 'Ej. pago parcial, saldo pendiente o referencia de transferencia...',
+                                hint: 'Cualquier detalle útil para conciliar después.',
+                                rows: 4,
+                              },
                             ]}
                             formData={privatePaymentForm}
                             onChange={(event) => {
@@ -6759,39 +7478,113 @@ function lockPrivateModule(feedbackText = '') {
                           <RecordForm
                             title="Registro privado"
                             fields={[
-                              { name: 'date', label: 'Fecha', type: 'date' },
-                              { name: 'time', label: 'Hora', type: 'time' },
+                              {
+                                type: 'section',
+                                name: 'event-daily-section',
+                                label: 'Registro diario',
+                                hint: 'Captura aquí la actividad real del día: aplicaciones, controles, síntomas o incidencias del ciclo.',
+                              },
+                              {
+                                name: 'date',
+                                label: 'Fecha',
+                                type: 'date',
+                                hint: 'Fecha real del evento. Mantenerla correcta mejora agenda, bitácora y cronología.',
+                              },
+                              {
+                                name: 'time',
+                                label: 'Hora',
+                                type: 'time',
+                                hint: 'Hora exacta si la conoces. Si no, puedes dejarla vacía y el sistema lo tratará como evento sin hora.',
+                              },
                               {
                                 name: 'cycleId',
                                 label: 'Ciclo privado',
                                 type: 'select',
                                 options: [{ value: '', label: 'Sin ciclo' }, ...privateCycleOptions],
+                                hint: 'Asocia el evento al ciclo correcto para que aparezca en agenda y resumen.',
                               },
                               {
                                 name: 'productId',
                                 label: 'Producto asociado',
                                 type: 'select',
                                 options: [{ value: '', label: 'Sin producto' }, ...privateProductOptions],
+                                hint: 'Si el evento está ligado a un producto o componente concreto, selecciónalo aquí.',
                               },
                               {
                                 name: 'eventType',
                                 label: 'Tipo de evento',
                                 type: 'select',
                                 options: Object.entries(privateEventTypeLabels).map(([value, label]) => ({ value, label })),
+                                hint: 'Distingue si fue una aplicación, toma oral, analítica, compra, síntoma o control.',
                               },
-                              { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Aplicacion Masteron, control, sintoma...' },
+                              {
+                                name: 'name',
+                                label: 'Nombre',
+                                type: 'text',
+                                placeholder: 'Ej. Aplicación Masteron, control, síntoma o incidencia...',
+                                hint: 'Nombre corto y claro para reconocer el evento en la bitácora.',
+                              },
+                              {
+                                type: 'section',
+                                name: 'event-parameters-section',
+                                label: 'Parámetros hormonales / físicos',
+                                hint: 'Registra aquí lo que define la intervención: categoría, dosis, vía y frecuencia. Si no aplica, puedes dejarlo vacío.',
+                              },
                               {
                                 name: 'category',
                                 label: 'Categoria',
                                 type: 'select',
                                 options: Object.entries(privateCategoryLabels).map(([value, label]) => ({ value, label })),
+                                hint: 'Categoría clínica u operativa del evento. Ej: Masteron, Testosterona, analítica o soporte.',
                               },
-                              { name: 'dose', label: 'Dosis', type: 'text', placeholder: 'Ej. 125' },
-                              { name: 'unit', label: 'Unidad', type: 'text', placeholder: 'mg, ml, caps, UI...' },
-                              { name: 'route', label: 'Via', type: 'text', placeholder: 'IM, SC, oral...' },
-                              { name: 'frequency', label: 'Frecuencia', type: 'text', placeholder: 'Semanal, ED, EOD...' },
-                              { name: 'nextApplication', label: 'Proximo evento / aplicacion', type: 'datetime-local' },
-                              { name: 'notes', label: 'Notas privadas', type: 'textarea', placeholder: 'Observaciones sensibles solo para este modulo...' },
+                              {
+                                name: 'dose',
+                                label: 'Dosis',
+                                type: 'text',
+                                placeholder: 'Ej. 250 mg o 1 ml',
+                                hint: 'Cantidad aplicada o ingerida. Si es un evento sin dosis, déjalo vacío.',
+                              },
+                              {
+                                name: 'unit',
+                                label: 'Unidad',
+                                type: 'text',
+                                placeholder: 'Ej. mg, ml, UI o cápsulas',
+                                hint: 'Unidad de la dosis o medida usada en el evento.',
+                              },
+                              {
+                                name: 'route',
+                                label: 'Via',
+                                type: 'text',
+                                placeholder: 'Ej. IM, SC u oral',
+                                hint: 'Forma de administración o vía relevante para el evento.',
+                              },
+                              {
+                                name: 'frequency',
+                                label: 'Frecuencia',
+                                type: 'text',
+                                placeholder: 'Ej. semanal, ED, EOD o 3 veces por semana',
+                                hint: 'Cada cuánto se usa o se repite esta intervención.',
+                              },
+                              {
+                                type: 'section',
+                                name: 'event-follow-up-section',
+                                label: 'Notas / observaciones',
+                                hint: 'Usa esta parte para el seguimiento: próxima aplicación, síntomas, respuesta, incidencias o cualquier observación relevante.',
+                              },
+                              {
+                                name: 'nextApplication',
+                                label: 'Proximo evento / aplicacion',
+                                type: 'datetime-local',
+                                hint: 'Si ya sabes cuándo toca de nuevo, déjalo programado para alimentar la agenda.',
+                              },
+                              {
+                                name: 'notes',
+                                label: 'Notas privadas',
+                                type: 'textarea',
+                                placeholder: 'Ej. me sentí con baja energía en la tarde, leve molestia local o respuesta estable...',
+                                hint: 'Cualquier síntoma, efecto secundario o cambio relevante del día.',
+                                rows: 4,
+                              },
                             ]}
                             formData={privateEntryForm}
                             onChange={(event) => {

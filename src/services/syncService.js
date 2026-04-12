@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export const SYNC_SCHEMA_VERSION = 1;
 export const SYNC_TABLE = 'diary_snapshots';
+const isDevSyncLogEnabled = typeof import.meta !== 'undefined' ? Boolean(import.meta.env?.DEV) : false;
 
 export const syncStatusLabels = {
   local: 'Local',
@@ -13,6 +14,11 @@ export const syncStatusLabels = {
   error: 'Error de sincronizacion',
   auth: 'Conecta una cuenta',
 };
+
+export function logSyncDebug(event, details = {}) {
+  if (!isDevSyncLogEnabled) return;
+  console.log(`[Bitacora Daniel][sync] ${event}`, details);
+}
 
 export function createDeviceId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -98,6 +104,21 @@ function getSyncComparableValue(data) {
   return value ? new Date(value).getTime() : 0;
 }
 
+export function getSnapshotSummary(data = {}) {
+  return {
+    updatedAt: data?.syncMeta?.updatedAt || '',
+    lastSyncedAt: data?.syncMeta?.lastSyncedAt || '',
+    deviceId: data?.syncMeta?.deviceId || '',
+    foods: Array.isArray(data?.foods) ? data.foods.length : 0,
+    supplements: Array.isArray(data?.supplements) ? data.supplements.length : 0,
+    fastingLogs: Array.isArray(data?.fastingLogs) ? data.fastingLogs.length : 0,
+    exercises: Array.isArray(data?.exercises) ? data.exercises.length : 0,
+    bodyMetrics: Array.isArray(data?.bodyMetrics) ? data.bodyMetrics.length : 0,
+    privateEntries: Array.isArray(data?.privateHormonalEntries) ? data.privateHormonalEntries.length : 0,
+    objectives: Array.isArray(data?.objectives) ? data.objectives.length : 0,
+  };
+}
+
 export function compareSnapshotRecency(localData, remoteData) {
   const localValue = getSyncComparableValue(localData);
   const remoteValue = getSyncComparableValue(remoteData);
@@ -138,6 +159,32 @@ export function chooseSnapshotWinner(localData, remoteData) {
   if (remoteIsDefault && !localIsDefault) return 'local';
 
   return compareSnapshotRecency(localData, remoteData);
+}
+
+export function explainSnapshotWinner(localData, remoteData) {
+  const localIsDefault = isEffectivelyDefaultSnapshot(localData);
+  const remoteIsDefault = isEffectivelyDefaultSnapshot(remoteData);
+  const localValue = getSyncComparableValue(localData);
+  const remoteValue = getSyncComparableValue(remoteData);
+  const winner = chooseSnapshotWinner(localData, remoteData);
+
+  if (localIsDefault && !remoteIsDefault) {
+    return { winner, reason: 'local-default-vs-remote-with-data', localValue, remoteValue };
+  }
+
+  if (remoteIsDefault && !localIsDefault) {
+    return { winner, reason: 'remote-default-vs-local-with-data', localValue, remoteValue };
+  }
+
+  if (remoteValue > localValue) {
+    return { winner, reason: 'remote-updatedAt-newer', localValue, remoteValue };
+  }
+
+  if (localValue > remoteValue) {
+    return { winner, reason: 'local-updatedAt-newer', localValue, remoteValue };
+  }
+
+  return { winner, reason: 'timestamps-equal', localValue, remoteValue };
 }
 
 export async function getSupabaseSession() {
@@ -188,6 +235,8 @@ export async function signOutFromSupabase() {
 export async function fetchRemoteSnapshot(userId) {
   if (!isSupabaseConfigured || !supabase || !userId) return null;
 
+  logSyncDebug('pull:start', { userId, table: SYNC_TABLE });
+
   const { data, error } = await supabase
     .from(SYNC_TABLE)
     .select('payload, updated_at, last_synced_at, user_id')
@@ -198,6 +247,12 @@ export async function fetchRemoteSnapshot(userId) {
   if (!data) return null;
 
   const payload = data.payload || {};
+  logSyncDebug('pull:success', {
+    userId,
+    updatedAt: data.updated_at || '',
+    lastSyncedAt: data.last_synced_at || '',
+    summary: getSnapshotSummary(payload),
+  });
 
   return {
     ...data,
@@ -222,6 +277,11 @@ export async function pushRemoteSnapshot({ userId, data }) {
   const payload = sanitizeDataForRemote(data);
   const timestamp = payload.syncMeta.updatedAt || new Date().toISOString();
   const lastSyncedAt = new Date().toISOString();
+  logSyncDebug('push:start', {
+    userId,
+    updatedAt: timestamp,
+    summary: getSnapshotSummary(payload),
+  });
 
   const row = {
     user_id: userId,
@@ -237,6 +297,11 @@ export async function pushRemoteSnapshot({ userId, data }) {
     .single();
 
   if (error) throw error;
+  logSyncDebug('push:success', {
+    userId,
+    updatedAt: response?.updated_at || timestamp,
+    lastSyncedAt: response?.last_synced_at || lastSyncedAt,
+  });
 
   return {
     updatedAt: response?.updated_at || timestamp,

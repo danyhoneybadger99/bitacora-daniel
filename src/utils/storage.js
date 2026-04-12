@@ -30,6 +30,7 @@ function getCollectionCounts(data = {}) {
     privateProducts: Array.isArray(data.privateProducts) ? data.privateProducts.length : 0,
     privatePayments: Array.isArray(data.privatePayments) ? data.privatePayments.length : 0,
     privateHormonalEntries: Array.isArray(data.privateHormonalEntries) ? data.privateHormonalEntries.length : 0,
+    privateDailyChecks: Array.isArray(data.privateDailyChecks) ? data.privateDailyChecks.length : 0,
     exercises: Array.isArray(data.exercises) ? data.exercises.length : 0,
     bodyMetrics: Array.isArray(data.bodyMetrics) ? data.bodyMetrics.length : 0,
     objectives: Array.isArray(data.objectives) ? data.objectives.length : 0,
@@ -156,12 +157,31 @@ function normalizePrivateHormonalEntries(items) {
         productId: item.productId ?? '',
         eventType: item.eventType ?? 'otro',
         name: item.name ?? '',
-        category: item.category ?? 'trt',
+        category: item.category ?? 'otro-compuesto',
         dose: item.dose ?? '',
         unit: item.unit ?? '',
         route: item.route ?? '',
         frequency: item.frequency ?? '',
         nextApplication: item.nextApplication ?? '',
+        notes: item.notes ?? '',
+      }))
+    : [];
+}
+
+function normalizePrivateDailyChecks(items) {
+  return Array.isArray(items)
+    ? items.map((item) => ({
+        ...item,
+        date: normalizeDateString(item.date),
+        cycleId: item.cycleId ?? '',
+        energy: item.energy ?? '',
+        mood: item.mood ?? '',
+        libido: item.libido ?? '',
+        sleep: item.sleep ?? '',
+        focus: item.focus ?? '',
+        appetite: item.appetite ?? '',
+        retention: item.retention ?? 'ninguna',
+        sideEffects: item.sideEffects ?? '',
         notes: item.notes ?? '',
       }))
     : [];
@@ -188,7 +208,7 @@ function normalizePrivateProducts(items) {
         ...item,
         cycleId: item.cycleId ?? '',
         name: item.name ?? '',
-        category: item.category ?? 'trt',
+        category: item.category ?? 'otro-compuesto',
         presentation: item.presentation ?? '',
         purchasedQuantity: item.purchasedQuantity ?? '',
         unit: item.unit ?? '',
@@ -367,11 +387,13 @@ export function migrateAppData(parsed = {}) {
   const normalizedPrivateProducts = normalizePrivateProducts(parsed.privateProducts);
   const normalizedPrivatePayments = normalizePrivatePayments(parsed.privatePayments);
   const normalizedPrivateEntries = normalizePrivateHormonalEntries(parsed.privateHormonalEntries);
+  const normalizedPrivateDailyChecks = normalizePrivateDailyChecks(parsed.privateDailyChecks);
   const seededPrivate = repairPrivateCycle2026Data({
     privateCycles: normalizedPrivateCycles,
     privateProducts: normalizedPrivateProducts,
     privatePayments: normalizedPrivatePayments,
     privateHormonalEntries: normalizedPrivateEntries,
+    privateDailyChecks: normalizedPrivateDailyChecks,
     privateSeedVersion,
   });
   const migrated = {
@@ -389,6 +411,7 @@ export function migrateAppData(parsed = {}) {
     privateProducts: seededPrivate.privateProducts,
     privatePayments: seededPrivate.privatePayments,
     privateHormonalEntries: seededPrivate.privateHormonalEntries,
+    privateDailyChecks: seededPrivate.privateDailyChecks,
     privateVault: normalizePrivateVault(parsed.privateVault),
     privateSeedVersion: seededPrivate.privateSeedVersion,
     objectives: normalizeObjectives(parsed.objectives),

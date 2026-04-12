@@ -4,12 +4,18 @@ export const privateCategoryLabels = {
   trt: 'TRT',
   testosterona: 'Testosterona',
   cipionate: 'Cipionate',
-  oxandrolone: 'Oxandrolone',
+  oxandrolone: 'Oxandrolona',
+  oxandrolona: 'Oxandrolona',
   masteron: 'Masteron',
   primo: 'Primo',
   trembolona: 'Trembolona',
-  wistrol: 'Wistrol',
+  wistrol: 'Winstrol',
+  winstrol: 'Winstrol',
   clembuterol: 'Clembuterol',
+  hcg: 'HCG',
+  ia: 'IA',
+  peptidos: 'Peptidos',
+  suplemento: 'Suplemento',
   'peptidos-ozempic': 'Peptidos / Ozempic',
   'liver-cleanse': 'Liver cleanse',
   'otro-compuesto': 'Otro compuesto',
@@ -54,15 +60,33 @@ export const privatePaymentStatusLabels = {
 export const privateEventTypeLabels = {
   aplicacion: 'Aplicacion',
   toma: 'Toma',
+  'toma-oral': 'Toma oral',
   compra: 'Compra',
   pago: 'Pago',
   analitica: 'Analitica',
   sintoma: 'Sintoma',
   control: 'Control',
+  observacion: 'Observacion',
   otro: 'Otro',
 };
 
-export const PRIVATE_CYCLE_2026_SEED_VERSION = 2;
+export const privateDailyRetentionLabels = {
+  ninguna: 'Ninguna',
+  leve: 'Leve',
+  moderada: 'Moderada',
+  alta: 'Alta',
+};
+
+export const privateDailyScaleOptions = [
+  { value: '', label: 'Sin registrar' },
+  { value: '1', label: '1 · Muy bajo' },
+  { value: '2', label: '2 · Bajo' },
+  { value: '3', label: '3 · Medio' },
+  { value: '4', label: '4 · Bueno' },
+  { value: '5', label: '5 · Muy bueno' },
+];
+
+export const PRIVATE_CYCLE_2026_SEED_VERSION = 3;
 
 export function createEmptyPrivateCycle() {
   return {
@@ -118,6 +142,22 @@ export function createEmptyPrivateEntry() {
     route: '',
     frequency: '',
     nextApplication: '',
+    notes: '',
+  };
+}
+
+export function createEmptyPrivateDailyCheck() {
+  return {
+    date: getToday(),
+    cycleId: '',
+    energy: '',
+    mood: '',
+    libido: '',
+    sleep: '',
+    focus: '',
+    appetite: '',
+    retention: 'ninguna',
+    sideEffects: '',
     notes: '',
   };
 }
@@ -189,6 +229,79 @@ function matchPrivateEntrySeed(current, seedEntry) {
     (current.date || '') === (seedEntry.date || '') &&
     String(current.time || '') === String(seedEntry.time || '')
   );
+}
+
+function matchPrivateDailyCheckSeed(current, seedCheck) {
+  return (
+    (current.date || '') === (seedCheck.date || '') &&
+    normalizePrivateSeedKey(current.notes || '') === normalizePrivateSeedKey(seedCheck.notes || '')
+  );
+}
+
+function isDateInsideRange(date, startDate, endDate) {
+  return Boolean(date && startDate && endDate && date >= startDate && date <= endDate);
+}
+
+function toPrivateScaleNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function averagePrivateScale(items, fieldName) {
+  const values = items.map((item) => toPrivateScaleNumber(item[fieldName])).filter((value) => value !== null);
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function getPrivateEntryEffectiveTimestamp(entry) {
+  if (entry?.nextApplication) return entry.nextApplication;
+  if (entry?.date && entry?.time) return `${entry.date}T${entry.time}`;
+  if (entry?.date) return `${entry.date}T00:00`;
+  return '';
+}
+
+export function getPrivateCanonicalCategory(value) {
+  const normalized = normalizePrivateSeedKey(value);
+
+  const aliases = {
+    oxandrolone: 'oxandrolona',
+    oxandrolona: 'oxandrolona',
+    wistrol: 'winstrol',
+    winstrol: 'winstrol',
+    'peptidos-ozempic': 'peptidos',
+    peptidos: 'peptidos',
+    suplemento: 'suplemento',
+    testosterona: 'testosterona',
+    cipionate: 'cipionate',
+    masteron: 'masteron',
+    primo: 'primo',
+    trembolona: 'trembolona',
+    clembuterol: 'clembuterol',
+    hcg: 'hcg',
+    ia: 'ia',
+    'otro-compuesto': 'otro-compuesto',
+  };
+
+  return aliases[normalized] || normalized || '';
+}
+
+export function getPrivateCanonicalEventType(value) {
+  const normalized = normalizePrivateSeedKey(value);
+
+  const aliases = {
+    aplicacion: 'aplicacion',
+    toma: 'toma-oral',
+    'toma-oral': 'toma-oral',
+    analitica: 'analitica',
+    sintoma: 'sintoma',
+    control: 'control',
+    compra: 'compra',
+    pago: 'pago',
+    observacion: 'observacion',
+    otro: 'observacion',
+  };
+
+  return aliases[normalized] || normalized || '';
 }
 
 export function createPrivateCycle2026SeedData(cycleId = 'private-cycle-2026') {
@@ -377,6 +490,23 @@ export function createPrivateCycle2026SeedData(cycleId = 'private-cycle-2026') {
         notes: 'Aplicacion de 1 ml de testosterona. Registrado con base en confirmacion con coach.',
       },
     ],
+    privateDailyChecks: [
+      {
+        id: 'private-daily-check-2026-04-09',
+        date: '2026-04-09',
+        cycleId,
+        energy: '3',
+        mood: '3',
+        libido: '3',
+        sleep: '4',
+        focus: '3',
+        appetite: '3',
+        retention: 'ninguna',
+        sideEffects: 'Sin efecto relevante',
+        notes:
+          'Semana funcional. Energia media. Dormi bien en general, aunque costo despertar algunos dias. Animo estable. Entrenamiento y alimentacion cumplidos.',
+      },
+    ],
   };
 }
 
@@ -385,6 +515,7 @@ export function repairPrivateCycle2026Data({
   privateProducts = [],
   privatePayments = [],
   privateHormonalEntries = [],
+  privateDailyChecks = [],
   privateSeedVersion = 0,
 } = {}) {
   const seed = createPrivateCycle2026SeedData();
@@ -513,11 +644,44 @@ export function repairPrivateCycle2026Data({
     });
   });
 
+  const nextDailyChecks = [...privateDailyChecks];
+  seed.privateDailyChecks.forEach((seedCheck) => {
+    const existingDailyCheckIndex = nextDailyChecks.findIndex(
+      (item) =>
+        canReusePrivateCycleRecord(item.cycleId, resolvedCycleId, seedCheck.id) &&
+        (matchPrivateDailyCheckSeed(item, seedCheck) || (item.date || '') === (seedCheck.date || ''))
+    );
+
+    if (existingDailyCheckIndex >= 0) {
+      const currentDailyCheck = nextDailyChecks[existingDailyCheckIndex];
+      nextDailyChecks[existingDailyCheckIndex] = {
+        ...currentDailyCheck,
+        cycleId: resolvedCycleId,
+        energy: currentDailyCheck.energy || seedCheck.energy,
+        mood: currentDailyCheck.mood || seedCheck.mood,
+        libido: currentDailyCheck.libido || seedCheck.libido,
+        sleep: currentDailyCheck.sleep || seedCheck.sleep,
+        focus: currentDailyCheck.focus || seedCheck.focus,
+        appetite: currentDailyCheck.appetite || seedCheck.appetite,
+        retention: currentDailyCheck.retention || seedCheck.retention,
+        sideEffects: currentDailyCheck.sideEffects || seedCheck.sideEffects,
+        notes: mergePrivateNotes(currentDailyCheck.notes, seedCheck.notes),
+      };
+      return;
+    }
+
+    nextDailyChecks.unshift({
+      ...seedCheck,
+      cycleId: resolvedCycleId,
+    });
+  });
+
   return {
     privateCycles: nextCycles,
     privateProducts: nextProducts,
     privatePayments: nextPayments,
     privateHormonalEntries: nextEntries,
+    privateDailyChecks: nextDailyChecks,
     privateSeedVersion: Math.max(Number(privateSeedVersion) || 0, seed.privateSeedVersion),
   };
 }
@@ -651,4 +815,221 @@ export function buildPrivateTimeline({
   }));
 
   return sortByTimestampDesc([...entryItems, ...productItems, ...paymentItems]);
+}
+
+export function buildPrivateHormonalWeeklySummary({
+  activeCycle = null,
+  privateEntries = [],
+  privateProducts = [],
+  privatePayments = [],
+  privateDailyChecks = [],
+  weekStart = '',
+  weekEnd = '',
+  currentDate = getToday(),
+  now = new Date(),
+} = {}) {
+  const activeCycleId = activeCycle?.id || '';
+
+  if (!activeCycleId) {
+    return {
+      weeklyApplicationsCount: 0,
+      nextApplication: null,
+      activeCompoundNames: [],
+      totalPaid: 0,
+      totalPending: 0,
+      paidCount: 0,
+      pendingCount: 0,
+      repeatedSymptoms: [],
+      energyAverage: null,
+      sleepAverage: null,
+      moodAverage: null,
+      adherenceRate: 0,
+      trackedDaysCount: 0,
+      weeklyDailyChecksCount: 0,
+      weeklyEntriesCount: 0,
+    };
+  }
+
+  const cycleEntries = privateEntries.filter((item) => item.cycleId === activeCycleId);
+  const cycleProducts = privateProducts.filter((item) => item.cycleId === activeCycleId);
+  const cyclePayments = privatePayments.filter((item) => item.cycleId === activeCycleId);
+  const cycleDailyChecks = privateDailyChecks.filter((item) => item.cycleId === activeCycleId);
+
+  const weeklyEntries = cycleEntries.filter((item) => isDateInsideRange(item.date, weekStart, weekEnd));
+  const weeklyDailyChecks = cycleDailyChecks.filter((item) => isDateInsideRange(item.date, weekStart, weekEnd));
+  const weeklyApplications = weeklyEntries.filter(
+    (item) => getPrivateCanonicalEventType(item.eventType) === 'aplicacion'
+  );
+  const futureApplications = cycleEntries
+    .filter((item) => getPrivateCanonicalEventType(item.eventType) === 'aplicacion')
+    .filter((item) => {
+      const timestamp = getPrivateEntryEffectiveTimestamp(item);
+      return Boolean(timestamp) && timestamp >= now.toISOString();
+    })
+    .sort((a, b) => getPrivateEntryEffectiveTimestamp(a).localeCompare(getPrivateEntryEffectiveTimestamp(b)));
+
+  const symptomMap = weeklyEntries
+    .filter((item) => getPrivateCanonicalEventType(item.eventType) === 'sintoma')
+    .reduce((accumulator, item) => {
+      const key = normalizePrivateSeedKey(item.name || item.category || 'sintoma');
+      const current = accumulator.get(key) || {
+        key,
+        label: item.name || privateCategoryLabels[item.category] || 'Sintoma',
+        count: 0,
+      };
+      current.count += 1;
+      accumulator.set(key, current);
+      return accumulator;
+    }, new Map());
+
+  const repeatedSymptoms = [...symptomMap.values()].filter((item) => item.count >= 2).sort((a, b) => b.count - a.count);
+  const activeCompoundNames = [
+    ...new Set(
+      cycleProducts
+        .filter((item) => item.status !== 'descartado')
+        .map((item) => privateCategoryLabels[item.category] || item.name || 'Componente')
+        .filter(Boolean)
+    ),
+  ];
+  const trackedDays = new Set([
+    ...weeklyEntries.map((item) => item.date).filter(Boolean),
+    ...weeklyDailyChecks.map((item) => item.date).filter(Boolean),
+  ]);
+  const paidPayments = cyclePayments.filter((item) => item.status === 'pagado');
+  const pendingPayments = cyclePayments.filter((item) => item.status === 'pendiente');
+
+  return {
+    weeklyApplicationsCount: weeklyApplications.length,
+    nextApplication: futureApplications[0] || null,
+    activeCompoundNames,
+    totalPaid: paidPayments.reduce((sum, item) => sum + toSafeNumber(item.amount), 0),
+    totalPending: pendingPayments.reduce((sum, item) => sum + toSafeNumber(item.amount), 0),
+    paidCount: paidPayments.length,
+    pendingCount: pendingPayments.length,
+    repeatedSymptoms,
+    energyAverage: averagePrivateScale(weeklyDailyChecks, 'energy'),
+    sleepAverage: averagePrivateScale(weeklyDailyChecks, 'sleep'),
+    moodAverage: averagePrivateScale(weeklyDailyChecks, 'mood'),
+    adherenceRate: Math.round((trackedDays.size / 7) * 100),
+    trackedDaysCount: trackedDays.size,
+    weeklyDailyChecksCount: weeklyDailyChecks.length,
+    weeklyEntriesCount: weeklyEntries.length,
+    latestTrackedDate:
+      [...trackedDays].sort((a, b) => String(b).localeCompare(String(a)))[0] || currentDate,
+  };
+}
+
+export function buildPrivateOperationalAlerts({
+  activeCycle = null,
+  privateEntries = [],
+  privatePayments = [],
+  privateDailyChecks = [],
+  weekStart = '',
+  weekEnd = '',
+  currentDate = getToday(),
+  now = new Date(),
+} = {}) {
+  const alerts = [];
+
+  if (!activeCycle) {
+    return [
+      {
+        id: 'private-alert-no-cycle',
+        tone: 'neutral',
+        title: 'Sin ciclo activo',
+        body: 'Activa un ciclo para empezar el seguimiento operativo.',
+      },
+    ];
+  }
+
+  const cycleEntries = privateEntries.filter((item) => item.cycleId === activeCycle.id);
+  const cyclePayments = privatePayments.filter((item) => item.cycleId === activeCycle.id);
+  const cycleDailyChecks = privateDailyChecks.filter((item) => item.cycleId === activeCycle.id);
+  const weeklyEntries = cycleEntries.filter((item) => isDateInsideRange(item.date, weekStart, weekEnd));
+  const weeklyChecks = cycleDailyChecks.filter((item) => isDateInsideRange(item.date, weekStart, weekEnd));
+  const futureApplications = cycleEntries
+    .filter((item) => getPrivateCanonicalEventType(item.eventType) === 'aplicacion')
+    .filter((item) => {
+      const timestamp = getPrivateEntryEffectiveTimestamp(item);
+      return Boolean(timestamp) && timestamp >= now.toISOString();
+    })
+    .sort((a, b) => getPrivateEntryEffectiveTimestamp(a).localeCompare(getPrivateEntryEffectiveTimestamp(b)));
+  const entriesWithoutDose = cycleEntries.filter((item) => {
+    const canonicalType = getPrivateCanonicalEventType(item.eventType);
+    return (canonicalType === 'aplicacion' || canonicalType === 'toma-oral') && isBlankValue(item.dose);
+  });
+  const pendingPayments = cyclePayments.filter((item) => item.status === 'pendiente');
+  const symptomCounts = weeklyEntries
+    .filter((item) => getPrivateCanonicalEventType(item.eventType) === 'sintoma')
+    .reduce((accumulator, item) => {
+      const key = normalizePrivateSeedKey(item.name || item.category || 'sintoma');
+      accumulator.set(key, (accumulator.get(key) || 0) + 1);
+      return accumulator;
+    }, new Map());
+  const repeatedSymptoms = [...symptomCounts.values()].filter((count) => count >= 2).length;
+  const latestTrackedDate = [...cycleEntries, ...cycleDailyChecks]
+    .map((item) => item.date || '')
+    .filter(Boolean)
+    .sort((a, b) => String(b).localeCompare(String(a)))[0];
+  const daysWithoutActivity = latestTrackedDate
+    ? Math.floor((new Date(`${currentDate}T00:00:00`).getTime() - new Date(`${latestTrackedDate}T00:00:00`).getTime()) / 86400000)
+    : 999;
+
+  if (!futureApplications.length) {
+    alerts.push({
+      id: 'private-alert-next-application',
+      tone: 'warning',
+      title: 'Falta próxima aplicación',
+      body: 'No hay una aplicación futura registrada para el ciclo activo.',
+    });
+  }
+
+  if (entriesWithoutDose.length > 0) {
+    alerts.push({
+      id: 'private-alert-missing-dose',
+      tone: 'warning',
+      title: 'Eventos sin dosis',
+      body: `${entriesWithoutDose.length} registro(s) de aplicación o toma oral siguen sin dosis capturada.`,
+    });
+  }
+
+  if (pendingPayments.length > 0) {
+    alerts.push({
+      id: 'private-alert-pending-payments',
+      tone: 'warning',
+      title: 'Pagos pendientes',
+      body: `${pendingPayments.length} pago(s) siguen pendientes dentro del ciclo activo.`,
+    });
+  }
+
+  if (repeatedSymptoms > 0) {
+    alerts.push({
+      id: 'private-alert-symptoms',
+      tone: 'warning',
+      title: 'Síntomas repetidos',
+      body: 'Hay síntomas repetidos esta semana. Vale la pena revisar el patrón.',
+    });
+  }
+
+  if (daysWithoutActivity >= 3) {
+    alerts.push({
+      id: 'private-alert-no-activity',
+      tone: 'neutral',
+      title: 'Seguimiento detenido',
+      body: latestTrackedDate
+        ? `No registras actividad nueva desde ${latestTrackedDate}.`
+        : 'Aún no registras actividad en este ciclo.',
+    });
+  }
+
+  if (weeklyChecks.length === 0) {
+    alerts.push({
+      id: 'private-alert-minimum-data',
+      tone: 'neutral',
+      title: 'Faltan datos mínimos',
+      body: 'Todavía no hay chequeos diarios esta semana para leer energía, ánimo y sueño.',
+    });
+  }
+
+  return alerts;
 }

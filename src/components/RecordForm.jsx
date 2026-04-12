@@ -20,6 +20,15 @@ export default function RecordForm({
 
       <div className="form-grid">
         {fields.map((field) => {
+          if (field.type === 'section') {
+            return (
+              <div className="form-section-label" key={field.name || field.label}>
+                <strong>{field.label}</strong>
+                {field.hint ? <p>{field.hint}</p> : null}
+              </div>
+            );
+          }
+
           if (field.type === 'textarea') {
             return (
               <label className="field field-full" key={field.name}>
@@ -29,8 +38,9 @@ export default function RecordForm({
                   value={formData[field.name]}
                   onChange={onChange}
                   placeholder={field.placeholder || ''}
-                  rows="3"
+                  rows={field.rows || '3'}
                 />
+                {field.hint ? <small className="field-hint">{field.hint}</small> : null}
               </label>
             );
           }
@@ -46,6 +56,7 @@ export default function RecordForm({
                     </option>
                   ))}
                 </select>
+                {field.hint ? <small className="field-hint">{field.hint}</small> : null}
               </label>
             );
           }
@@ -62,6 +73,7 @@ export default function RecordForm({
                 min={field.min}
                 step={field.step}
               />
+              {field.hint ? <small className="field-hint">{field.hint}</small> : null}
             </label>
           );
         })}
