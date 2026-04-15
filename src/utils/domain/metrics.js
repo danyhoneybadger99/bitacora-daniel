@@ -1,5 +1,5 @@
 import { getToday } from '../date';
-import { getNumericMetric } from './shared';
+import { formatUnitValue, getNumericMetric } from './shared';
 
 export function createEmptyMetric() {
   return {
@@ -34,12 +34,12 @@ export function createEmptyMetric() {
 
 export function formatMetricValue(value, unit = '') {
   if (value === '--' || value === '' || value === null || value === undefined) return '--';
-  return `${value}${unit}`;
+  return formatUnitValue(value, unit, { maximumFractionDigits: 1, fallback: '--' });
 }
 
 export function formatMetricText(value, unit = '') {
   if (value === '--' || value === '' || value === null || value === undefined) return 'sin dato';
-  return `${value}${unit}`;
+  return formatUnitValue(value, unit, { maximumFractionDigits: 1, fallback: 'sin dato' });
 }
 
 export function getMetricDeltaLabel(currentValue, previousValue, unit = '') {

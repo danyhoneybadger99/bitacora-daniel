@@ -118,7 +118,17 @@ import {
   supplementCategoryLabels,
   supplementFilterOptions,
 } from './utils/domain/records';
-import { average, createId, getLatestEntry, shiftDateByDays, sumBy } from './utils/domain/shared';
+import {
+  average,
+  createId,
+  formatIntegerValue,
+  formatPercentValue,
+  formatUnitValue,
+  formatWeightValue,
+  getLatestEntry,
+  shiftDateByDays,
+  sumBy,
+} from './utils/domain/shared';
 import { buildWeeklySummary } from './utils/domain/weeklySummary';
 import {
   formatDate,
@@ -1028,6 +1038,7 @@ function App() {
     [currentDate, fastingFreeDays]
   );
   const activeFastingLog = activeFastEntry || null;
+  const shouldTreatTodayAsFastingFree = isTodayFastingFree && !activeFastingLog && todaysFastingLogs.length === 0;
   const activeFastingReferenceDate = activeFastingLog
     ? getFastingRecordDate(activeFastingLog, currentDate)
     : currentDate;
@@ -1072,20 +1083,29 @@ function App() {
     return `Faltaron ${formatHoursLabel(Math.abs(activeFastingDifferenceHours))}`;
   }, [activeFastingDifferenceHours]);
   const activeFastingAutophagy = activeFastingStatus === 'en curso' && activeFastingElapsedHours >= 16;
-  const displayedFastingStatus = isTodayFastingFree ? 'dia libre' : activeFastingStatus;
-  const displayedFastingProtocolLabel = isTodayFastingFree ? 'Hoy no hay ayuno' : activeFastingProtocolLabel;
-  const displayedFastingDisplay = isTodayFastingFree ? 'Dia libre de ayuno' : activeFastingDisplay;
-  const displayedFastingProgressPercent = isTodayFastingFree ? 0 : activeFastingProgressPercent;
-  const displayedFastingRemainingHours = isTodayFastingFree ? null : activeFastingRemainingHours;
-  const displayedFastingElapsedLabel = isTodayFastingFree ? 'Dia libre de ayuno' : formatHoursLabel(activeFastingElapsedHours);
-  const displayedFastingSummaryText = isTodayFastingFree
+  const activeFastingProgressLabel = shouldTreatTodayAsFastingFree
+    ? 'Excluido'
+    : !activeFastingGoalHours
+      ? 'Sin meta'
+      : activeFastingStatus === 'en curso' && activeFastingReachedGoal
+        ? 'Meta alcanzada · en curso'
+        : formatPercentValue(activeFastingProgressPercent, '0%');
+  const displayedFastingStatus = shouldTreatTodayAsFastingFree ? 'dia libre' : activeFastingStatus;
+  const displayedFastingProtocolLabel = shouldTreatTodayAsFastingFree ? 'Hoy no hay ayuno' : activeFastingProtocolLabel;
+  const displayedFastingDisplay = shouldTreatTodayAsFastingFree ? 'Dia libre de ayuno' : activeFastingDisplay;
+  const displayedFastingProgressPercent = shouldTreatTodayAsFastingFree ? 0 : activeFastingProgressPercent;
+  const displayedFastingRemainingHours = shouldTreatTodayAsFastingFree ? null : activeFastingRemainingHours;
+  const displayedFastingElapsedLabel = shouldTreatTodayAsFastingFree ? 'Dia libre de ayuno' : formatHoursLabel(activeFastingElapsedHours);
+  const displayedFastingSummaryText = shouldTreatTodayAsFastingFree
     ? todaysFastingLogs.length > 0
       ? 'Dia libre marcado. El registro del dia se conserva sin contar como falla.'
       : 'Dia libre marcado. No cuenta como falla ni como pendiente.'
     : activeFastingStatus === 'pendiente'
       ? 'Aun no iniciado'
       : activeFastingStatus === 'en curso'
-        ? `Tiempo transcurrido ${formatHoursLabel(activeFastingElapsedHours)}`
+        ? activeFastingReachedGoal
+          ? `Meta alcanzada. El ayuno sigue en curso con ${formatHoursLabel(activeFastingElapsedHours)} acumuladas.`
+          : `Tiempo transcurrido ${formatHoursLabel(activeFastingElapsedHours)}`
         : activeFastingStatus === 'cumplido' && !activeFastingLog?.actualBreakDateTime
           ? `Meta alcanzada con ${formatHoursLabel(activeFastingElapsedHours)}`
           : `Duracion final ${formatHoursLabel(activeFastingElapsedHours)}`;
@@ -1679,6 +1699,7 @@ function lockPrivateModule(feedbackText = '') {
     weightGoal > 0 && Number(todaySummary.weight) > 0
       ? Math.max(0, 100 - (Math.abs(Number(todaySummary.weight) - weightGoal) / weightGoal) * 100)
       : 0;
+  const isSundayReminderVisible = getDayOfWeekKey(currentDate) === 'domingo';
   const recentFoods = useMemo(() => sortFoods(diaryData.foods), [diaryData.foods]);
   const visibleRecentFoods = useMemo(
     () => (showAllRecentFoods ? recentFoods : recentFoods.slice(0, 5)),
@@ -3219,27 +3240,35 @@ function lockPrivateModule(feedbackText = '') {
             <div className="progress-card-grid">
               <ProgressCard
                 title="Calorias"
-                value={`${todaySummary.calories} kcal`}
-                subtitle={calorieGoal > 0 ? `Meta diaria: ${calorieGoal} kcal` : 'Define una meta para ver progreso.'}
+                value={formatIntegerValue(todaySummary.calories, 'kcal', '0 kcal')}
+                subtitle={
+                  calorieGoal > 0
+                    ? `Meta diaria: ${formatIntegerValue(calorieGoal, 'kcal', '0 kcal')}`
+                    : 'Define una meta para ver progreso.'
+                }
                 progress={calorieProgress}
                 tone="energy"
                 helper={
                   calorieGoal > 0
-                    ? `${Math.max(calorieGoal - todaySummary.calories, 0)} kcal restantes`
+                    ? `${formatIntegerValue(Math.max(calorieGoal - todaySummary.calories, 0), 'kcal', '0 kcal')} restantes`
                     : 'Sin meta configurada'
                 }
               />
 
               <ProgressCard
                 title="Proteina"
-                value={`${todaySummary.protein} g`}
-                subtitle={proteinGoal > 0 ? `Minimo diario: ${proteinGoal} g` : 'Define un minimo de proteina.'}
+                value={formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}
+                subtitle={
+                  proteinGoal > 0
+                    ? `Minimo diario: ${formatUnitValue(proteinGoal, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}`
+                    : 'Define un minimo de proteina.'
+                }
                 progress={proteinProgress}
                 tone={proteinAlert ? 'alert' : 'success'}
                 helper={
                   proteinGoal > 0
                     ? proteinAlert
-                      ? `Te faltan ${(proteinGoal - todaySummary.protein).toFixed(1)} g`
+                      ? `Te faltan ${formatUnitValue(proteinGoal - todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}`
                       : 'Meta de proteina cumplida'
                     : 'Sin meta configurada'
                 }
@@ -3248,7 +3277,7 @@ function lockPrivateModule(feedbackText = '') {
               <ProgressCard
                 title="Peso actual"
                 value={formatMetricValue(todaySummary.weight, todaySummary.weight === '--' ? '' : ' kg')}
-                subtitle={weightGoal > 0 ? `Objetivo: ${weightGoal} kg` : 'Configura un peso objetivo.'}
+                subtitle={weightGoal > 0 ? `Objetivo: ${formatWeightValue(weightGoal, 'kg', '--')}` : 'Configura un peso objetivo.'}
                 progress={weightProgress}
                 tone="weight"
                 helper={
@@ -3263,8 +3292,8 @@ function lockPrivateModule(feedbackText = '') {
 
               <ProgressCard
                 title="Actividad"
-                value={`${todaySummary.exerciseCalories} kcal`}
-                subtitle={`${todaySummary.exerciseMinutes} min de ejercicio hoy`}
+                value={formatIntegerValue(todaySummary.exerciseCalories, 'kcal', '0 kcal')}
+                subtitle={`${formatIntegerValue(todaySummary.exerciseMinutes, 'min', '0 min')} de ejercicio hoy`}
                 progress={Math.min((todaySummary.exerciseMinutes / 60) * 100, 100)}
                 tone="movement"
                 helper={`${todaySummary.exerciseEntries} sesiones registradas`}
@@ -3301,21 +3330,27 @@ function lockPrivateModule(feedbackText = '') {
 
               <ProgressCard
                 title="Hidratacion"
-                value={`${todaySummary.hydrationMl.toFixed(0)} ml`}
-                subtitle={`Meta diaria: ${hydrationBaseGoal || 0} ml`}
+                value={formatUnitValue(todaySummary.hydrationMl, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}
+                subtitle={`Meta diaria: ${formatUnitValue(hydrationBaseGoal || 0, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}`}
                 progress={hydrationProgress}
                 tone={hydrationTone}
                 helper={
                   todaysExercises.length > 0 && hydrationHighActivityGoal > 0
-                    ? `Alta actividad: ${hydrationHighActivityGoal} ml`
-                    : `${Math.max((hydrationBaseGoal || 0) - todaySummary.hydrationMl, 0).toFixed(0)} ml restantes`
+                    ? `Alta actividad: ${formatUnitValue(hydrationHighActivityGoal, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}`
+                    : `${formatUnitValue(Math.max((hydrationBaseGoal || 0) - todaySummary.hydrationMl, 0), 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })} restantes`
                 }
               />
             </div>
 
             {proteinAlert ? (
               <div className="alert-banner">
-                <strong>Alerta de proteina:</strong> hoy llevas {todaySummary.protein} g y tu minimo configurado es {proteinGoal} g.
+                <strong>Alerta de proteina:</strong> hoy llevas {formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} y tu minimo configurado es {formatUnitValue(proteinGoal, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}.
+              </div>
+            ) : null}
+
+            {isSundayReminderVisible ? (
+              <div className="alert-banner alert-banner-sunday">
+                <strong>Domingo con control:</strong> evita azucar, harina y exceso de calorias. No tires a la basura el esfuerzo de la semana.
               </div>
             ) : null}
 
@@ -3340,7 +3375,9 @@ function lockPrivateModule(feedbackText = '') {
                   </div>
                   <div className="mini-stat">
                     <span>Macros extra</span>
-                    <strong>{todaySummary.carbs} g carbos • {todaySummary.fat} g grasa</strong>
+                    <strong>
+                      {formatUnitValue(todaySummary.carbs, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} carbos • {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} grasa
+                    </strong>
                   </div>
                   <div className="mini-stat">
                     <span>Suplementos</span>
@@ -3367,15 +3404,15 @@ function lockPrivateModule(feedbackText = '') {
             <div className="dashboard-grid dashboard-compact-grid">
               <SectionCard title="Alimentos" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
                 <div className="dashboard-snapshot">
-                  <strong>{todaysFoods.length === 0 ? 'Sin registros' : `${todaySummary.calories} kcal`}</strong>
-                  <p>{todaysFoods.length === 0 ? 'Sin alimentos registrados hoy.' : `${todaySummary.foodEntries} registros • ${todaySummary.protein} g proteina`}</p>
+                  <strong>{todaysFoods.length === 0 ? 'Sin registros' : formatIntegerValue(todaySummary.calories, 'kcal', '0 kcal')}</strong>
+                  <p>{todaysFoods.length === 0 ? 'Sin alimentos registrados hoy.' : `${todaySummary.foodEntries} registros • ${formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} proteina`}</p>
                 </div>
               </SectionCard>
 
               <SectionCard title="Hidratacion" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
                 <div className="dashboard-snapshot">
-                  <strong>{`${todaySummary.hydrationMl.toFixed(0)} ml`}</strong>
-                  <p>{`Meta ${hydrationBaseGoal || 0} ml${todaysExercises.length > 0 && hydrationHighActivityGoal > 0 ? ` • alta ${hydrationHighActivityGoal} ml` : ''}`}</p>
+                  <strong>{formatUnitValue(todaySummary.hydrationMl, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}</strong>
+                  <p>{`Meta ${formatUnitValue(hydrationBaseGoal || 0, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}${todaysExercises.length > 0 && hydrationHighActivityGoal > 0 ? ` • alta ${formatUnitValue(hydrationHighActivityGoal, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}` : ''}`}</p>
                 </div>
               </SectionCard>
 
@@ -3388,24 +3425,26 @@ function lockPrivateModule(feedbackText = '') {
 
               <SectionCard title="Ejercicio" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
                 <div className="dashboard-snapshot">
-                  <strong>{todaysExercises.length === 0 ? 'Sin registros' : `${todaySummary.exerciseMinutes} min`}</strong>
-                  <p>{todaysExercises.length === 0 ? 'Sin ejercicio registrado hoy.' : `${todaySummary.exerciseCalories} kcal • ${todaySummary.exerciseEntries} sesiones`}</p>
+                  <strong>{todaysExercises.length === 0 ? 'Sin registros' : formatIntegerValue(todaySummary.exerciseMinutes, 'min', '0 min')}</strong>
+                  <p>{todaysExercises.length === 0 ? 'Sin ejercicio registrado hoy.' : `${formatIntegerValue(todaySummary.exerciseCalories, 'kcal', '0 kcal')} • ${todaySummary.exerciseEntries} sesiones`}</p>
                 </div>
               </SectionCard>
 
               <SectionCard title="Ayuno" subtitle={displayedFastingProtocolLabel} className="card-soft dashboard-compact-card">
                 <div className="dashboard-snapshot">
                   <strong>{todaySummary.fastingStatus === 'dia libre' ? 'Dia libre de ayuno' : todaySummary.fastingStatus}</strong>
-                  {activeFastingAutophagy && !isTodayFastingFree ? <span className="fasting-autophagy-badge fasting-autophagy-badge-compact">En autofagia</span> : null}
-                  {activeFastingAutophagy && !isTodayFastingFree ? <small className="dashboard-hint">Hito visual activado desde 16 h de ayuno activo.</small> : null}
+                  {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <span className="fasting-autophagy-badge fasting-autophagy-badge-compact">En autofagia</span> : null}
+                  {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <small className="dashboard-hint">Hito visual activado desde 16 h de ayuno activo.</small> : null}
                   <p>
                     {todaySummary.fastingStatus === 'dia libre'
                       ? 'Hoy no hay ayuno.'
                       : todaySummary.fastingStatus === 'pendiente'
                         ? 'Aun no iniciado.'
-                        : `${formatHoursLabel(activeFastingElapsedHours)} acumuladas${
-                            displayedFastingRemainingHours !== null ? ` • ${formatHoursLabel(displayedFastingRemainingHours)} restantes` : ' • Meta alcanzada'
-                          }`}
+                        : activeFastingStatus === 'en curso' && activeFastingReachedGoal
+                          ? `${formatHoursLabel(activeFastingElapsedHours)} acumuladas • Meta alcanzada y ayuno en curso`
+                          : `${formatHoursLabel(activeFastingElapsedHours)} acumuladas${
+                              displayedFastingRemainingHours !== null ? ` • ${formatHoursLabel(displayedFastingRemainingHours)} restantes` : ' • Meta alcanzada'
+                            }`}
                   </p>
                 </div>
               </SectionCard>
@@ -3413,15 +3452,15 @@ function lockPrivateModule(feedbackText = '') {
               <SectionCard title="Objetivo actual" subtitle={activeObjective ? activeObjective.title : 'Sin objetivo activo'} className="card-soft dashboard-compact-card">
                 <div className="dashboard-snapshot">
                   <strong>
-                    {activeObjective?.targetWeight ? `${activeObjective.targetWeight} kg meta` : 'Sin dato'}
+                    {activeObjective?.targetWeight ? `${formatWeightValue(activeObjective.targetWeight, 'kg', '--')} meta` : 'Sin dato'}
                   </strong>
                   <p>
                     {activeObjective
-                      ? `${activeObjective.averageCaloriesTarget || '--'} kcal prom • tope ${activeObjective.averageUpperLimit || '--'}`
+                      ? `${formatIntegerValue(activeObjective.averageCaloriesTarget, 'kcal', '--')} prom • tope ${formatIntegerValue(activeObjective.averageUpperLimit, 'kcal', '--')}`
                       : 'Todavia no has definido una meta activa.'}
                   </p>
                   {activeObjective ? (
-                    <small>{`Min habitual ${activeObjective.minimumUsual || '--'} • Prot minima ${activeObjective.proteinMinimum || '--'} g`}</small>
+                    <small>{`Min habitual ${formatIntegerValue(activeObjective.minimumUsual, 'kcal', '--')} • Prot minima ${formatUnitValue(activeObjective.proteinMinimum, 'g', { maximumFractionDigits: 1, fallback: '--' })}`}</small>
                   ) : null}
                 </div>
               </SectionCard>
@@ -4137,7 +4176,9 @@ function lockPrivateModule(feedbackText = '') {
                 </button>
                 <span className="section-helper">
                   {isTodayFastingFree
-                    ? 'Hoy queda excluido del seguimiento de ayuno.'
+                    ? activeFastingLog
+                      ? 'Hay un ayuno real activo; el día libre no sobrescribe ese registro.'
+                      : 'Hoy queda excluido del seguimiento de ayuno.'
                     : 'Marca el día como libre si no quieres ayuno hoy.'}
                 </span>
               </div>
@@ -4145,7 +4186,7 @@ function lockPrivateModule(feedbackText = '') {
                 <div className="supplement-summary-card">
                   <span>Protocolo de hoy</span>
                   <strong>{displayedFastingProtocolLabel}</strong>
-                  {activeFastingAutophagy && !isTodayFastingFree ? <small className="fasting-summary-note">Hito visual activado desde 16 h de ayuno activo.</small> : null}
+                  {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <small className="fasting-summary-note">Hito visual activado desde 16 h de ayuno activo.</small> : null}
                 </div>
                 <div className="supplement-summary-card">
                   <span>Estado real</span>
@@ -4157,11 +4198,11 @@ function lockPrivateModule(feedbackText = '') {
                 </div>
                 <div className="supplement-summary-card">
                   <span>Meta esperada</span>
-                  <strong>{isTodayFastingFree ? 'Dia libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta definida'}</strong>
+                  <strong>{shouldTreatTodayAsFastingFree ? 'Dia libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta definida'}</strong>
                 </div>
                 <div className="supplement-summary-card">
                   <span>Progreso</span>
-                  <strong>{isTodayFastingFree ? 'Excluido' : activeFastingGoalHours ? `${activeFastingProgressPercent.toFixed(0)}%` : 'Sin meta'}</strong>
+                  <strong>{activeFastingProgressLabel}</strong>
                 </div>
               </div>
               <div className="fasting-live-card">
@@ -4169,17 +4210,17 @@ function lockPrivateModule(feedbackText = '') {
                   <div>
                     <strong>{displayedFastingDisplay}</strong>
                     <span>{displayedFastingSummaryText}</span>
-                    {activeFastingAutophagy && !isTodayFastingFree ? <small className="fasting-summary-note">Hito visual activado desde 16 h de ayuno activo.</small> : null}
+                    {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <small className="fasting-summary-note">Hito visual activado desde 16 h de ayuno activo.</small> : null}
                   </div>
                   <div className="fasting-live-badges">
-                    {activeFastingAutophagy && !isTodayFastingFree ? <span className="fasting-autophagy-badge">En autofagia</span> : null}
-                    <span className={`metrics-source-chip ${getFastingStatusClass(isTodayFastingFree ? 'cumplido' : activeFastingStatus)}`}>
+                    {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <span className="fasting-autophagy-badge">En autofagia</span> : null}
+                    <span className={`metrics-source-chip ${getFastingStatusClass(shouldTreatTodayAsFastingFree ? 'cumplido' : activeFastingStatus)}`}>
                       {displayedFastingStatus}
                     </span>
                   </div>
                 </div>
                 <div className="progress-track" aria-hidden="true">
-                  <div className="progress-fill" style={{ width: `${displayedFastingStatus === 'pendiente' || isTodayFastingFree ? 0 : Math.min(displayedFastingProgressPercent, 100)}%` }} />
+                  <div className="progress-fill" style={{ width: `${displayedFastingStatus === 'pendiente' || shouldTreatTodayAsFastingFree ? 0 : Math.min(displayedFastingProgressPercent, 100)}%` }} />
                 </div>
                 <div className="fasting-live-metrics">
                   <div className="fasting-live-metric">
@@ -4190,27 +4231,27 @@ function lockPrivateModule(feedbackText = '') {
                     <span>Acumulado</span>
                     <strong>{displayedFastingStatus === 'pendiente' ? 'Aun no iniciado' : displayedFastingElapsedLabel}</strong>
                   </div>
-                  <div className="fasting-live-metric">
-                    <span>Objetivo</span>
-                    <strong>{isTodayFastingFree ? 'Dia libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta'}</strong>
-                  </div>
-                  <div className="fasting-live-metric">
-                    <span>Progreso</span>
-                    <strong>{isTodayFastingFree ? 'Excluido' : activeFastingGoalHours ? `${displayedFastingProgressPercent.toFixed(0)}%` : 'Sin meta'}</strong>
-                  </div>
+                <div className="fasting-live-metric">
+                  <span>Objetivo</span>
+                  <strong>{shouldTreatTodayAsFastingFree ? 'Dia libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta'}</strong>
+                </div>
+                <div className="fasting-live-metric">
+                  <span>Progreso</span>
+                  <strong>{activeFastingProgressLabel}</strong>
+                </div>
                 </div>
                 <div className="entry-details">
                   <span>{activeFastingLog?.actualStartDateTime ? `Inicio real ${formatDateTimeHuman(activeFastingLog.actualStartDateTime)}` : 'Inicio real sin dato'}</span>
                   <span>
                     {displayedFastingRemainingHours !== null && displayedFastingStatus === 'en curso'
-                      ? `${formatHoursLabel(displayedFastingRemainingHours)} restantes`
-                      : displayedFastingStatus === 'cumplido'
-                        ? 'Meta alcanzada'
-                        : activeFastingLog?.actualBreakDateTime
-                          ? `Ruptura real ${formatDateTimeHuman(activeFastingLog.actualBreakDateTime)}`
-                          : isTodayFastingFree
-                            ? 'Dia libre guardado'
-                            : 'Registro editable manualmente'}
+                        ? `${formatHoursLabel(displayedFastingRemainingHours)} restantes`
+                        : displayedFastingStatus === 'cumplido'
+                          ? 'Meta alcanzada'
+                          : activeFastingLog?.actualBreakDateTime
+                            ? `Ruptura real ${formatDateTimeHuman(activeFastingLog.actualBreakDateTime)}`
+                            : shouldTreatTodayAsFastingFree
+                              ? 'Dia libre guardado'
+                              : 'Registro editable manualmente'}
                   </span>
                   {displayedFastingStatus === 'roto' && activeFastingDifferenceHours !== null ? <span>{activeFastingDifferenceText}</span> : null}
                 </div>
@@ -4371,8 +4412,8 @@ function lockPrivateModule(feedbackText = '') {
                         <strong>{displayedFastingProtocolLabel || 'Sin protocolo esperado'}</strong>
                         <span>Resumen del ayuno activo: {displayedFastingStatus}</span>
                       </div>
-                      <span className={`metrics-source-chip ${getFastingStatusClass(isTodayFastingFree ? 'cumplido' : activeFastingStatus)}`}>
-                        {isTodayFastingFree ? 'Excluido' : activeFastingGoalHours ? `${displayedFastingProgressPercent.toFixed(0)}%` : 'Sin meta'}
+                      <span className={`metrics-source-chip ${getFastingStatusClass(shouldTreatTodayAsFastingFree ? 'cumplido' : activeFastingStatus)}`}>
+                        {activeFastingProgressLabel}
                       </span>
                     </div>
                     <div className="fasting-live-metrics">
@@ -4382,7 +4423,7 @@ function lockPrivateModule(feedbackText = '') {
                       </div>
                       <div className="fasting-live-metric">
                         <span>Objetivo</span>
-                        <strong>{isTodayFastingFree ? 'Dia libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta'}</strong>
+                        <strong>{shouldTreatTodayAsFastingFree ? 'Dia libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta'}</strong>
                       </div>
                       <div className="fasting-live-metric">
                         <span>Estado</span>
@@ -4390,7 +4431,7 @@ function lockPrivateModule(feedbackText = '') {
                       </div>
                       <div className="fasting-live-metric">
                         <span>Progreso</span>
-                        <strong>{isTodayFastingFree ? 'Excluido' : activeFastingGoalHours ? `${displayedFastingProgressPercent.toFixed(0)}%` : 'Sin meta'}</strong>
+                        <strong>{activeFastingProgressLabel}</strong>
                       </div>
                     </div>
                     <div className="entry-details">
@@ -4415,9 +4456,10 @@ function lockPrivateModule(feedbackText = '') {
                         diaryData.fastingProtocols || [],
                         getFastingRecordDate(item, item.date)
                       );
-                      const status = getFastingStatusLabel(item, protocol);
-                      const duration = Number(item.actualDuration || 0);
+                      const status = getFastingStatusLabel(item, protocol, fastingNow);
+                      const durationHours = getFastingElapsedHours(item, fastingNow);
                       const expected = Number(protocol?.expectedDuration || 0);
+                      const goalReachedWhileActive = status === 'en curso' && expected > 0 && durationHours >= expected;
 
                       return (
                         <article className="metrics-card" key={item.id}>
@@ -4431,10 +4473,11 @@ function lockPrivateModule(feedbackText = '') {
                             </span>
                           </div>
                           <div className="entry-details">
-                            <span>Inicio {formatDateTimeHuman(item.actualStartDateTime)}</span>
-                            <span>Ruptura {formatDateTimeHuman(item.actualBreakDateTime)}</span>
-                            <span>{item.actualDuration ? `${item.actualDuration} h` : 'Sin duracion'}</span>
-                            {expected > 0 && status === 'roto' ? <span>Faltaron {formatHoursLabel(Math.max(expected - duration, 0))}</span> : null}
+                            <span>{item.actualStartDateTime ? `Inicio ${formatDateTimeHuman(item.actualStartDateTime)}` : 'Inicio real sin dato'}</span>
+                            <span>{item.actualBreakDateTime ? `Ruptura ${formatDateTimeHuman(item.actualBreakDateTime)}` : status === 'en curso' ? 'Ruptura pendiente' : 'Ruptura real sin dato'}</span>
+                            <span>{durationHours > 0 ? `${formatHoursLabel(durationHours)} acumuladas` : 'Sin duracion'}</span>
+                            {goalReachedWhileActive ? <span>Meta alcanzada · ayuno en curso</span> : null}
+                            {expected > 0 && status === 'roto' ? <span>Faltaron {formatHoursLabel(Math.max(expected - durationHours, 0))}</span> : null}
                             <span>Hambre {fastingFeelingLabels[item.hunger] || item.hunger}</span>
                             <span>Energia {fastingFeelingLabels[item.energy] || item.energy}</span>
                           </div>

@@ -935,6 +935,12 @@ button {
   line-height: 1.35;
 }
 
+.alert-banner-sunday {
+  background: linear-gradient(135deg, #fff8ef, #f8e8d9);
+  border-color: #e2c0a3;
+  color: #7d4b22;
+}
+
 .dashboard-main-grid,
 .weekly-detail-grid {
   display: grid;
@@ -1219,6 +1225,7 @@ button {
 .fasting-day-toggle {
   align-items: center;
   margin-bottom: 12px;
+  gap: 8px;
 }
 
 .fasting-day-toggle .section-helper {
@@ -1417,14 +1424,27 @@ button {
 @media (max-width: 640px) {
   .fasting-live-metrics {
     grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .fasting-live-card {
-    padding: 18px;
+    padding: 14px;
   }
 
   .fasting-protocol-item {
-    padding: 14px 16px;
+    padding: 12px 13px;
+  }
+
+  .fasting-live-metric {
+    padding: 10px 11px;
+  }
+
+  .fasting-live-header strong {
+    font-size: 0.98rem;
+  }
+
+  .fasting-live-header span {
+    margin-top: 4px;
   }
 }
 
@@ -3519,6 +3539,14 @@ button {
   .dashboard-compact-card,
   .fasting-live-card {
     padding: 11px;
+  }
+
+  .fasting-live-metric {
+    padding: 9px 10px;
+  }
+
+  .fasting-day-toggle {
+    align-items: stretch;
   }
 
   .progress-card-top strong,

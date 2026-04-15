@@ -35,3 +35,46 @@ export function getNumericMetric(value) {
   const parsed = Number(value);
   return Number.isNaN(parsed) || !Number.isFinite(parsed) ? null : parsed;
 }
+
+export function formatDisplayNumber(
+  value,
+  { minimumFractionDigits = 0, maximumFractionDigits = 1, fallback = '--' } = {}
+) {
+  const numeric = getNumericMetric(value);
+  if (numeric === null) return fallback;
+
+  return new Intl.NumberFormat('es-MX', {
+    minimumFractionDigits,
+    maximumFractionDigits,
+  }).format(numeric);
+}
+
+export function formatUnitValue(
+  value,
+  unit = '',
+  { minimumFractionDigits = 0, maximumFractionDigits = 1, fallback = '--' } = {}
+) {
+  const formatted = formatDisplayNumber(value, {
+    minimumFractionDigits,
+    maximumFractionDigits,
+    fallback,
+  });
+
+  if (formatted === fallback) return fallback;
+  const safeUnit = String(unit || '').trim();
+  if (!safeUnit) return formatted;
+  if (safeUnit === '%') return `${formatted}%`;
+  return `${formatted} ${safeUnit}`;
+}
+
+export function formatIntegerValue(value, unit = '', fallback = '--') {
+  return formatUnitValue(value, unit, { maximumFractionDigits: 0, fallback });
+}
+
+export function formatWeightValue(value, unit = 'kg', fallback = '--') {
+  return formatUnitValue(value, unit, { maximumFractionDigits: 1, fallback });
+}
+
+export function formatPercentValue(value, fallback = '--') {
+  return formatUnitValue(value, '%', { maximumFractionDigits: 1, fallback });
+}

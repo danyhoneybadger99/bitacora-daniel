@@ -119,8 +119,77 @@ export function isFastingLogActiveAt(log, nowTimestamp = Date.now()) {
   return now.getTime() < breakDate.getTime();
 }
 
+export function getFastingPlannedDurationHours(log) {
+  if (!log?.actualStartDateTime) return 0;
+
+  if (log.actualBreakDateTime) {
+    const calculatedDuration = Number(
+      calculateFastingDurationHours(log.actualStartDateTime, log.actualBreakDateTime) || 0
+    );
+    if (calculatedDuration > 0) return calculatedDuration;
+  }
+
+  const directDuration = Number(log.actualDuration || 0);
+  if (directDuration > 0) return directDuration;
+
+  const protocolText = String(log.expectedProtocol || '').toLowerCase();
+  const hoursMatch = protocolText.match(/(\d+(?:\.\d+)?)\s*horas?/);
+  if (hoursMatch) return Number(hoursMatch[1] || 0);
+
+  const windowMatch = protocolText.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+  if (windowMatch) return Number(windowMatch[1] || 0);
+
+  if (protocolText.includes('omad')) return 23;
+  return 0;
+}
+
+export function compareFastingPriority(a, b, nowTimestamp = Date.now()) {
+  const plannedA = getFastingPlannedDurationHours(a);
+  const plannedB = getFastingPlannedDurationHours(b);
+  if (plannedB !== plannedA) return plannedB - plannedA;
+
+  const elapsedA = getFastingElapsedHours(a, nowTimestamp);
+  const elapsedB = getFastingElapsedHours(b, nowTimestamp);
+  if (elapsedB !== elapsedA) return elapsedB - elapsedA;
+
+  const startA = new Date(a.actualStartDateTime || `${a.date}T00:00`).getTime();
+  const startB = new Date(b.actualStartDateTime || `${b.date}T00:00`).getTime();
+  if (startA !== startB) return startA - startB;
+
+  return String(a.id || '').localeCompare(String(b.id || ''));
+}
+
+export function doFastingLogsOverlap(a, b, nowTimestamp = Date.now()) {
+  const rangeA = getFastingTimeRange(a, nowTimestamp);
+  const rangeB = getFastingTimeRange(b, nowTimestamp);
+  if (!rangeA || !rangeB) return false;
+
+  return rangeA.start < rangeB.end && rangeB.start < rangeA.end;
+}
+
+export function resolveFastingLogConflicts(logs, nowTimestamp = Date.now()) {
+  const sortedByPriority = [...(logs || [])].sort((a, b) => compareFastingPriority(a, b, nowTimestamp));
+  const selected = [];
+
+  sortedByPriority.forEach((candidate) => {
+    const overlapsExisting = selected.some((kept) => doFastingLogsOverlap(candidate, kept, nowTimestamp));
+    if (!overlapsExisting) {
+      selected.push(candidate);
+    }
+  });
+
+  return selected.sort((a, b) => {
+    const refA = a.actualStartDateTime || a.actualBreakDateTime || `${a.date}T00:00`;
+    const refB = b.actualStartDateTime || b.actualBreakDateTime || `${b.date}T00:00`;
+    return refB.localeCompare(refA);
+  });
+}
+
 export function getActiveFastingLog(logs, nowTimestamp = Date.now()) {
-  return (logs || []).find((item) => isFastingLogActiveAt(item, nowTimestamp)) || null;
+  const activeLogs = (logs || []).filter((item) => isFastingLogActiveAt(item, nowTimestamp));
+  if (activeLogs.length === 0) return null;
+
+  return [...activeLogs].sort((a, b) => compareFastingPriority(a, b, nowTimestamp))[0];
 }
 
 export function getFastingElapsedHours(log, nowTimestamp = Date.now()) {
