@@ -134,6 +134,7 @@ export const defaultState = {
   privatePayments: privateSeedData.privatePayments,
   privateHormonalEntries: privateSeedData.privateHormonalEntries,
   privateDailyChecks: privateSeedData.privateDailyChecks,
+  privateCycleMedications: privateSeedData.privateCycleMedications,
   privateVault: createDefaultPrivateVault(),
   privateSeedVersion: privateSeedData.privateSeedVersion,
   objectives: [createDefaultObjective()],

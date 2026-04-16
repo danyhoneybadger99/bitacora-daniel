@@ -31,6 +31,7 @@ function getCollectionCounts(data = {}) {
     privatePayments: Array.isArray(data.privatePayments) ? data.privatePayments.length : 0,
     privateHormonalEntries: Array.isArray(data.privateHormonalEntries) ? data.privateHormonalEntries.length : 0,
     privateDailyChecks: Array.isArray(data.privateDailyChecks) ? data.privateDailyChecks.length : 0,
+    privateCycleMedications: Array.isArray(data.privateCycleMedications) ? data.privateCycleMedications.length : 0,
     exercises: Array.isArray(data.exercises) ? data.exercises.length : 0,
     bodyMetrics: Array.isArray(data.bodyMetrics) ? data.bodyMetrics.length : 0,
     objectives: Array.isArray(data.objectives) ? data.objectives.length : 0,
@@ -182,6 +183,32 @@ function normalizePrivateDailyChecks(items) {
         appetite: item.appetite ?? '',
         retention: item.retention ?? 'ninguna',
         sideEffects: item.sideEffects ?? '',
+        notes: item.notes ?? '',
+      }))
+    : [];
+}
+
+function normalizePrivateCycleMedications(items) {
+  return Array.isArray(items)
+    ? items.map((item) => ({
+        ...item,
+        cycleId: item.cycleId ?? '',
+        name: item.name ?? '',
+        alias: item.alias ?? '',
+        medicationType: item.medicationType ?? 'protector',
+        initialInventory: item.initialInventory ?? '',
+        remainingInventory: item.remainingInventory ?? item.initialInventory ?? '',
+        unit: item.unit ?? 'tableta',
+        expectedDailyDose: item.expectedDailyDose ?? '1',
+        scheduleMode: item.scheduleMode ?? 'single',
+        intakeHistory: Array.isArray(item.intakeHistory)
+          ? item.intakeHistory.map((entry) => ({
+              date: normalizeDateString(entry?.date),
+              takenSlots: Array.isArray(entry?.takenSlots) ? entry.takenSlots.filter(Boolean) : [],
+              updatedAt: entry?.updatedAt ?? '',
+            }))
+          : [],
+        lastTakenAt: item.lastTakenAt ?? '',
         notes: item.notes ?? '',
       }))
     : [];
@@ -388,12 +415,14 @@ export function migrateAppData(parsed = {}) {
   const normalizedPrivatePayments = normalizePrivatePayments(parsed.privatePayments);
   const normalizedPrivateEntries = normalizePrivateHormonalEntries(parsed.privateHormonalEntries);
   const normalizedPrivateDailyChecks = normalizePrivateDailyChecks(parsed.privateDailyChecks);
+  const normalizedPrivateCycleMedications = normalizePrivateCycleMedications(parsed.privateCycleMedications);
   const seededPrivate = repairPrivateCycle2026Data({
     privateCycles: normalizedPrivateCycles,
     privateProducts: normalizedPrivateProducts,
     privatePayments: normalizedPrivatePayments,
     privateHormonalEntries: normalizedPrivateEntries,
     privateDailyChecks: normalizedPrivateDailyChecks,
+    privateCycleMedications: normalizedPrivateCycleMedications,
     privateSeedVersion,
   });
   const migrated = {
@@ -412,6 +441,7 @@ export function migrateAppData(parsed = {}) {
     privatePayments: seededPrivate.privatePayments,
     privateHormonalEntries: seededPrivate.privateHormonalEntries,
     privateDailyChecks: seededPrivate.privateDailyChecks,
+    privateCycleMedications: seededPrivate.privateCycleMedications,
     privateVault: normalizePrivateVault(parsed.privateVault),
     privateSeedVersion: seededPrivate.privateSeedVersion,
     objectives: normalizeObjectives(parsed.objectives),

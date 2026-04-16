@@ -57,13 +57,20 @@ import {
   buildPrivateOperationalAlerts,
   buildPrivateSummary,
   buildPrivateTimeline,
+  applyPrivateMedicationDose,
+  removePrivateMedicationDose,
   createEmptyPrivateCycle,
   createEmptyPrivateDailyCheck,
   createEmptyPrivateEntry,
+  createEmptyPrivateMedication,
   createEmptyPrivatePayment,
   createEmptyPrivateProduct,
   getPrivateActiveCycle,
+  getPrivateMedicationDailyStatus,
   getPrivateCycleFinancialSummary,
+  privateMedicationScheduleLabels,
+  privateMedicationSlotLabels,
+  privateMedicationTypeLabels,
   privateDailyRetentionLabels,
   getPrivatePinLength,
   isValidPrivatePin,
@@ -461,6 +468,7 @@ function App() {
   const [privateProductForm, setPrivateProductForm] = useState(createEmptyPrivateProduct);
   const [privatePaymentForm, setPrivatePaymentForm] = useState(createEmptyPrivatePayment);
   const [privateDailyCheckForm, setPrivateDailyCheckForm] = useState(createEmptyPrivateDailyCheck);
+  const [privateMedicationForm, setPrivateMedicationForm] = useState(createEmptyPrivateMedication);
   const [editingFoodId, setEditingFoodId] = useState(null);
   const [editingHydrationId, setEditingHydrationId] = useState(null);
   const [editingFoodTemplateId, setEditingFoodTemplateId] = useState(null);
@@ -474,6 +482,7 @@ function App() {
   const [editingPrivateProductId, setEditingPrivateProductId] = useState(null);
   const [editingPrivatePaymentId, setEditingPrivatePaymentId] = useState(null);
   const [editingPrivateDailyCheckId, setEditingPrivateDailyCheckId] = useState(null);
+  const [editingPrivateMedicationId, setEditingPrivateMedicationId] = useState(null);
   const [weekReferenceDate, setWeekReferenceDate] = useState(currentDate);
   const [showAllRecentFoods, setShowAllRecentFoods] = useState(false);
   const [showFoodTemplateBuilder, setShowFoodTemplateBuilder] = useState(true);
@@ -502,6 +511,7 @@ function App() {
   const [privatePinUpdate, setPrivatePinUpdate] = useState({ current: '', next: '', confirm: '' });
   const [privateFormVisibility, setPrivateFormVisibility] = useState({
     cycle: false,
+    medication: false,
     product: false,
     event: false,
     payment: false,
@@ -524,6 +534,7 @@ function App() {
   const privateAutoLockTimeoutRef = useRef(null);
   const privateCycleSectionRef = useRef(null);
   const privateDailyCheckSectionRef = useRef(null);
+  const privateMedicationSectionRef = useRef(null);
   const privateProductSectionRef = useRef(null);
   const privatePaymentSectionRef = useRef(null);
   const privateEventSectionRef = useRef(null);
@@ -643,7 +654,7 @@ function App() {
 
     if (formKey === 'cycle') {
       setPrivateBlockedTarget('');
-    } else if (!activePrivateCycle && ['product', 'event', 'payment'].includes(formKey)) {
+    } else if (!activePrivateCycle && ['medication', 'product', 'event', 'payment'].includes(formKey)) {
       setPrivateBlockedTarget(formKey);
     } else {
       setPrivateBlockedTarget('');
@@ -656,6 +667,7 @@ function App() {
 
     const targetMap = {
       cycle: privateCycleSectionRef,
+      medication: privateMedicationSectionRef,
       product: privateProductSectionRef,
       event: privateEventSectionRef,
       payment: privatePaymentSectionRef,
@@ -687,6 +699,7 @@ function App() {
   function scrollToPrivateSection(sectionKey) {
     const targetMap = {
       cycle: privateCycleSectionRef,
+      medication: privateMedicationSectionRef,
       event: privateEventSectionRef,
       product: privateProductSectionRef,
       payment: privatePaymentSectionRef,
@@ -702,6 +715,7 @@ function App() {
   }
 
   function getPrivateBlockedCopy(formKey) {
+    if (formKey === 'medication') return 'Primero activa un ciclo para registrar tomas y proteger el inventario.';
     if (formKey === 'product') return 'Primero activa un ciclo para asociar un componente.';
     if (formKey === 'payment') return 'Primero activa un ciclo para registrar un pago.';
     return 'Primero activa un ciclo para registrar un evento.';
@@ -1190,6 +1204,13 @@ function App() {
       sortByDateDesc(diaryData.privateDailyChecks || []).sort((a, b) => String(b.id || '').localeCompare(String(a.id || ''))),
     [diaryData.privateDailyChecks]
   );
+  const privateCycleMedications = useMemo(
+    () =>
+      [...(diaryData.privateCycleMedications || [])].sort((a, b) =>
+        String(a.name || '').localeCompare(String(b.name || ''), 'es-MX')
+      ),
+    [diaryData.privateCycleMedications]
+  );
   const activePrivateCycle = useMemo(() => getPrivateActiveCycle(privateCycles), [privateCycles]);
   const hasActivePrivateCycle = Boolean(activePrivateCycle);
   const privateSummary = useMemo(
@@ -1223,9 +1244,68 @@ function App() {
     () => (activePrivateCycle ? privateDailyChecks.filter((item) => item.cycleId === activePrivateCycle.id) : []),
     [activePrivateCycle, privateDailyChecks]
   );
+  function formatPrivateMedicationInventoryLabel(count, unit = 'unidad') {
+    const safeCount = Number.isFinite(Number(count)) ? Number(count) : 0;
+    const normalizedUnit = String(unit || 'unidad').trim().toLowerCase();
+
+    if (normalizedUnit === 'tableta' || normalizedUnit === 'tabletas') {
+      return `${safeCount} ${safeCount === 1 ? 'tableta' : 'tabletas'}`;
+    }
+
+    if (normalizedUnit === 'capsula' || normalizedUnit === 'cápsula' || normalizedUnit === 'capsulas' || normalizedUnit === 'cápsulas') {
+      return `${safeCount} ${safeCount === 1 ? 'cápsula' : 'cápsulas'}`;
+    }
+
+    if (normalizedUnit === 'unidad' || normalizedUnit === 'unidades') {
+      return `${safeCount} ${safeCount === 1 ? 'unidad' : 'unidades'}`;
+    }
+
+    return `${safeCount} ${normalizedUnit}`;
+  }
+  const activeCycleMedications = useMemo(
+    () => {
+      if (!activePrivateCycle) return [];
+
+      const displayOrder = ['oxandrolona', 'liver', 'tamoxifeno', 'clomifeno'];
+      const getMedicationPriority = (item) => {
+        const normalizedName = String(item.name || '').trim().toLowerCase();
+        const index = displayOrder.indexOf(normalizedName);
+        return index === -1 ? displayOrder.length : index;
+      };
+
+      return privateCycleMedications
+        .filter((item) => item.cycleId === activePrivateCycle.id)
+        .sort((a, b) => {
+          const priorityA = getMedicationPriority(a);
+          const priorityB = getMedicationPriority(b);
+          if (priorityA !== priorityB) return priorityA - priorityB;
+          return String(a.name || '').localeCompare(String(b.name || ''), 'es-MX');
+        });
+    },
+    [activePrivateCycle, privateCycleMedications]
+  );
   const todayPrivateDailyCheck = useMemo(
     () => activeCycleDailyChecks.find((item) => item.date === currentDate) || null,
     [activeCycleDailyChecks, currentDate]
+  );
+  const privateMedicationCards = useMemo(
+    () =>
+      activeCycleMedications.map((item) => {
+        const status = getPrivateMedicationDailyStatus(item, currentDate);
+        return {
+          ...item,
+          dailyStatus: status,
+          dailyLabel:
+            status.expectedCount > 1
+              ? `Hoy: ${status.takenCount}/${status.expectedCount}`
+              : status.hasTakenToday
+                ? 'Tomado hoy'
+                : 'Hoy: pendiente',
+          inventoryLabel: formatPrivateMedicationInventoryLabel(status.remainingInventory, item.unit || 'unidad'),
+          inventoryTone: status.isOutOfStock ? 'out' : status.isLowInventory ? 'low' : 'normal',
+        };
+      }),
+    [activeCycleMedications, currentDate]
   );
   const privateTimeline = useMemo(
     () =>
@@ -1498,7 +1578,7 @@ function App() {
 function lockPrivateModule(feedbackText = '') {
   setIsPrivateUnlocked(false);
   setPrivateUnlockPin('');
-  setPrivateFormVisibility({ cycle: false, product: false, event: false, payment: false });
+  setPrivateFormVisibility({ cycle: false, medication: false, product: false, event: false, payment: false });
   setPrivateSecurityExpanded(false);
   clearPrivateAutoLockTimeout();
     if (feedbackText) {
@@ -1556,7 +1636,7 @@ function lockPrivateModule(feedbackText = '') {
   }, [isPrivateUnlocked, privateVault.autoLockMinutes]);
 
   useEffect(() => {
-    if (editingPrivateEntryId || editingPrivateProductId || editingPrivatePaymentId || editingPrivateDailyCheckId) return;
+    if (editingPrivateEntryId || editingPrivateProductId || editingPrivatePaymentId || editingPrivateDailyCheckId || editingPrivateMedicationId) return;
 
     const activeCycleId = activePrivateCycle?.id || '';
     setPrivateEntryForm((current) => (current.cycleId === activeCycleId ? current : { ...current, cycleId: activeCycleId, productId: '' }));
@@ -1567,21 +1647,26 @@ function lockPrivateModule(feedbackText = '') {
         ? current
         : { ...current, cycleId: activeCycleId, date: current.date || currentDate || getToday() }
     );
-  }, [activePrivateCycle, editingPrivateDailyCheckId, editingPrivateEntryId, editingPrivatePaymentId, editingPrivateProductId, currentDate]);
+    setPrivateMedicationForm((current) =>
+      current.cycleId === activeCycleId
+        ? current
+        : { ...current, cycleId: activeCycleId, remainingInventory: current.remainingInventory || current.initialInventory || '' }
+    );
+  }, [activePrivateCycle, editingPrivateDailyCheckId, editingPrivateEntryId, editingPrivatePaymentId, editingPrivateProductId, editingPrivateMedicationId, currentDate]);
 
   useEffect(() => {
     if (!isPrivateUnlocked) return;
-    if (editingPrivateCycleId || editingPrivateProductId || editingPrivatePaymentId || editingPrivateEntryId) return;
+    if (editingPrivateCycleId || editingPrivateProductId || editingPrivatePaymentId || editingPrivateEntryId || editingPrivateMedicationId) return;
 
     setPrivateFormVisibility((current) => {
       const hasAnyOpen = Object.values(current).some(Boolean);
       if (hasAnyOpen) return current;
 
       return activePrivateCycle
-        ? { cycle: false, product: false, event: false, payment: false }
-        : { cycle: true, product: false, event: false, payment: false };
+        ? { cycle: false, medication: false, product: false, event: false, payment: false }
+        : { cycle: true, medication: false, product: false, event: false, payment: false };
     });
-  }, [isPrivateUnlocked, activePrivateCycle, editingPrivateCycleId, editingPrivateProductId, editingPrivatePaymentId, editingPrivateEntryId]);
+  }, [isPrivateUnlocked, activePrivateCycle, editingPrivateCycleId, editingPrivateProductId, editingPrivatePaymentId, editingPrivateEntryId, editingPrivateMedicationId]);
 
   const calorieGoal = Number(diaryData.goals?.calories || 0);
   const proteinGoal = Number(diaryData.goals?.protein || 0);
@@ -1986,6 +2071,13 @@ function lockPrivateModule(feedbackText = '') {
     });
   }
 
+  function resetPrivateMedicationForm() {
+    setPrivateMedicationForm({
+      ...createEmptyPrivateMedication(),
+      cycleId: activePrivateCycle?.id || '',
+    });
+  }
+
   function handleGoalSubmit(event) {
     event.preventDefault();
     markPersistenceReason('guardar:goals');
@@ -2042,6 +2134,7 @@ function lockPrivateModule(feedbackText = '') {
     delete payload.privatePayments;
     delete payload.privateHormonalEntries;
     delete payload.privateDailyChecks;
+    delete payload.privateCycleMedications;
     delete payload.privateVault;
 
     const fileSafeTimestamp = exportTimestamp.replace(/[:T]/g, '-');
@@ -2086,6 +2179,7 @@ function lockPrivateModule(feedbackText = '') {
           privatePayments: diaryData.privatePayments || defaultState.privatePayments,
           privateHormonalEntries: diaryData.privateHormonalEntries || defaultState.privateHormonalEntries,
           privateDailyChecks: diaryData.privateDailyChecks || defaultState.privateDailyChecks,
+          privateCycleMedications: diaryData.privateCycleMedications || defaultState.privateCycleMedications,
           privateVault: diaryData.privateVault || defaultState.privateVault,
           privateSeedVersion: diaryData.privateSeedVersion || defaultState.privateSeedVersion,
           backupMeta: {
@@ -2162,6 +2256,7 @@ function lockPrivateModule(feedbackText = '') {
     resetPrivateProductForm();
     resetPrivatePaymentForm();
     resetPrivateDailyCheckForm();
+    resetPrivateMedicationForm();
     setEditingFoodId(null);
     setEditingHydrationId(null);
     setEditingFoodTemplateId(null);
@@ -2175,6 +2270,7 @@ function lockPrivateModule(feedbackText = '') {
     setEditingPrivateProductId(null);
     setEditingPrivatePaymentId(null);
     setEditingPrivateDailyCheckId(null);
+    setEditingPrivateMedicationId(null);
     setBackupInputKey((current) => current + 1);
     setPrivateBackupInputKey((current) => current + 1);
     setPrivateSetupPin('');
@@ -2392,6 +2488,113 @@ function lockPrivateModule(feedbackText = '') {
     setPrivateFeedback({ type: 'success', text: 'Chequeo diario guardado correctamente.' });
   }
 
+  function handlePrivateMedicationSubmit(event) {
+    event.preventDefault();
+    if (!activePrivateCycle) {
+      setPrivateFeedback({ type: 'info', text: 'Primero crea o activa un ciclo para registrar este control diario.' });
+      return;
+    }
+
+    const normalizedMedication = {
+      ...privateMedicationForm,
+      cycleId: privateMedicationForm.cycleId || activePrivateCycle.id,
+      initialInventory: String(privateMedicationForm.initialInventory || '').trim(),
+      remainingInventory: String(
+        privateMedicationForm.remainingInventory || privateMedicationForm.initialInventory || ''
+      ).trim(),
+      expectedDailyDose: String(privateMedicationForm.expectedDailyDose || '1').trim(),
+      intakeHistory: Array.isArray(privateMedicationForm.intakeHistory) ? privateMedicationForm.intakeHistory : [],
+      scheduleMode:
+        Number(privateMedicationForm.expectedDailyDose || 0) >= 2 || privateMedicationForm.scheduleMode === 'split'
+          ? 'split'
+          : 'single',
+    };
+
+    upsertRecord(
+      'privateCycleMedications',
+      normalizedMedication,
+      editingPrivateMedicationId,
+      resetPrivateMedicationForm,
+      setEditingPrivateMedicationId
+    );
+    setPrivateFeedback({ type: 'success', text: 'Control diario guardado correctamente.' });
+  }
+
+  function handlePrivateMedicationDose(medicationId, slot = 'single') {
+    if (!activePrivateCycle) {
+      setPrivateFeedback({ type: 'info', text: 'Primero activa un ciclo para registrar tomas del día.' });
+      return;
+    }
+
+    const medication = activeCycleMedications.find((item) => item.id === medicationId);
+    if (!medication) return;
+
+    const status = getPrivateMedicationDailyStatus(medication, currentDate);
+    if (status.isOutOfStock) {
+      setPrivateFeedback({ type: 'info', text: `${medication.name} está agotado.` });
+      return;
+    }
+
+    if (status.takenSlots.includes(slot)) {
+      setPrivateFeedback({ type: 'info', text: `${privateMedicationSlotLabels[slot] || 'La toma'} ya fue registrada hoy.` });
+      return;
+    }
+
+    const updatedMedication = applyPrivateMedicationDose(medication, slot, currentDate);
+    markPersistenceReason(`tomar:privateCycleMedications:${slot}`);
+    setDiaryData((current) => ({
+      ...current,
+      privateCycleMedications: (current.privateCycleMedications || []).map((item) =>
+        item.id === medicationId ? updatedMedication : item
+      ),
+    }));
+
+    setPrivateFeedback({
+      type: 'success',
+      text:
+        status.expectedCount > 1
+          ? `${medication.name}: ${privateMedicationSlotLabels[slot] || slot} registrada.`
+          : `${medication.name} marcado como tomado hoy.`,
+    });
+  }
+
+  function handleUndoPrivateMedicationDose(medicationId, slot = 'single') {
+    if (!activePrivateCycle) {
+      setPrivateFeedback({ type: 'info', text: 'Primero activa un ciclo para corregir tomas del día.' });
+      return;
+    }
+
+    const medication = activeCycleMedications.find((item) => item.id === medicationId);
+    if (!medication) return;
+
+    const status = getPrivateMedicationDailyStatus(medication, currentDate);
+    if (!status.takenSlots.includes(slot)) {
+      setPrivateFeedback({ type: 'info', text: 'Esa toma de hoy ya está libre.' });
+      return;
+    }
+
+    if (!window.confirm(`¿Deshacer ${privateMedicationSlotLabels[slot] || 'esta toma'} de hoy en ${medication.name}?`)) {
+      return;
+    }
+
+    const updatedMedication = removePrivateMedicationDose(medication, slot, currentDate);
+    markPersistenceReason(`deshacer:privateCycleMedications:${slot}`);
+    setDiaryData((current) => ({
+      ...current,
+      privateCycleMedications: (current.privateCycleMedications || []).map((item) =>
+        item.id === medicationId ? updatedMedication : item
+      ),
+    }));
+
+    setPrivateFeedback({
+      type: 'success',
+      text:
+        status.expectedCount > 1
+          ? `${medication.name}: ${privateMedicationSlotLabels[slot] || slot} deshecha.`
+          : `${medication.name} volvió a pendiente hoy.`,
+    });
+  }
+
   function duplicatePrivateProduct(id) {
     const original = diaryData.privateProducts.find((item) => item.id === id);
     if (!original) return;
@@ -2562,6 +2765,7 @@ function lockPrivateModule(feedbackText = '') {
       privatePayments: diaryData.privatePayments || [],
       privateHormonalEntries: diaryData.privateHormonalEntries || [],
       privateDailyChecks: diaryData.privateDailyChecks || [],
+      privateCycleMedications: diaryData.privateCycleMedications || [],
       privateSeedVersion: diaryData.privateSeedVersion || 0,
     });
     const repairedCycle = repaired.privateCycles.find(
@@ -2576,6 +2780,7 @@ function lockPrivateModule(feedbackText = '') {
       privatePayments: repaired.privatePayments,
       privateHormonalEntries: repaired.privateHormonalEntries,
       privateDailyChecks: repaired.privateDailyChecks,
+      privateCycleMedications: repaired.privateCycleMedications,
       privateSeedVersion: repaired.privateSeedVersion,
     }));
 
@@ -2584,6 +2789,7 @@ function lockPrivateModule(feedbackText = '') {
       setPrivateProductForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
       setPrivatePaymentForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
       setPrivateDailyCheckForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
+      setPrivateMedicationForm((current) => ({ ...current, cycleId: current.cycleId || repairedCycle.id }));
     }
 
     setPrivateFeedback({
@@ -2600,6 +2806,7 @@ function lockPrivateModule(feedbackText = '') {
       privatePayments: diaryData.privatePayments || [],
       privateHormonalEntries: diaryData.privateHormonalEntries || [],
       privateDailyChecks: diaryData.privateDailyChecks || [],
+      privateCycleMedications: diaryData.privateCycleMedications || [],
       privateSeedVersion: diaryData.privateSeedVersion || defaultState.privateSeedVersion,
       privateVault: {
         ...(privateVault || defaultState.privateVault),
@@ -2653,6 +2860,7 @@ function lockPrivateModule(feedbackText = '') {
             !('privatePayments' in parsed) &&
             !('privateHormonalEntries' in parsed) &&
             !('privateDailyChecks' in parsed) &&
+            !('privateCycleMedications' in parsed) &&
             !('privateVault' in parsed))
         ) {
           throw new Error('El archivo no corresponde a un respaldo privado valido.');
@@ -2669,6 +2877,7 @@ function lockPrivateModule(feedbackText = '') {
           privatePayments: migratedPrivate.privatePayments || [],
           privateHormonalEntries: migratedPrivate.privateHormonalEntries || [],
           privateDailyChecks: migratedPrivate.privateDailyChecks || [],
+          privateCycleMedications: migratedPrivate.privateCycleMedications || [],
           privateSeedVersion: migratedPrivate.privateSeedVersion || current.privateSeedVersion || defaultState.privateSeedVersion,
           privateVault: {
             ...(migratedPrivate.privateVault || defaultState.privateVault),
@@ -2680,11 +2889,13 @@ function lockPrivateModule(feedbackText = '') {
         setEditingPrivatePaymentId(null);
         setEditingPrivateEntryId(null);
         setEditingPrivateDailyCheckId(null);
+        setEditingPrivateMedicationId(null);
         resetPrivateCycleForm();
         resetPrivateProductForm();
         resetPrivatePaymentForm();
         resetPrivateEntryForm();
         resetPrivateDailyCheckForm();
+        resetPrivateMedicationForm();
         lockPrivateModule();
         setPrivateFeedback({
           type: 'success',
@@ -6578,6 +6789,319 @@ function lockPrivateModule(feedbackText = '') {
                     ) : (
                       <div className="private-empty-state-panel">
                         <p className="empty-state">Activa un ciclo para registrar tu chequeo diario.</p>
+                        <div className="section-inline-actions section-inline-actions-tight">
+                          <button className="button button-primary" type="button" onClick={() => openPrivateForm('cycle')}>
+                            Crear o activar ciclo
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="Control diario de protectores y oral"
+                    subtitle={
+                      hasActivePrivateCycle
+                        ? 'Marca tomas del dia, descuenta inventario y vigila rapidamente los faltantes del ciclo activo.'
+                        : 'Disponible cuando exista un ciclo activo.'
+                    }
+                    className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                  >
+                    {hasActivePrivateCycle ? (
+                      <div className="private-medication-stack" ref={privateMedicationSectionRef}>
+                        <div className="private-medication-summary-grid">
+                          {privateMedicationCards.length > 0 ? (
+                            <>
+                              <article className="private-weekly-card">
+                                <span>Controles activos</span>
+                                <strong>{privateMedicationCards.length}</strong>
+                                <small>Protectores y orales ligados al ciclo activo.</small>
+                              </article>
+                              <article className="private-weekly-card">
+                                <span>Tomados hoy</span>
+                                <strong>
+                                  {
+                                    privateMedicationCards.filter((item) => item.dailyStatus.expectedCount === item.dailyStatus.takenCount).length
+                                  }
+                                  /{privateMedicationCards.length}
+                                </strong>
+                                <small>Cuenta los elementos que ya cumplieron su objetivo diario.</small>
+                              </article>
+                              <article className="private-weekly-card">
+                                <span>Inventario en alerta</span>
+                                <strong>{privateMedicationCards.filter((item) => item.dailyStatus.isLowInventory).length}</strong>
+                                <small>Incluye inventario bajo y agotado.</small>
+                              </article>
+                            </>
+                          ) : (
+                            <article className="private-weekly-card">
+                              <span>Estado</span>
+                              <strong>Sin controles activos</strong>
+                              <small>Agrega protectores u orales del ciclo para empezar a descontar inventario.</small>
+                            </article>
+                          )}
+                        </div>
+
+                        <div className="section-inline-actions section-inline-actions-tight">
+                          <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('medication')}>
+                            {privateFormVisibility.medication ? 'Ocultar formulario' : 'Mostrar formulario'}
+                          </button>
+                        </div>
+
+                        {privateFormVisibility.medication ? (
+                          <RecordForm
+                            title={editingPrivateMedicationId ? 'Editar control diario' : 'Nuevo control diario'}
+                            fields={[
+                              {
+                                type: 'section',
+                                name: 'medication-overview',
+                                label: 'Registro diario',
+                                hint: 'Úsalo para ajustar inventario, cambiar la dosis esperada o registrar un nuevo protector/oral ligado al ciclo.',
+                              },
+                              {
+                                name: 'cycleId',
+                                label: 'Ciclo privado',
+                                type: 'select',
+                                options: privateCycleOptions,
+                                hint: 'Asocia el control al ciclo correcto para que el tablero operativo muestre inventario y tomas en el lugar correcto.',
+                              },
+                              {
+                                name: 'name',
+                                label: 'Nombre visible',
+                                type: 'text',
+                                placeholder: 'Ej. Liver',
+                                hint: 'Nombre corto y claro del producto o protector.',
+                              },
+                              {
+                                name: 'alias',
+                                label: 'Alias visible',
+                                type: 'text',
+                                placeholder: 'Ej. Anavar / Oxandrolona',
+                                hint: 'Opcional. Sirve cuando el producto se conoce por más de un nombre.',
+                              },
+                              {
+                                type: 'section',
+                                name: 'medication-parameters',
+                                label: 'Parámetros hormonales / físicos',
+                                hint: 'Define si es protector u oral, cuántas tabletas esperas tomar al día y con cuánto inventario arrancas.',
+                              },
+                              {
+                                name: 'medicationType',
+                                label: 'Tipo',
+                                type: 'select',
+                                options: Object.entries(privateMedicationTypeLabels).map(([value, label]) => ({ value, label })),
+                                hint: 'Ayuda a distinguir rápido protectores del ciclo y orales activos.',
+                              },
+                              {
+                                name: 'expectedDailyDose',
+                                label: 'Dosis diaria esperada',
+                                type: 'number',
+                                placeholder: 'Ej. 1 o 2',
+                                hint: 'Cantidad esperada para el día. Si es 2, el sistema divide mañana y tarde automáticamente.',
+                              },
+                              {
+                                name: 'unit',
+                                label: 'Unidad',
+                                type: 'text',
+                                placeholder: 'Ej. tableta',
+                                hint: 'Unidad base para descontar inventario y mostrar el resto.',
+                              },
+                              {
+                                name: 'initialInventory',
+                                label: 'Inventario inicial',
+                                type: 'number',
+                                placeholder: 'Ej. 94',
+                                hint: 'Total con el que arrancó este producto dentro del ciclo.',
+                              },
+                              {
+                                name: 'remainingInventory',
+                                label: 'Inventario restante',
+                                type: 'number',
+                                placeholder: 'Ej. 80',
+                                hint: 'Puedes ajustarlo manualmente si compras más o corriges una cuenta previa.',
+                              },
+                              {
+                                type: 'section',
+                                name: 'medication-notes',
+                                label: 'Notas / observaciones',
+                                hint: 'Deja aquí cualquier nota útil del producto, por ejemplo compra nueva, cambio de lote o ajuste manual.',
+                              },
+                              {
+                                name: 'notes',
+                                label: 'Notas privadas',
+                                type: 'textarea',
+                                placeholder: 'Ej. ajuste manual del inventario despues de comprar una caja nueva',
+                                hint: 'Contexto operativo privado sobre inventario, tolerancia o cambios del producto.',
+                                rows: 3,
+                              },
+                            ]}
+                            formData={privateMedicationForm}
+                            onChange={(event) => {
+                              bumpPrivateActivity();
+                              handleRecordFormChange(event, setPrivateMedicationForm);
+                            }}
+                            onSubmit={handlePrivateMedicationSubmit}
+                            onCancel={() => {
+                              resetPrivateMedicationForm();
+                              setEditingPrivateMedicationId(null);
+                            }}
+                            isEditing={Boolean(editingPrivateMedicationId)}
+                            submitLabel={editingPrivateMedicationId ? 'Guardar control' : 'Guardar control'}
+                          />
+                        ) : (
+                          <p className="section-helper">Primero ves el estado operativo del día; abre el formulario solo cuando necesites ajustar inventario o editar un producto.</p>
+                        )}
+
+                        <div className="private-medication-grid">
+                          {privateMedicationCards.length === 0 ? (
+                            <p className="empty-state">Aun no hay protectores ni orales activos ligados al ciclo actual.</p>
+                          ) : null}
+                          {privateMedicationCards.map((item) => (
+                            <article className={`private-medication-card private-medication-card-${item.inventoryTone}`.trim()} key={item.id}>
+                              <div className="private-medication-head">
+                                <div className="private-medication-title-group">
+                                  <strong>{item.name || 'Control sin nombre'}</strong>
+                                  <span>
+                                    {privateMedicationTypeLabels[item.medicationType] || item.medicationType || 'Control'} ·{' '}
+                                    {privateMedicationScheduleLabels[item.scheduleMode] ||
+                                      (item.dailyStatus.expectedCount > 1 ? '2 al día' : '1 al día')}
+                                  </span>
+                                  {item.alias ? <small>{item.alias}</small> : null}
+                                </div>
+                                <div className="private-medication-badges">
+                                  <span className="metrics-source-chip">{item.dailyLabel}</span>
+                                  {item.dailyStatus.isOutOfStock ? (
+                                    <span className="private-medication-badge private-medication-badge-out">Agotado</span>
+                                  ) : null}
+                                  {!item.dailyStatus.isOutOfStock && item.dailyStatus.isLowInventory ? (
+                                    <span className="private-medication-badge private-medication-badge-low">Quedan 10 o menos</span>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div className="private-medication-body">
+                                <div className="private-medication-count">
+                                  <span>Restantes</span>
+                                  <strong>{item.dailyStatus.remainingInventory}</strong>
+                                  <small>{item.inventoryLabel}</small>
+                                </div>
+                                <div className="private-medication-meta">
+                                  <span>Objetivo diario</span>
+                                  <strong>
+                                    {item.dailyStatus.expectedCount > 1 ? `${item.dailyStatus.expectedCount} tomas` : '1 toma'}
+                                  </strong>
+                                  <small>
+                                    {item.dailyStatus.expectedCount > 1
+                                      ? `Hoy: ${item.dailyStatus.takenCount}/${item.dailyStatus.expectedCount}`
+                                      : item.dailyStatus.hasTakenToday
+                                        ? 'Hoy: tomado'
+                                        : 'Hoy: pendiente'}
+                                  </small>
+                                </div>
+                              </div>
+
+                              {item.notes ? <p className="metrics-notes private-medication-notes">{item.notes}</p> : null}
+
+                              <div className="private-medication-actions">
+                                {item.dailyStatus.expectedCount > 1 ? (
+                                  <div className="private-medication-slot-row">
+                                    <button
+                                      className={`button ${item.dailyStatus.takenSlots.includes('manana') ? 'button-secondary' : 'button-primary'}`}
+                                      type="button"
+                                      onClick={() => {
+                                        bumpPrivateActivity();
+                                        if (item.dailyStatus.takenSlots.includes('manana')) {
+                                          handleUndoPrivateMedicationDose(item.id, 'manana');
+                                          return;
+                                        }
+                                        handlePrivateMedicationDose(item.id, 'manana');
+                                      }}
+                                      disabled={item.dailyStatus.isOutOfStock && !item.dailyStatus.takenSlots.includes('manana')}
+                                    >
+                                      {item.dailyStatus.takenSlots.includes('manana') ? 'Deshacer mañana' : 'Mañana'}
+                                    </button>
+                                    <button
+                                      className={`button ${item.dailyStatus.takenSlots.includes('tarde') ? 'button-secondary' : 'button-primary'}`}
+                                      type="button"
+                                      onClick={() => {
+                                        bumpPrivateActivity();
+                                        if (item.dailyStatus.takenSlots.includes('tarde')) {
+                                          handleUndoPrivateMedicationDose(item.id, 'tarde');
+                                          return;
+                                        }
+                                        handlePrivateMedicationDose(item.id, 'tarde');
+                                      }}
+                                      disabled={item.dailyStatus.isOutOfStock && !item.dailyStatus.takenSlots.includes('tarde')}
+                                    >
+                                      {item.dailyStatus.takenSlots.includes('tarde') ? 'Deshacer tarde' : 'Tarde'}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className={`button ${item.dailyStatus.hasTakenToday ? 'button-secondary' : 'button-primary'}`}
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      if (item.dailyStatus.hasTakenToday) {
+                                        handleUndoPrivateMedicationDose(item.id, 'single');
+                                        return;
+                                      }
+                                      handlePrivateMedicationDose(item.id, 'single');
+                                    }}
+                                    disabled={item.dailyStatus.isOutOfStock && !item.dailyStatus.hasTakenToday}
+                                  >
+                                    {item.dailyStatus.hasTakenToday ? 'Deshacer' : 'Tomar'}
+                                  </button>
+                                )}
+
+                                <div className="entry-actions">
+                                  <button
+                                    className="button button-secondary"
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      startEditing(
+                                        'privateCycleMedications',
+                                        item.id,
+                                        setPrivateMedicationForm,
+                                        setEditingPrivateMedicationId,
+                                        'private'
+                                      );
+                                      openPrivateForm('medication', {
+                                        focusSelector:
+                                          'input[name="remainingInventory"], input[name="name"], textarea[name="notes"]',
+                                      });
+                                    }}
+                                  >
+                                    Ajustar inventario
+                                  </button>
+                                  <button
+                                    className="button button-danger"
+                                    type="button"
+                                    onClick={() => {
+                                      if (!window.confirm(`¿Eliminar ${item.name || 'este control'}? Esta acción quita el control y su historial diario.`)) {
+                                        return;
+                                      }
+                                      bumpPrivateActivity();
+                                      deleteRecord(
+                                        'privateCycleMedications',
+                                        item.id,
+                                        setEditingPrivateMedicationId,
+                                        resetPrivateMedicationForm
+                                      );
+                                    }}
+                                  >
+                                    Eliminar
+                                  </button>
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="private-empty-state-panel">
+                        <p className="empty-state">Activa un ciclo para controlar protectores, orales e inventario diario.</p>
                         <div className="section-inline-actions section-inline-actions-tight">
                           <button className="button button-primary" type="button" onClick={() => openPrivateForm('cycle')}>
                             Crear o activar ciclo

@@ -77,6 +77,22 @@ export const privateDailyRetentionLabels = {
   alta: 'Alta',
 };
 
+export const privateMedicationTypeLabels = {
+  protector: 'Protector',
+  oral: 'Oral',
+};
+
+export const privateMedicationScheduleLabels = {
+  single: '1 al día',
+  split: '2 al día',
+};
+
+export const privateMedicationSlotLabels = {
+  single: 'Tomar',
+  manana: 'Mañana',
+  tarde: 'Tarde',
+};
+
 export const privateDailyScaleOptions = [
   { value: '', label: 'Sin registrar' },
   { value: '1', label: '1 · Muy bajo' },
@@ -86,7 +102,8 @@ export const privateDailyScaleOptions = [
   { value: '5', label: '5 · Muy bueno' },
 ];
 
-export const PRIVATE_CYCLE_2026_SEED_VERSION = 3;
+export const PRIVATE_CYCLE_2026_SEED_VERSION = 5;
+const PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE = '2026-04-16';
 
 export function createEmptyPrivateCycle() {
   return {
@@ -158,6 +175,23 @@ export function createEmptyPrivateDailyCheck() {
     appetite: '',
     retention: 'ninguna',
     sideEffects: '',
+    notes: '',
+  };
+}
+
+export function createEmptyPrivateMedication() {
+  return {
+    cycleId: '',
+    name: '',
+    alias: '',
+    medicationType: 'protector',
+    initialInventory: '',
+    remainingInventory: '',
+    unit: 'tableta',
+    expectedDailyDose: '1',
+    scheduleMode: 'single',
+    intakeHistory: [],
+    lastTakenAt: '',
     notes: '',
   };
 }
@@ -302,6 +336,108 @@ export function getPrivateCanonicalEventType(value) {
   };
 
   return aliases[normalized] || normalized || '';
+}
+
+export function getPrivateMedicationExpectedSlots(item) {
+  if ((item?.scheduleMode || '') === 'split' || Number(item?.expectedDailyDose || 0) >= 2) {
+    return ['manana', 'tarde'];
+  }
+
+  return ['single'];
+}
+
+export function getPrivateMedicationDailyLog(item, date = getToday()) {
+  return (item?.intakeHistory || []).find((entry) => entry?.date === date) || null;
+}
+
+export function getPrivateMedicationDailyStatus(item, date = getToday()) {
+  const expectedSlots = getPrivateMedicationExpectedSlots(item);
+  const todayLog = getPrivateMedicationDailyLog(item, date);
+  const takenSlots = Array.isArray(todayLog?.takenSlots)
+    ? expectedSlots.filter((slot) => todayLog.takenSlots.includes(slot))
+    : [];
+  const remainingInventory = toSafeNumber(item?.remainingInventory);
+
+  return {
+    expectedSlots,
+    takenSlots,
+    takenCount: takenSlots.length,
+    expectedCount: expectedSlots.length,
+    isComplete: takenSlots.length >= expectedSlots.length,
+    hasTakenToday: takenSlots.length > 0,
+    remainingInventory,
+    isLowInventory: remainingInventory > 0 && remainingInventory <= 10,
+    isOutOfStock: remainingInventory <= 0,
+  };
+}
+
+export function applyPrivateMedicationDose(item, slot = 'single', date = getToday(), timestamp = new Date().toISOString()) {
+  const status = getPrivateMedicationDailyStatus(item, date);
+  if (status.isOutOfStock) return item;
+
+  const normalizedSlot = status.expectedSlots.includes(slot) ? slot : status.expectedSlots[0];
+  if (!normalizedSlot || status.takenSlots.includes(normalizedSlot)) return item;
+
+  const nextTakenSlots = [...status.takenSlots, normalizedSlot].sort(
+    (a, b) => status.expectedSlots.indexOf(a) - status.expectedSlots.indexOf(b)
+  );
+  const nextHistory = Array.isArray(item?.intakeHistory) ? [...item.intakeHistory] : [];
+  const currentIndex = nextHistory.findIndex((entry) => entry?.date === date);
+  const nextLog = {
+    date,
+    takenSlots: nextTakenSlots,
+    updatedAt: timestamp,
+  };
+
+  if (currentIndex >= 0) {
+    nextHistory[currentIndex] = {
+      ...nextHistory[currentIndex],
+      ...nextLog,
+    };
+  } else {
+    nextHistory.unshift(nextLog);
+  }
+
+  return {
+    ...item,
+    intakeHistory: nextHistory,
+    remainingInventory: String(Math.max(status.remainingInventory - 1, 0)),
+    lastTakenAt: timestamp,
+  };
+}
+
+export function removePrivateMedicationDose(item, slot = 'single', date = getToday(), timestamp = new Date().toISOString()) {
+  const status = getPrivateMedicationDailyStatus(item, date);
+  const normalizedSlot = status.expectedSlots.includes(slot) ? slot : status.expectedSlots[0];
+  if (!normalizedSlot || !status.takenSlots.includes(normalizedSlot)) return item;
+
+  const nextTakenSlots = status.takenSlots.filter((entry) => entry !== normalizedSlot);
+  const nextHistory = Array.isArray(item?.intakeHistory) ? [...item.intakeHistory] : [];
+  const currentIndex = nextHistory.findIndex((entry) => entry?.date === date);
+
+  if (currentIndex >= 0) {
+    if (nextTakenSlots.length === 0) {
+      nextHistory.splice(currentIndex, 1);
+    } else {
+      nextHistory[currentIndex] = {
+        ...nextHistory[currentIndex],
+        date,
+        takenSlots: nextTakenSlots,
+        updatedAt: timestamp,
+      };
+    }
+  }
+
+  const currentRemaining = toSafeNumber(item?.remainingInventory);
+  const initialInventory = toSafeNumber(item?.initialInventory);
+  const maxInventory = initialInventory > 0 ? initialInventory : currentRemaining + 1;
+
+  return {
+    ...item,
+    intakeHistory: nextHistory,
+    remainingInventory: String(Math.min(currentRemaining + 1, maxInventory)),
+    lastTakenAt: nextHistory.length > 0 ? item?.lastTakenAt || timestamp : '',
+  };
 }
 
 export function createPrivateCycle2026SeedData(cycleId = 'private-cycle-2026') {
@@ -507,6 +643,68 @@ export function createPrivateCycle2026SeedData(cycleId = 'private-cycle-2026') {
           'Semana funcional. Energia media. Dormi bien en general, aunque costo despertar algunos dias. Animo estable. Entrenamiento y alimentacion cumplidos.',
       },
     ],
+    privateCycleMedications: [
+      {
+        id: 'private-medication-liver-2026',
+        cycleId,
+        name: 'Liver',
+        alias: '',
+        medicationType: 'protector',
+        initialInventory: '94',
+        remainingInventory: '94',
+        unit: 'tableta',
+        expectedDailyDose: '1',
+        scheduleMode: 'single',
+        intakeHistory: [],
+        lastTakenAt: '',
+        notes: '',
+      },
+      {
+        id: 'private-medication-tamoxifeno-2026',
+        cycleId,
+        name: 'Tamoxifeno',
+        alias: '',
+        medicationType: 'protector',
+        initialInventory: '110',
+        remainingInventory: '110',
+        unit: 'tableta',
+        expectedDailyDose: '1',
+        scheduleMode: 'single',
+        intakeHistory: [],
+        lastTakenAt: '',
+        notes: '',
+      },
+      {
+        id: 'private-medication-clomifeno-2026',
+        cycleId,
+        name: 'Clomifeno',
+        alias: '',
+        medicationType: 'protector',
+        initialInventory: '100',
+        remainingInventory: '100',
+        unit: 'tableta',
+        expectedDailyDose: '1',
+        scheduleMode: 'single',
+        intakeHistory: [],
+        lastTakenAt: '',
+        notes: '',
+      },
+      {
+        id: 'private-medication-oxandrolona-2026',
+        cycleId,
+        name: 'Oxandrolona',
+        alias: 'Anavar / Oxandrolona',
+        medicationType: 'oral',
+        initialInventory: '48',
+        remainingInventory: '48',
+        unit: 'tableta',
+        expectedDailyDose: '2',
+        scheduleMode: 'split',
+        intakeHistory: [],
+        lastTakenAt: '',
+        notes: '',
+      },
+    ],
   };
 }
 
@@ -516,6 +714,7 @@ export function repairPrivateCycle2026Data({
   privatePayments = [],
   privateHormonalEntries = [],
   privateDailyChecks = [],
+  privateCycleMedications = [],
   privateSeedVersion = 0,
 } = {}) {
   const seed = createPrivateCycle2026SeedData();
@@ -676,12 +875,99 @@ export function repairPrivateCycle2026Data({
     });
   });
 
+  const nextMedications = [...privateCycleMedications];
+  seed.privateCycleMedications.forEach((seedMedication) => {
+    const existingMedicationIndex = nextMedications.findIndex(
+      (item) =>
+        normalizePrivateSeedKey(item.name) === normalizePrivateSeedKey(seedMedication.name) &&
+        canReusePrivateCycleRecord(item.cycleId, resolvedCycleId, seedMedication.id)
+    );
+
+    if (existingMedicationIndex >= 0) {
+      const currentMedication = nextMedications[existingMedicationIndex];
+      nextMedications[existingMedicationIndex] = {
+        ...currentMedication,
+        cycleId: resolvedCycleId,
+        alias: currentMedication.alias || seedMedication.alias,
+        medicationType: currentMedication.medicationType || seedMedication.medicationType,
+        initialInventory: isBlankValue(currentMedication.initialInventory)
+          ? seedMedication.initialInventory
+          : currentMedication.initialInventory,
+        remainingInventory: isBlankValue(currentMedication.remainingInventory)
+          ? currentMedication.initialInventory || seedMedication.remainingInventory
+          : currentMedication.remainingInventory,
+        unit: currentMedication.unit || seedMedication.unit,
+        expectedDailyDose: currentMedication.expectedDailyDose || seedMedication.expectedDailyDose,
+        scheduleMode: currentMedication.scheduleMode || seedMedication.scheduleMode,
+        intakeHistory: Array.isArray(currentMedication.intakeHistory) ? currentMedication.intakeHistory : [],
+        lastTakenAt: currentMedication.lastTakenAt || seedMedication.lastTakenAt,
+        notes: mergePrivateNotes(currentMedication.notes, seedMedication.notes),
+      };
+      return;
+    }
+
+    nextMedications.unshift({
+      ...seedMedication,
+      cycleId: resolvedCycleId,
+    });
+  });
+
+  const oxandrolonaIndex = nextMedications.findIndex(
+    (item) =>
+      normalizePrivateSeedKey(item.name) === normalizePrivateSeedKey('Oxandrolona') &&
+      canReusePrivateCycleRecord(item.cycleId, resolvedCycleId, 'private-medication-oxandrolona-2026')
+  );
+
+  if (oxandrolonaIndex >= 0) {
+    const oxandrolona = nextMedications[oxandrolonaIndex];
+    const correctionStatus = getPrivateMedicationDailyStatus(oxandrolona, PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE);
+    const desiredTakenSlots = ['manana'];
+    const currentTakenSlots = correctionStatus.takenSlots;
+
+    if (
+      currentTakenSlots.length !== desiredTakenSlots.length ||
+      currentTakenSlots.some((slot) => !desiredTakenSlots.includes(slot))
+    ) {
+      const currentRemaining = toSafeNumber(oxandrolona.remainingInventory);
+      const initialInventory = toSafeNumber(oxandrolona.initialInventory);
+      const delta = currentTakenSlots.length - desiredTakenSlots.length;
+      const nextRemaining = Math.max(0, Math.min(currentRemaining + delta, initialInventory || currentRemaining + Math.abs(delta)));
+      const nextHistory = Array.isArray(oxandrolona.intakeHistory) ? [...oxandrolona.intakeHistory] : [];
+      const currentIndex = nextHistory.findIndex((entry) => entry?.date === PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE);
+
+      if (currentIndex >= 0) {
+        nextHistory[currentIndex] = {
+          ...nextHistory[currentIndex],
+          date: PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE,
+          takenSlots: desiredTakenSlots,
+          updatedAt: nextHistory[currentIndex]?.updatedAt || new Date(`${PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE}T12:00:00`).toISOString(),
+        };
+      } else {
+        nextHistory.unshift({
+          date: PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE,
+          takenSlots: desiredTakenSlots,
+          updatedAt: new Date(`${PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE}T12:00:00`).toISOString(),
+        });
+      }
+
+      nextMedications[oxandrolonaIndex] = {
+        ...oxandrolona,
+        intakeHistory: nextHistory,
+        remainingInventory: String(nextRemaining),
+        lastTakenAt:
+          oxandrolona.lastTakenAt ||
+          new Date(`${PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE}T12:00:00`).toISOString(),
+      };
+    }
+  }
+
   return {
     privateCycles: nextCycles,
     privateProducts: nextProducts,
     privatePayments: nextPayments,
     privateHormonalEntries: nextEntries,
     privateDailyChecks: nextDailyChecks,
+    privateCycleMedications: nextMedications,
     privateSeedVersion: Math.max(Number(privateSeedVersion) || 0, seed.privateSeedVersion),
   };
 }

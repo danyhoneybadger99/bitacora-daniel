@@ -2242,6 +2242,173 @@ button {
   font-size: 0.98rem;
 }
 
+.private-medication-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.private-medication-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.private-medication-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.private-medication-card {
+  display: grid;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid #e6ebf1;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  box-shadow: 0 14px 26px rgba(20, 34, 48, 0.05);
+}
+
+.private-medication-card-normal {
+  border-color: #e6ebf1;
+}
+
+.private-medication-card-low {
+  border-color: #efd9bf;
+  background: linear-gradient(180deg, #fffaf3 0%, #fff7ed 100%);
+}
+
+.private-medication-card-out {
+  border-color: #e9cfd4;
+  background: linear-gradient(180deg, #fff7f8 0%, #fff0f2 100%);
+}
+
+.private-medication-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.private-medication-title-group {
+  display: grid;
+  gap: 3px;
+}
+
+.private-medication-title-group strong {
+  color: #1b242c;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.private-medication-title-group span,
+.private-medication-title-group small {
+  color: #65727d;
+  line-height: 1.35;
+}
+
+.private-medication-title-group span {
+  font-size: 0.84rem;
+}
+
+.private-medication-title-group small {
+  font-size: 0.8rem;
+}
+
+.private-medication-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.private-medication-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.private-medication-badge-low {
+  background: #fff4ea;
+  color: #9a5b14;
+}
+
+.private-medication-badge-out {
+  background: #f8e9eb;
+  color: #8a3a45;
+}
+
+.private-medication-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.private-medication-count,
+.private-medication-meta {
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border-radius: 16px;
+  background: #f6f8fb;
+  border: 1px solid #e4eaf1;
+}
+
+.private-medication-count span,
+.private-medication-meta span,
+.private-medication-count small,
+.private-medication-meta small {
+  color: #65727d;
+  line-height: 1.35;
+}
+
+.private-medication-count strong,
+.private-medication-meta strong {
+  color: #182229;
+  font-size: 1.22rem;
+  line-height: 1.1;
+}
+
+.private-medication-count strong {
+  font-size: 1.78rem;
+  letter-spacing: -0.02em;
+}
+
+.private-medication-meta strong {
+  font-weight: 700;
+}
+
+.private-medication-meta small {
+  font-size: 0.78rem;
+}
+
+.private-medication-notes {
+  margin: 0;
+}
+
+.private-medication-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.private-medication-slot-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.private-medication-actions > .button {
+  width: 100%;
+}
+
+.private-medication-actions .entry-actions {
+  margin-top: 0;
+}
+
 .private-alert-grid {
   display: grid;
   gap: 8px;
@@ -3289,6 +3456,21 @@ button {
     flex-basis: 100%;
   }
 
+  .private-medication-summary-grid,
+  .private-medication-grid,
+  .private-medication-body,
+  .private-medication-slot-row {
+    grid-template-columns: 1fr;
+  }
+
+  .private-medication-head {
+    flex-direction: column;
+  }
+
+  .private-medication-badges {
+    justify-content: flex-start;
+  }
+
   .entry-details {
     gap: 6px;
   }
@@ -3572,5 +3754,22 @@ button {
   .entry-actions .button {
     width: 100%;
     flex-basis: 100%;
+  }
+
+  .private-medication-card {
+    padding: 11px 12px;
+  }
+
+  .private-medication-title-group span {
+    font-size: 0.82rem;
+  }
+
+  .private-medication-count strong,
+  .private-medication-meta strong {
+    font-size: 1.2rem;
+  }
+
+  .private-medication-count strong {
+    font-size: 1.6rem;
   }
 }
