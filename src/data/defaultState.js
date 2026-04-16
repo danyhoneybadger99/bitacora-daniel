@@ -1,4 +1,5 @@
 import { createPrivateCycle2026SeedData } from '../utils/domain/private';
+import { createEmptyKravSettings, createOrangeKravCurriculum } from '../utils/domain/krav';
 import { getToday } from '../utils/date';
 
 const defaultFastingProtocols = [
@@ -135,6 +136,9 @@ export const defaultState = {
   privateHormonalEntries: privateSeedData.privateHormonalEntries,
   privateDailyChecks: privateSeedData.privateDailyChecks,
   privateCycleMedications: privateSeedData.privateCycleMedications,
+  kravCurriculum: createOrangeKravCurriculum(),
+  kravPracticeLogs: [],
+  kravSettings: createEmptyKravSettings(),
   privateVault: createDefaultPrivateVault(),
   privateSeedVersion: privateSeedData.privateSeedVersion,
   objectives: [createDefaultObjective()],

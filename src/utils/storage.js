@@ -1,4 +1,5 @@
 import { defaultState, STORAGE_KEY } from '../data/defaultState';
+import { createEmptyKravSettings, mergeOrangeKravCurriculum } from './domain/krav';
 import { repairPrivateCycle2026Data } from './domain/private';
 import { normalizeDateString } from './date';
 
@@ -32,9 +33,12 @@ function getCollectionCounts(data = {}) {
     privateHormonalEntries: Array.isArray(data.privateHormonalEntries) ? data.privateHormonalEntries.length : 0,
     privateDailyChecks: Array.isArray(data.privateDailyChecks) ? data.privateDailyChecks.length : 0,
     privateCycleMedications: Array.isArray(data.privateCycleMedications) ? data.privateCycleMedications.length : 0,
+    kravCurriculum: Array.isArray(data.kravCurriculum) ? data.kravCurriculum.length : 0,
+    kravPracticeLogs: Array.isArray(data.kravPracticeLogs) ? data.kravPracticeLogs.length : 0,
     exercises: Array.isArray(data.exercises) ? data.exercises.length : 0,
     bodyMetrics: Array.isArray(data.bodyMetrics) ? data.bodyMetrics.length : 0,
     objectives: Array.isArray(data.objectives) ? data.objectives.length : 0,
+    kravSettings: data.kravSettings ? 1 : 0,
   };
 }
 
@@ -212,6 +216,50 @@ function normalizePrivateCycleMedications(items) {
         notes: item.notes ?? '',
       }))
     : [];
+}
+
+function normalizeKravCurriculum(items) {
+  return mergeOrangeKravCurriculum(items).map((item) => ({
+    ...item,
+    name: item.name ?? '',
+    category: item.category ?? 'striking',
+    stage: item.stage ?? 'etapa1',
+    description: item.description ?? '',
+    tips: item.tips ?? '',
+    videoUrl: item.videoUrl ?? '',
+    level: Number.isFinite(Number(item.level)) ? Number(item.level) : 0,
+    lastPracticedAt: normalizeDateString(item.lastPracticedAt),
+    notes: item.notes ?? '',
+    isExamRelevant: typeof item.isExamRelevant === 'boolean' ? item.isExamRelevant : true,
+  }));
+}
+
+function normalizeKravPracticeLogs(items) {
+  return Array.isArray(items)
+    ? items.map((item) => ({
+        ...item,
+        date: normalizeDateString(item.date),
+        coach: item.coach ?? 'oseas-tonche',
+        coachCustomName: item.coachCustomName ?? '',
+        techniqueIds: Array.isArray(item.techniqueIds) ? item.techniqueIds.filter(Boolean) : [],
+        sparring: item.sparring ?? 'no',
+        observations: item.observations ?? '',
+        mistakes: item.mistakes ?? '',
+        reviewNeeded: item.reviewNeeded ?? '',
+      }))
+    : [];
+}
+
+function normalizeKravSettings(item) {
+  const base = createEmptyKravSettings();
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return base;
+
+  return {
+    currentBelt: item.currentBelt ?? base.currentBelt,
+    targetBelt: item.targetBelt ?? base.targetBelt,
+    examDate: normalizeDateString(item.examDate) || base.examDate,
+    forgottenThresholdDays: item.forgottenThresholdDays ?? base.forgottenThresholdDays,
+  };
 }
 
 function normalizePrivateCycles(items) {
@@ -416,6 +464,8 @@ export function migrateAppData(parsed = {}) {
   const normalizedPrivateEntries = normalizePrivateHormonalEntries(parsed.privateHormonalEntries);
   const normalizedPrivateDailyChecks = normalizePrivateDailyChecks(parsed.privateDailyChecks);
   const normalizedPrivateCycleMedications = normalizePrivateCycleMedications(parsed.privateCycleMedications);
+  const normalizedKravCurriculum = normalizeKravCurriculum(parsed.kravCurriculum);
+  const normalizedKravPracticeLogs = normalizeKravPracticeLogs(parsed.kravPracticeLogs);
   const seededPrivate = repairPrivateCycle2026Data({
     privateCycles: normalizedPrivateCycles,
     privateProducts: normalizedPrivateProducts,
@@ -442,6 +492,9 @@ export function migrateAppData(parsed = {}) {
     privateHormonalEntries: seededPrivate.privateHormonalEntries,
     privateDailyChecks: seededPrivate.privateDailyChecks,
     privateCycleMedications: seededPrivate.privateCycleMedications,
+    kravCurriculum: normalizedKravCurriculum,
+    kravPracticeLogs: normalizedKravPracticeLogs,
+    kravSettings: normalizeKravSettings(parsed.kravSettings),
     privateVault: normalizePrivateVault(parsed.privateVault),
     privateSeedVersion: seededPrivate.privateSeedVersion,
     objectives: normalizeObjectives(parsed.objectives),

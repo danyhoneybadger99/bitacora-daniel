@@ -14,6 +14,9 @@ export const appDataValidationKeys = [
   'privateHormonalEntries',
   'privateDailyChecks',
   'privateCycleMedications',
+  'kravCurriculum',
+  'kravPracticeLogs',
+  'kravSettings',
   'privateVault',
   'objectives',
   'goals',
@@ -38,10 +41,13 @@ export function getPersistenceCollectionCounts(data = {}) {
     privateHormonalEntries: Array.isArray(data.privateHormonalEntries) ? data.privateHormonalEntries.length : 0,
     privateDailyChecks: Array.isArray(data.privateDailyChecks) ? data.privateDailyChecks.length : 0,
     privateCycleMedications: Array.isArray(data.privateCycleMedications) ? data.privateCycleMedications.length : 0,
+    kravCurriculum: Array.isArray(data.kravCurriculum) ? data.kravCurriculum.length : 0,
+    kravPracticeLogs: Array.isArray(data.kravPracticeLogs) ? data.kravPracticeLogs.length : 0,
     exercises: Array.isArray(data.exercises) ? data.exercises.length : 0,
     bodyMetrics: Array.isArray(data.bodyMetrics) ? data.bodyMetrics.length : 0,
     objectives: Array.isArray(data.objectives) ? data.objectives.length : 0,
     syncMeta: data.syncMeta ? 1 : 0,
     backupMeta: data.backupMeta ? 1 : 0,
+    kravSettings: data.kravSettings ? 1 : 0,
   };
 }

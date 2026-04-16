@@ -83,6 +83,19 @@ import {
   privateProductStatusLabels,
 } from './utils/domain/private';
 import {
+  buildKravAlerts,
+  buildKravExamStatus,
+  buildKravProgress,
+  createEmptyKravPracticeLog,
+  getDaysSincePractice,
+  getKravTechniqueProgress,
+  getNextKravTechnique,
+  kravCategoryLabels,
+  kravCoachOptions,
+  kravStageLabels,
+  markKravTechniquePracticed,
+} from './utils/domain/krav';
+import {
   chooseSnapshotWinner,
   createDeviceId,
   ensureSyncMeta,
@@ -157,12 +170,15 @@ const tabs = [
   { id: 'supplements', label: 'Suplementos' },
   { id: 'fasting', label: 'Ayuno' },
   { id: 'exercises', label: 'Ejercicio' },
+  { id: 'krav', label: 'Krav Maga' },
   { id: 'metrics', label: 'Metricas' },
   { id: 'weekly', label: 'Semanal' },
   { id: 'history', label: 'Historial' },
   { id: 'private', label: 'Salud hormonal' },
   { id: 'settings', label: 'Ajustes' },
 ];
+
+const kravBeltOptions = ['amarilla', 'naranja', 'verde', 'azul', 'marron', 'negra'];
 
 function sortPrivateRecordsByDate(items = [], dateField = 'date') {
   return [...items].sort((a, b) => {
@@ -462,6 +478,7 @@ function App() {
   const [routineItemForm, setRoutineItemForm] = useState(emptyRoutineItem);
   const [routineItems, setRoutineItems] = useState([]);
   const [exerciseForm, setExerciseForm] = useState(createEmptyExercise);
+  const [kravPracticeForm, setKravPracticeForm] = useState(createEmptyKravPracticeLog);
   const [metricForm, setMetricForm] = useState(createEmptyMetric);
   const [privateEntryForm, setPrivateEntryForm] = useState(createEmptyPrivateEntry);
   const [privateCycleForm, setPrivateCycleForm] = useState(createEmptyPrivateCycle);
@@ -476,6 +493,7 @@ function App() {
   const [editingFastingLogId, setEditingFastingLogId] = useState(null);
   const [editingSupplementId, setEditingSupplementId] = useState(null);
   const [editingExerciseId, setEditingExerciseId] = useState(null);
+  const [editingKravPracticeId, setEditingKravPracticeId] = useState(null);
   const [editingMetricId, setEditingMetricId] = useState(null);
   const [editingPrivateEntryId, setEditingPrivateEntryId] = useState(null);
   const [editingPrivateCycleId, setEditingPrivateCycleId] = useState(null);
@@ -488,8 +506,12 @@ function App() {
   const [showFoodTemplateBuilder, setShowFoodTemplateBuilder] = useState(true);
   const [showRoutineBuilder, setShowRoutineBuilder] = useState(true);
   const [showFastingProtocolBuilder, setShowFastingProtocolBuilder] = useState(true);
+  const [showKravPracticeBuilder, setShowKravPracticeBuilder] = useState(false);
   const [supplementFilter, setSupplementFilter] = useState('todos');
   const [exerciseFilter, setExerciseFilter] = useState('todos');
+  const [selectedKravTechniqueId, setSelectedKravTechniqueId] = useState('');
+  const [kravTechniqueNoteDraft, setKravTechniqueNoteDraft] = useState('');
+  const [kravExpandedCategories, setKravExpandedCategories] = useState({});
   const [fastingNow, setFastingNow] = useState(() => Date.now());
   const [backupInputKey, setBackupInputKey] = useState(0);
   const [backupFeedback, setBackupFeedback] = useState({ type: '', text: '' });
@@ -1211,6 +1233,145 @@ function App() {
       ),
     [diaryData.privateCycleMedications]
   );
+  const kravCurriculum = useMemo(
+    () =>
+      [...(diaryData.kravCurriculum || [])].sort((a, b) => {
+        if (a.category !== b.category) {
+          return String(kravCategoryLabels[a.category] || a.category).localeCompare(
+            String(kravCategoryLabels[b.category] || b.category),
+            'es-MX'
+          );
+        }
+        if (a.stage !== b.stage) return String(a.stage || '').localeCompare(String(b.stage || ''), 'es-MX');
+        return String(a.name || '').localeCompare(String(b.name || ''), 'es-MX');
+      }),
+    [diaryData.kravCurriculum]
+  );
+  const kravPracticeLogs = useMemo(
+    () =>
+      sortByDateDesc(diaryData.kravPracticeLogs || []).sort((a, b) => String(b.id || '').localeCompare(String(a.id || ''))),
+    [diaryData.kravPracticeLogs]
+  );
+  const kravSettings = useMemo(
+    () => ({
+      ...defaultState.kravSettings,
+      ...(diaryData.kravSettings || {}),
+    }),
+    [diaryData.kravSettings]
+  );
+  const kravCoachLabelByValue = useMemo(
+    () => Object.fromEntries(kravCoachOptions.map((item) => [item.value, item.label])),
+    []
+  );
+  function formatKravPercent(value) {
+    return `${Math.round(Number(value) || 0)}%`;
+  }
+  function formatKravBeltLabel(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) return 'Sin cinta';
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+  function getKravExamStatusText(status) {
+    if (status === 'listo') return 'Listo';
+    if (status === 'riesgo-medio') return 'Riesgo medio';
+    return 'Riesgo alto';
+  }
+  function formatKravTechniqueCount(value) {
+    const count = Number(value) || 0;
+    return `${count} ${count === 1 ? 'técnica' : 'técnicas'}`;
+  }
+  function formatKravDaysWithoutPractice(value) {
+    if (value === null || value === undefined) return 'Sin práctica registrada';
+    if (value === 0) return 'Practicada hoy';
+    if (value === 1) return '1 día sin práctica';
+    return `${value} días sin práctica`;
+  }
+  const kravProgress = useMemo(() => buildKravProgress(kravCurriculum), [kravCurriculum]);
+  const nextKravTechnique = useMemo(
+    () => getNextKravTechnique(kravCurriculum, currentDate),
+    [kravCurriculum, currentDate]
+  );
+  const kravExamStatus = useMemo(
+    () => buildKravExamStatus(kravCurriculum, kravSettings, currentDate),
+    [kravCurriculum, kravSettings, currentDate]
+  );
+  const kravAlerts = useMemo(
+    () => buildKravAlerts(kravCurriculum, kravSettings, currentDate),
+    [kravCurriculum, kravSettings, currentDate]
+  );
+  const kravDashboardSnapshot = useMemo(() => {
+    const currentBelt = formatKravBeltLabel(kravSettings.currentBelt || 'amarilla');
+    const targetBelt = formatKravBeltLabel(kravSettings.targetBelt || 'naranja');
+    const normalizedExamDate = normalizeDateString(kravSettings.examDate);
+    const examDateLabel = normalizedExamDate ? formatPrivateDate(normalizedExamDate) : 'Fecha de examen pendiente';
+    let examCountdownLabel = '';
+    if (normalizedExamDate) {
+      const examDate = new Date(`${normalizedExamDate}T12:00:00`);
+      const referenceDate = new Date(`${currentDate}T12:00:00`);
+      const diffDays = Math.round((examDate.getTime() - referenceDate.getTime()) / 86400000);
+      examCountdownLabel =
+        diffDays > 1 ? `${diffDays} días restantes` : diffDays === 1 ? '1 día restante' : diffDays === 0 ? 'Examen hoy' : `Vencido hace ${Math.abs(diffDays)} día${Math.abs(diffDays) === 1 ? '' : 's'}`;
+    }
+
+    return {
+      currentBelt,
+      targetBelt,
+      examDate: normalizedExamDate,
+      examDateLabel,
+      examCountdownLabel,
+      totalProgress: kravProgress.totalProgress,
+      pendingTechniques: kravExamStatus.pendingTechniques,
+      nextTechniqueName: nextKravTechnique?.name || 'Sin técnica priorizada',
+      examStatusLabel: getKravExamStatusText(kravExamStatus.status),
+    };
+  }, [currentDate, kravExamStatus.pendingTechniques, kravExamStatus.status, kravProgress.totalProgress, kravSettings.currentBelt, kravSettings.examDate, kravSettings.targetBelt, nextKravTechnique]);
+  const kravCurriculumByCategory = useMemo(
+    () =>
+      Object.entries(kravCategoryLabels)
+        .map(([category, label]) => ({
+          category,
+          label,
+          items: kravCurriculum.filter((item) => item.category === category),
+        }))
+        .filter((group) => group.items.length > 0),
+    [kravCurriculum]
+  );
+  const kravPriorityReason = useMemo(() => {
+    if (!nextKravTechnique) return '';
+
+    const minLevel = kravCurriculum.reduce((currentMin, item) => Math.min(currentMin, Number(item.level) || 0), 4);
+    const sameLevelItems = kravCurriculum.filter((item) => (Number(item.level) || 0) === minLevel);
+    const nextDays = nextKravTechnique.daysSincePractice;
+    const maxDaysInLowestLevel = sameLevelItems.reduce((currentMax, item) => {
+      const days = getDaysSincePractice(item.lastPracticedAt, currentDate);
+      return Math.max(currentMax, days === null ? 999 : days);
+    }, 0);
+
+    if ((Number(nextKravTechnique.level) || 0) === minLevel && (nextDays === null || nextDays >= maxDaysInLowestLevel)) {
+      return 'Priorizada por nivel bajo y días sin práctica';
+    }
+
+    if ((Number(nextKravTechnique.level) || 0) === minLevel) {
+      return 'Priorizada por nivel bajo';
+    }
+
+    return 'Priorizada por días sin práctica';
+  }, [nextKravTechnique, kravCurriculum, currentDate]);
+  const selectedKravTechnique = useMemo(
+    () => kravCurriculum.find((item) => item.id === selectedKravTechniqueId) || null,
+    [kravCurriculum, selectedKravTechniqueId]
+  );
+  const kravPracticeLogCards = useMemo(
+    () =>
+      kravPracticeLogs.map((item) => ({
+        ...item,
+        coachLabel: item.coach === 'otro' ? item.coachCustomName || 'Otro coach' : kravCoachLabelByValue[item.coach] || item.coach,
+        techniqueNames: item.techniqueIds
+          .map((techniqueId) => kravCurriculum.find((technique) => technique.id === techniqueId)?.name)
+          .filter(Boolean),
+      })),
+    [kravPracticeLogs, kravCoachLabelByValue, kravCurriculum]
+  );
   const activePrivateCycle = useMemo(() => getPrivateActiveCycle(privateCycles), [privateCycles]);
   const hasActivePrivateCycle = Boolean(activePrivateCycle);
   const privateSummary = useMemo(
@@ -1917,6 +2078,37 @@ function lockPrivateModule(feedbackText = '') {
     };
   }, [latestMetric?.date, metricFieldSnapshots, metricSummary.bodyFatDelta, metricSummary.bodyFatMassDelta, metricSummary.skeletalMuscleMassDelta, metricSummary.weightDelta]);
 
+  useEffect(() => {
+    if (!selectedKravTechnique) {
+      setKravTechniqueNoteDraft('');
+      return;
+    }
+
+    setKravTechniqueNoteDraft(selectedKravTechnique.notes || '');
+  }, [selectedKravTechnique]);
+
+  useEffect(() => {
+    if ((!selectedKravTechniqueId || !selectedKravTechnique) && nextKravTechnique?.id) {
+      setSelectedKravTechniqueId(nextKravTechnique.id);
+    }
+  }, [selectedKravTechniqueId, selectedKravTechnique, nextKravTechnique]);
+
+  useEffect(() => {
+    if (kravCurriculumByCategory.length === 0) return;
+    setKravExpandedCategories((current) => {
+      if (Object.keys(current).length > 0) return current;
+
+      const isCompactViewport =
+        typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+          ? window.matchMedia('(max-width: 720px)').matches
+          : false;
+
+      return Object.fromEntries(
+        kravCurriculumByCategory.map((group, index) => [group.category, isCompactViewport ? false : index === 0])
+      );
+    });
+  }, [kravCurriculumByCategory]);
+
   function handleFormChange(setter) {
     return (event) => {
       const { name, value } = event.target;
@@ -2032,6 +2224,13 @@ function lockPrivateModule(feedbackText = '') {
 
   function resetExerciseForm() {
     setExerciseForm(createEmptyExercise());
+  }
+
+  function resetKravPracticeForm() {
+    setKravPracticeForm({
+      ...createEmptyKravPracticeLog(),
+      date: currentDate,
+    });
   }
 
   function resetMetricForm() {
@@ -2250,6 +2449,7 @@ function lockPrivateModule(feedbackText = '') {
     resetSupplementForm();
     resetRoutineBuilder();
     resetExerciseForm();
+    resetKravPracticeForm();
     resetMetricForm();
     resetPrivateEntryForm();
     resetPrivateCycleForm();
@@ -2264,6 +2464,7 @@ function lockPrivateModule(feedbackText = '') {
     setEditingFastingLogId(null);
     setEditingSupplementId(null);
     setEditingExerciseId(null);
+    setEditingKravPracticeId(null);
     setEditingMetricId(null);
     setEditingPrivateEntryId(null);
     setEditingPrivateCycleId(null);
@@ -2276,6 +2477,9 @@ function lockPrivateModule(feedbackText = '') {
     setPrivateSetupPin('');
     setPrivateSetupPinConfirm('');
     setPrivatePinUpdate({ current: '', next: '', confirm: '' });
+    setShowKravPracticeBuilder(false);
+    setSelectedKravTechniqueId('');
+    setKravTechniqueNoteDraft('');
     lockPrivateModule();
     setBackupFeedback({
       type: 'success',
@@ -3176,6 +3380,149 @@ function lockPrivateModule(feedbackText = '') {
     });
   }
 
+  function handleKravPracticeFieldChange(event) {
+    const { name, value } = event.target;
+    setKravPracticeForm((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === 'coach' && value !== 'otro' ? { coachCustomName: '' } : {}),
+    }));
+  }
+
+  function toggleKravTechniqueSelection(techniqueId) {
+    setKravPracticeForm((current) => {
+      const currentIds = Array.isArray(current.techniqueIds) ? current.techniqueIds : [];
+      const alreadySelected = currentIds.includes(techniqueId);
+      return {
+        ...current,
+        techniqueIds: alreadySelected ? currentIds.filter((item) => item !== techniqueId) : [...currentIds, techniqueId],
+      };
+    });
+  }
+
+  function handleKravPracticeSubmit(event) {
+    event.preventDefault();
+
+    if (!Array.isArray(kravPracticeForm.techniqueIds) || kravPracticeForm.techniqueIds.length === 0) return;
+    if (kravPracticeForm.coach === 'otro' && !String(kravPracticeForm.coachCustomName || '').trim()) return;
+
+    const normalizedLog = {
+      ...kravPracticeForm,
+      date: kravPracticeForm.date || currentDate,
+      coachCustomName: String(kravPracticeForm.coachCustomName || '').trim(),
+      techniqueIds: [...new Set(kravPracticeForm.techniqueIds)],
+    };
+
+    const record = editingKravPracticeId ? { ...normalizedLog, id: editingKravPracticeId } : { ...normalizedLog, id: createId() };
+
+    markPersistenceReason(`krav:${editingKravPracticeId ? 'editar' : 'crear'}:practice`);
+    setDiaryData((current) => {
+      const nextLogs = editingKravPracticeId
+        ? (current.kravPracticeLogs || []).map((item) => (item.id === editingKravPracticeId ? record : item))
+        : [record, ...(current.kravPracticeLogs || [])];
+
+      const nextCurriculum = (current.kravCurriculum || []).map((item) =>
+        normalizedLog.techniqueIds.includes(item.id)
+          ? {
+              ...item,
+              lastPracticedAt: normalizedLog.date,
+            }
+          : item
+      );
+
+      return {
+        ...current,
+        kravPracticeLogs: nextLogs,
+        kravCurriculum: nextCurriculum,
+      };
+    });
+
+    resetKravPracticeForm();
+    setEditingKravPracticeId(null);
+  }
+
+  function editKravPracticeLog(id) {
+    const item = (diaryData.kravPracticeLogs || []).find((entry) => entry.id === id);
+    if (!item) return;
+    setKravPracticeForm({
+      ...createEmptyKravPracticeLog(),
+      ...item,
+      techniqueIds: Array.isArray(item.techniqueIds) ? item.techniqueIds : [],
+    });
+    setEditingKravPracticeId(id);
+    setShowKravPracticeBuilder(true);
+    setActiveTab('krav');
+  }
+
+  function deleteKravPracticeLog(id) {
+    if (!window.confirm('¿Eliminar este registro técnico?')) return;
+    deleteRecord('kravPracticeLogs', id, setEditingKravPracticeId, resetKravPracticeForm);
+  }
+
+  function handleKravTechniquePractice(techniqueId, practiceDate = currentDate) {
+    markPersistenceReason('krav:practice-today');
+    setDiaryData((current) => ({
+      ...current,
+      kravCurriculum: markKravTechniquePracticed(current.kravCurriculum || [], techniqueId, practiceDate),
+    }));
+  }
+
+  function handleKravTechniqueLevelChange(techniqueId, delta = 1) {
+    markPersistenceReason('krav:update-level');
+    setDiaryData((current) => ({
+      ...current,
+      kravCurriculum: (current.kravCurriculum || []).map((item) =>
+        item.id === techniqueId
+          ? {
+              ...item,
+              level: Math.min(4, Math.max(0, (Number(item.level) || 0) + delta)),
+            }
+          : item
+      ),
+    }));
+  }
+
+  function openKravTechniqueDetails(techniqueId) {
+    const technique = kravCurriculum.find((item) => item.id === techniqueId);
+    setSelectedKravTechniqueId(techniqueId);
+    setKravTechniqueNoteDraft(technique?.notes || '');
+  }
+
+  function saveKravTechniqueNotes() {
+    if (!selectedKravTechniqueId) return;
+    markPersistenceReason('krav:update-notes');
+    setDiaryData((current) => ({
+      ...current,
+      kravCurriculum: (current.kravCurriculum || []).map((item) =>
+        item.id === selectedKravTechniqueId
+          ? {
+              ...item,
+              notes: kravTechniqueNoteDraft,
+            }
+          : item
+      ),
+    }));
+  }
+
+  function toggleKravCategory(category) {
+    setKravExpandedCategories((current) => ({
+      ...current,
+      [category]: !current[category],
+    }));
+  }
+
+  function handleKravSettingsFieldChange(event) {
+    const { name, value } = event.target;
+    markPersistenceReason('krav:update-settings');
+    setDiaryData((current) => ({
+      ...current,
+      kravSettings: {
+        ...(current.kravSettings || {}),
+        [name]: value,
+      },
+    }));
+  }
+
   function handleRoutineItemSubmit(event) {
     event.preventDefault();
     if (!routineItemForm.name.trim()) return;
@@ -3551,6 +3898,30 @@ function lockPrivateModule(feedbackText = '') {
                     : `${formatUnitValue(Math.max((hydrationBaseGoal || 0) - todaySummary.hydrationMl, 0), 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })} restantes`
                 }
               />
+
+              <article className="progress-card progress-card-krav dashboard-krav-progress-card">
+                <div className="progress-card-top dashboard-krav-head">
+                  <div className="dashboard-krav-title-group">
+                    <span>Krav Maga</span>
+                    <span className="dashboard-krav-belt">{`Cinta ${kravDashboardSnapshot.currentBelt.toLowerCase()}`}</span>
+                  </div>
+                  <strong>{formatKravPercent(kravDashboardSnapshot.totalProgress)}</strong>
+                </div>
+                <p>{`Objetivo: ${kravDashboardSnapshot.targetBelt} · ${kravDashboardSnapshot.pendingTechniques} pendientes`}</p>
+                <small>{kravDashboardSnapshot.examDate ? `Examen: ${kravDashboardSnapshot.examDateLabel}${kravDashboardSnapshot.examCountdownLabel ? ` · ${kravDashboardSnapshot.examCountdownLabel}` : ''}` : 'Fecha de examen pendiente'}</small>
+                <small>{`Estado: ${kravDashboardSnapshot.examStatusLabel}`}</small>
+                <small className="dashboard-krav-next" title={kravDashboardSnapshot.nextTechniqueName}>
+                  Próxima: {kravDashboardSnapshot.nextTechniqueName}
+                </small>
+                <div className="progress-track" aria-hidden="true">
+                  <div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, Number(kravDashboardSnapshot.totalProgress) || 0))}%` }} />
+                </div>
+                <div className="entry-actions dashboard-krav-actions">
+                  <button className="button button-secondary" type="button" onClick={() => setActiveTab('krav')}>
+                    Abrir Krav Maga
+                  </button>
+                </div>
+              </article>
             </div>
 
             {proteinAlert ? (
@@ -3683,9 +4054,10 @@ function lockPrivateModule(feedbackText = '') {
                     {metricFieldSnapshots.weight.date
                       ? `${formatMetricText(metricFieldSnapshots.bodyFat.rawValue, '%')} grasa • ${formatMetricText(metricFieldSnapshots.skeletalMuscleMass.rawValue, ' kg')} musculo`
                       : 'Aun no has registrado metricas.'}
-                  </p>
+                    </p>
                 </div>
               </SectionCard>
+
             </div>
           </>
         ) : null}
@@ -5374,6 +5746,559 @@ function lockPrivateModule(feedbackText = '') {
               </SectionCard>
             </div>
           </>
+        ) : null}
+
+        {activeTab === 'krav' ? (
+          <div className="krav-board">
+            <SectionCard
+              title="Tablero de avance"
+              subtitle="Lectura ejecutiva del currículo rumbo a cinta naranja."
+              className="card-soft krav-panel krav-panel-progress"
+            >
+              <div className="metrics-summary-grid krav-progress-grid">
+                <article className="metrics-summary-card krav-progress-card">
+                  <span>% total de avance</span>
+                  <strong>{formatKravPercent(kravProgress.totalProgress)}</strong>
+                  <div className="krav-progress-track" aria-hidden="true">
+                    <span style={{ width: `${Math.max(0, Math.min(100, Math.round((kravProgress.totalProgress || 0) * 100)))}%` }} />
+                  </div>
+                  <small>Promedio global de dominio técnico.</small>
+                </article>
+                <article className="metrics-summary-card krav-progress-card">
+                  <span>% striking</span>
+                  <strong>{formatKravPercent(kravProgress.categoryProgress.striking)}</strong>
+                  <div className="krav-progress-track" aria-hidden="true">
+                    <span style={{ width: `${Math.max(0, Math.min(100, Math.round(((kravProgress.categoryProgress.striking || 0) * 100))))}%` }} />
+                  </div>
+                  <small>Golpeo, combos y codos.</small>
+                </article>
+                <article className="metrics-summary-card krav-progress-card">
+                  <span>% defensa personal</span>
+                  <strong>{formatKravPercent(kravProgress.categoryProgress['defensa-personal'])}</strong>
+                  <div className="krav-progress-track" aria-hidden="true">
+                    <span
+                      style={{
+                        width: `${Math.max(0, Math.min(100, Math.round(((kravProgress.categoryProgress['defensa-personal'] || 0) * 100))))}%`,
+                      }}
+                    />
+                  </div>
+                  <small>Defensas, abrazos y salidas.</small>
+                </article>
+                <article className="metrics-summary-card krav-progress-card">
+                  <span>% grappling</span>
+                  <strong>{formatKravPercent(kravProgress.categoryProgress.grappling)}</strong>
+                  <div className="krav-progress-track" aria-hidden="true">
+                    <span style={{ width: `${Math.max(0, Math.min(100, Math.round(((kravProgress.categoryProgress.grappling || 0) * 100))))}%` }} />
+                  </div>
+                  <small>Piso, derribos y control de posición.</small>
+                </article>
+                <article className="metrics-summary-card krav-progress-card">
+                  <span>% sparring</span>
+                  <strong>{formatKravPercent(kravProgress.categoryProgress.sparring)}</strong>
+                  <div className="krav-progress-track" aria-hidden="true">
+                    <span style={{ width: `${Math.max(0, Math.min(100, Math.round(((kravProgress.categoryProgress.sparring || 0) * 100))))}%` }} />
+                  </div>
+                  <small>Drills vivos y lectura de combate.</small>
+                </article>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Próxima técnica a repasar"
+              subtitle="La siguiente técnica priorizada por nivel y tiempo sin práctica."
+              className="card-soft krav-panel krav-panel-next"
+            >
+              {nextKravTechnique ? (
+                <div className="krav-next-card">
+                  <div className="krav-next-head">
+                    <div className="krav-heading-copy">
+                      <strong>{nextKravTechnique.name}</strong>
+                      <span className="krav-meta-line">
+                        {kravCategoryLabels[nextKravTechnique.category] || nextKravTechnique.category} ·{' '}
+                        {kravStageLabels[nextKravTechnique.stage] || nextKravTechnique.stage}
+                      </span>
+                      <small>{kravPriorityReason}</small>
+                    </div>
+                    <div className="krav-chip-row">
+                      <span className="metrics-source-chip">Nivel {nextKravTechnique.level}/4</span>
+                      <span className="metrics-source-chip">{nextKravTechnique.isExamRelevant ? 'Relevante para examen' : 'Apoyo técnico'}</span>
+                    </div>
+                  </div>
+                  <div className="entry-details">
+                    <span>{formatKravDaysWithoutPractice(nextKravTechnique.daysSincePractice)}</span>
+                    <span>Dominio técnico {formatKravPercent(getKravTechniqueProgress(nextKravTechnique.level))}</span>
+                  </div>
+                  {nextKravTechnique.description ? <p className="metrics-notes">{nextKravTechnique.description}</p> : null}
+                  <div className="entry-actions">
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      onClick={() => handleKravTechniquePractice(nextKravTechnique.id)}
+                    >
+                      Practiqué hoy
+                    </button>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      onClick={() => handleKravTechniqueLevelChange(nextKravTechnique.id, 1)}
+                    >
+                      Subir nivel
+                    </button>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      onClick={() => openKravTechniqueDetails(nextKravTechnique.id)}
+                    >
+                      Ver técnica
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="empty-state">Aún no hay técnicas cargadas para priorizar el siguiente repaso.</p>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Meta de examen"
+              subtitle="Referencia actual rumbo al siguiente examen."
+              className="card-soft krav-panel krav-panel-goal"
+            >
+              <div className="mini-stat-grid">
+                <div className="mini-stat">
+                  <span>Cinta actual</span>
+                  <strong>{kravDashboardSnapshot.currentBelt}</strong>
+                </div>
+                <div className="mini-stat">
+                  <span>Cinta objetivo</span>
+                  <strong>{kravDashboardSnapshot.targetBelt}</strong>
+                </div>
+                <div className="mini-stat">
+                  <span>Fecha de examen</span>
+                  <strong>{kravDashboardSnapshot.examDate ? kravDashboardSnapshot.examDateLabel : 'Pendiente'}</strong>
+                  <small>{kravDashboardSnapshot.examCountdownLabel || 'Examen sin fecha definida'}</small>
+                </div>
+              </div>
+              <div className="form-grid">
+                <label className="field">
+                  <span>Cinta actual</span>
+                  <select name="currentBelt" value={kravSettings.currentBelt || 'amarilla'} onChange={handleKravSettingsFieldChange}>
+                    {kravBeltOptions.map((option) => (
+                      <option key={`current-${option}`} value={option}>
+                        {formatKravBeltLabel(option)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Cinta objetivo</span>
+                  <select name="targetBelt" value={kravSettings.targetBelt || 'naranja'} onChange={handleKravSettingsFieldChange}>
+                    {kravBeltOptions.map((option) => (
+                      <option key={`target-${option}`} value={option}>
+                        {formatKravBeltLabel(option)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Fecha de examen</span>
+                  <input name="examDate" type="date" value={kravSettings.examDate || ''} onChange={handleKravSettingsFieldChange} />
+                </label>
+              </div>
+              <p className="section-helper">
+                {kravDashboardSnapshot.examDate
+                  ? `Examen programado: ${kravDashboardSnapshot.examDateLabel}${kravDashboardSnapshot.examCountdownLabel ? ` · ${kravDashboardSnapshot.examCountdownLabel}` : ''}`
+                  : 'Examen sin fecha definida.'}
+              </p>
+            </SectionCard>
+
+            <SectionCard
+              title="Estado de examen"
+              subtitle={`Estado rumbo a cinta ${kravSettings.targetBelt || 'naranja'}.`}
+              className="card-soft krav-panel krav-panel-exam"
+            >
+              <div className="krav-exam-card">
+                <div className="krav-exam-head">
+                  <div className="krav-heading-copy">
+                    <strong>
+                      {kravExamStatus.status === 'listo'
+                        ? 'Listo para examen'
+                        : kravExamStatus.status === 'riesgo-medio'
+                          ? 'Riesgo medio'
+                          : 'Riesgo alto'}
+                    </strong>
+                    <span className="krav-meta-line">Promedio global actual · {kravExamStatus.averageLevel.toFixed(1)} / 4</span>
+                    <small>Lectura rápida de riesgo para no llegar al examen con huecos técnicos.</small>
+                  </div>
+                  <span className={`krav-risk-chip krav-risk-chip-${kravExamStatus.status}`}>
+                    {kravExamStatus.status === 'listo'
+                      ? 'Listo'
+                      : kravExamStatus.status === 'riesgo-medio'
+                        ? 'Atención'
+                        : 'Prioridad'}
+                  </span>
+                </div>
+                <div className="mini-stat-grid">
+                  <div className="mini-stat">
+                    <span>Técnicas pendientes</span>
+                    <strong>{kravExamStatus.pendingTechniques}</strong>
+                  </div>
+                  <div className="mini-stat">
+                    <span>Técnicas en nivel 0 o 1</span>
+                    <strong>{kravExamStatus.lowTechniques}</strong>
+                  </div>
+                  <div className="mini-stat">
+                    <span>Técnicas olvidadas (+5 días)</span>
+                    <strong>{kravExamStatus.forgottenTechniques}</strong>
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Currículo"
+              subtitle="Currículo operativo de cinta naranja organizado por categoría."
+              className="card-soft krav-panel krav-panel-curriculum"
+            >
+              {selectedKravTechnique ? (
+                <div className="krav-technique-detail" id="krav-curriculum-detail">
+                  <span className="krav-feature-label">Técnica destacada</span>
+                  <div className="krav-technique-detail-head">
+                    <div className="krav-heading-copy">
+                      <strong>{selectedKravTechnique.name}</strong>
+                      <span className="krav-meta-line">
+                        {kravCategoryLabels[selectedKravTechnique.category] || selectedKravTechnique.category} ·{' '}
+                        {kravStageLabels[selectedKravTechnique.stage] || selectedKravTechnique.stage}
+                      </span>
+                      <small>
+                        {selectedKravTechnique.isExamRelevant ? 'Técnica relevante para examen' : 'Técnica de apoyo'}
+                      </small>
+                    </div>
+                    <div className="krav-chip-row">
+                      <span className="metrics-source-chip">Nivel {selectedKravTechnique.level}/4</span>
+                      <span className="metrics-source-chip">
+                        {formatKravDaysWithoutPractice(getDaysSincePractice(selectedKravTechnique.lastPracticedAt, currentDate))}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="entry-details">
+                    <span>Dominio técnico {formatKravPercent(getKravTechniqueProgress(selectedKravTechnique.level))}</span>
+                    <span>{selectedKravTechnique.videoUrl ? 'Video disponible' : 'Sin video cargado'}</span>
+                  </div>
+                  <div className="krav-detail-copy">
+                    {selectedKravTechnique.description ? <p className="metrics-notes">{selectedKravTechnique.description}</p> : null}
+                    {selectedKravTechnique.tips ? <p className="metrics-notes">Tip: {selectedKravTechnique.tips}</p> : null}
+                  </div>
+                  <label className="field field-full">
+                    <span>Notas técnicas</span>
+                    <textarea
+                      rows="3"
+                      value={kravTechniqueNoteDraft}
+                      onChange={(event) => setKravTechniqueNoteDraft(event.target.value)}
+                      placeholder="Puntos clave, correcciones del coach o recordatorios para el examen..."
+                    />
+                  </label>
+                  <div className="entry-actions">
+                    <button className="button button-primary" type="button" onClick={saveKravTechniqueNotes}>
+                      Guardar notas
+                    </button>
+                    <button className="button button-secondary" type="button" onClick={() => handleKravTechniquePractice(selectedKravTechnique.id)}>
+                      Practiqué hoy
+                    </button>
+                    <button className="button button-secondary" type="button" onClick={() => handleKravTechniqueLevelChange(selectedKravTechnique.id, 1)}>
+                      Subir nivel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="krav-curriculum-groups">
+                {kravCurriculumByCategory.map((group) => (
+                  <div className="krav-category-group" key={group.category}>
+                    <button
+                      className="krav-category-toggle"
+                      type="button"
+                      onClick={() => toggleKravCategory(group.category)}
+                      aria-expanded={Boolean(kravExpandedCategories[group.category])}
+                      aria-controls={`krav-category-${group.category}`}
+                    >
+                      <div className="krav-category-head">
+                        <div className="krav-heading-copy">
+                          <strong>{group.label}</strong>
+                          <span className="krav-meta-line">{`${group.label} · ${formatKravTechniqueCount(group.items.length)}`}</span>
+                        </div>
+                        <div className="krav-chip-row">
+                          <span className="metrics-source-chip">
+                            {formatKravPercent(
+                              group.items.length > 0
+                                ? group.items.reduce((sum, item) => sum + getKravTechniqueProgress(item.level), 0) / group.items.length
+                                : 0
+                            )}
+                          </span>
+                          <span className="metrics-source-chip">{kravExpandedCategories[group.category] ? 'Ocultar' : 'Expandir'}</span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {kravExpandedCategories[group.category] ? (
+                      <div className="krav-technique-grid" id={`krav-category-${group.category}`}>
+                        {group.items.map((technique) => {
+                          const daysSincePractice = getDaysSincePractice(technique.lastPracticedAt, currentDate);
+                          return (
+                            <article className="krav-technique-card" key={technique.id}>
+                              <div className="krav-technique-card-top">
+                                <div className="krav-heading-copy">
+                                  <strong>{technique.name}</strong>
+                                  <span className="krav-meta-line">
+                                    {(kravCategoryLabels[technique.category] || technique.category)} · {kravStageLabels[technique.stage] || technique.stage}
+                                  </span>
+                                </div>
+                                <div className="krav-chip-row">
+                                  <span className="metrics-source-chip">Nivel {technique.level}/4</span>
+                                  <span className="metrics-source-chip">
+                                    {daysSincePractice === 0 ? 'Practicada hoy' : formatKravDaysWithoutPractice(daysSincePractice)}
+                                  </span>
+                                  <span className="metrics-source-chip">
+                                    {technique.isExamRelevant ? 'Examen' : 'Apoyo'}
+                                  </span>
+                                </div>
+                              </div>
+                              <details className="inline-details krav-technique-inline-details">
+                                <summary>Ver resumen técnico</summary>
+                                {technique.description ? <p className="metrics-notes">{technique.description}</p> : null}
+                                {technique.tips ? <p className="metrics-notes">Tip: {technique.tips}</p> : null}
+                                {technique.notes ? <p className="metrics-notes">Notas: {technique.notes}</p> : null}
+                              </details>
+                              <div className="entry-actions">
+                                <button className="button button-primary" type="button" onClick={() => handleKravTechniqueLevelChange(technique.id, 1)}>
+                                  Subir nivel
+                                </button>
+                                <button className="button button-secondary" type="button" onClick={() => handleKravTechniquePractice(technique.id)}>
+                                  Practiqué hoy
+                                </button>
+                                <button className="button button-secondary" type="button" onClick={() => openKravTechniqueDetails(technique.id)}>
+                                  Ver técnica
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Bitácora técnica"
+              subtitle="Registra práctica técnica, coach, sparring y puntos a repasar."
+              className="card-soft krav-panel krav-panel-log"
+            >
+              <div className="section-inline-actions section-inline-actions-tight">
+                <button className="button button-secondary" type="button" onClick={() => setShowKravPracticeBuilder((current) => !current)}>
+                  {showKravPracticeBuilder ? 'Ocultar formulario' : 'Mostrar formulario'}
+                </button>
+              </div>
+
+              {showKravPracticeBuilder ? (
+                <form className="record-form krav-practice-form" onSubmit={handleKravPracticeSubmit}>
+                  <div className="form-title-row">
+                    <div>
+                      <h3>{editingKravPracticeId ? 'Editar bitácora técnica' : 'Nuevo registro técnico'}</h3>
+                      <p>Guarda práctica real del día sin mezclarla con el módulo general de ejercicio.</p>
+                    </div>
+                  </div>
+
+                  <div className="form-grid">
+                    <label className="field">
+                      <span>Fecha</span>
+                      <input name="date" type="date" value={kravPracticeForm.date} onChange={handleKravPracticeFieldChange} />
+                    </label>
+                    <label className="field">
+                      <span>Coach</span>
+                      <select name="coach" value={kravPracticeForm.coach} onChange={handleKravPracticeFieldChange}>
+                        {kravCoachOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {kravPracticeForm.coach === 'otro' ? (
+                      <label className="field">
+                        <span>Nombre del coach</span>
+                        <input
+                          name="coachCustomName"
+                          type="text"
+                          value={kravPracticeForm.coachCustomName}
+                          onChange={handleKravPracticeFieldChange}
+                          placeholder="Escribe el nombre del coach"
+                        />
+                      </label>
+                    ) : null}
+                    <label className="field">
+                      <span>Sparring</span>
+                      <select name="sparring" value={kravPracticeForm.sparring} onChange={handleKravPracticeFieldChange}>
+                        <option value="no">No</option>
+                        <option value="si">Sí</option>
+                      </select>
+                    </label>
+                    <label className="field field-full">
+                      <span>Técnicas practicadas</span>
+                      <div className="krav-selector-groups">
+                        {kravCurriculumByCategory.map((group) => (
+                          <details className="krav-selector-group" key={`selector-${group.category}`}>
+                            <summary>
+                              <span>{group.label}</span>
+                              <small>
+                                {group.items.filter((item) => (kravPracticeForm.techniqueIds || []).includes(item.id)).length}/{group.items.length}
+                              </small>
+                            </summary>
+                            <div className="krav-selector-list">
+                              {group.items.map((technique) => (
+                                <label className="krav-selector-item" key={`check-${technique.id}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={(kravPracticeForm.techniqueIds || []).includes(technique.id)}
+                                    onChange={() => toggleKravTechniqueSelection(technique.id)}
+                                  />
+                                  <span>{technique.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
+                    </label>
+                    <label className="field field-full">
+                      <span>Observaciones</span>
+                      <textarea
+                        name="observations"
+                        rows="3"
+                        value={kravPracticeForm.observations}
+                        onChange={handleKravPracticeFieldChange}
+                        placeholder="Qué trabajaste, qué salió bien y qué sensación te dejó la sesión..."
+                      />
+                    </label>
+                    <label className="field field-full">
+                      <span>Qué salió mal</span>
+                      <textarea
+                        name="mistakes"
+                        rows="2"
+                        value={kravPracticeForm.mistakes}
+                        onChange={handleKravPracticeFieldChange}
+                        placeholder="Errores técnicos, huecos de timing o puntos donde te atoraste..."
+                      />
+                    </label>
+                    <label className="field field-full">
+                      <span>Qué debo repasar</span>
+                      <textarea
+                        name="reviewNeeded"
+                        rows="2"
+                        value={kravPracticeForm.reviewNeeded}
+                        onChange={handleKravPracticeFieldChange}
+                        placeholder="Tareas claras para la próxima sesión o para repasar en casa..."
+                      />
+                    </label>
+                  </div>
+
+                  <div className="form-actions">
+                    <button
+                      className="button button-primary"
+                      type="submit"
+                      disabled={
+                        (kravPracticeForm.techniqueIds || []).length === 0 ||
+                        (kravPracticeForm.coach === 'otro' && !String(kravPracticeForm.coachCustomName || '').trim())
+                      }
+                    >
+                      {editingKravPracticeId ? 'Guardar bitácora' : 'Guardar bitácora'}
+                    </button>
+                    {editingKravPracticeId ? (
+                      <button
+                        className="button button-secondary"
+                        type="button"
+                        onClick={() => {
+                          resetKravPracticeForm();
+                          setEditingKravPracticeId(null);
+                        }}
+                      >
+                        Cancelar edición
+                      </button>
+                    ) : null}
+                  </div>
+                </form>
+              ) : (
+                <p className="section-helper">Mantenla corta: fecha, coach, técnicas y dos notas claras bastan para que la bitácora se vuelva útil de verdad.</p>
+              )}
+
+              <div className="metrics-card-list krav-log-list">
+                {kravPracticeLogCards.length === 0 ? (
+                  <div className="empty-state-card krav-empty-state-card">
+                    <div className="krav-heading-copy">
+                      <strong>Tu bitácora técnica aún está vacía</strong>
+                      <span className="krav-meta-line">Registra fecha, coach, técnicas practicadas y dos notas claras para convertir la sesión en aprendizaje útil.</span>
+                    </div>
+                    <div className="entry-actions">
+                      <button className="button button-primary" type="button" onClick={() => setShowKravPracticeBuilder(true)}>
+                        Registrar práctica técnica
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {kravPracticeLogCards.slice(0, 6).map((item) => (
+                  <article className="metrics-card krav-log-card" key={item.id}>
+                    <div className="metrics-card-top">
+                      <div>
+                        <strong>{formatDate(item.date)}</strong>
+                        <span>{item.coachLabel} · {item.sparring === 'si' ? 'Con sparring' : 'Sin sparring'}</span>
+                      </div>
+                      <span className="metrics-source-chip">{formatKravTechniqueCount(item.techniqueNames.length)}</span>
+                    </div>
+                    <div className="entry-details">
+                      {item.techniqueNames.slice(0, 4).map((name) => (
+                        <span key={`${item.id}-${name}`}>{name}</span>
+                      ))}
+                    </div>
+                    {item.observations ? <p className="metrics-notes">{item.observations}</p> : null}
+                    {item.mistakes ? <p className="metrics-notes">Qué salió mal: {item.mistakes}</p> : null}
+                    {item.reviewNeeded ? <p className="metrics-notes">Repasar: {item.reviewNeeded}</p> : null}
+                    <div className="entry-actions">
+                      <button className="button button-secondary" type="button" onClick={() => editKravPracticeLog(item.id)}>
+                        Editar
+                      </button>
+                      <button className="button button-danger" type="button" onClick={() => deleteKravPracticeLog(item.id)}>
+                        Eliminar
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Alertas"
+              subtitle="Reglas simples para no dejar huecos rumbo al examen."
+              className="card-soft krav-panel krav-panel-alerts"
+            >
+              <div className="private-alert-grid krav-alert-grid">
+                {kravAlerts.length === 0 ? (
+                  <article className="private-alert-card private-alert-card-success">
+                    <strong>Sin alertas relevantes</strong>
+                    <small>El tablero no detecta focos rojos inmediatos en tu preparación actual.</small>
+                  </article>
+                ) : null}
+                {kravAlerts.map((alert) => (
+                  <article
+                    className={`private-alert-card ${alert.tone === 'warning' ? 'private-alert-card-warning' : 'private-alert-card-neutral'}`}
+                    key={alert.id}
+                  >
+                    <strong>{alert.title}</strong>
+                    <small>{alert.detail}</small>
+                  </article>
+                ))}
+              </div>
+            </SectionCard>
+          </div>
         ) : null}
 
         {activeTab === 'metrics' ? (

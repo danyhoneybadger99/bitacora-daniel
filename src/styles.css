@@ -314,6 +314,80 @@ button {
   line-height: 1.3;
 }
 
+.progress-card-krav,
+.dashboard-krav-card {
+  background: linear-gradient(180deg, #fffdf4 0%, #fbf6df 100%);
+  border: 1px solid #eadfae;
+  color: #7b6113;
+}
+
+.dashboard-krav-progress-card {
+  display: grid;
+  gap: 8px;
+}
+
+.dashboard-krav-snapshot {
+  gap: 6px;
+}
+
+.dashboard-krav-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.dashboard-krav-belt {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f2e7ad;
+  color: #6e5810;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.dashboard-krav-next {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dashboard-krav-title-group {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.dashboard-krav-progress-card .progress-card-top span:first-child {
+  color: #75621e;
+}
+
+.dashboard-krav-progress-card .progress-card-top strong {
+  color: #6d5310;
+}
+
+.dashboard-krav-progress-card .progress-track {
+  background: rgba(123, 97, 19, 0.12);
+  margin-top: 4px;
+}
+
+.dashboard-krav-progress-card .progress-fill {
+  background: linear-gradient(90deg, #c8ae48 0%, #e3cf7a 100%);
+}
+
+.dashboard-krav-progress-card p,
+.dashboard-krav-progress-card small {
+  margin-top: 0;
+}
+
+.dashboard-krav-actions .button {
+  width: 100%;
+}
+
 .summary-item {
   padding: 16px;
   border-radius: 18px;
@@ -3004,6 +3078,320 @@ button {
   overflow: hidden;
 }
 
+.krav-board {
+  display: grid;
+  gap: 12px;
+}
+
+.krav-progress-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.krav-progress-card {
+  display: grid;
+  gap: 5px;
+}
+
+.krav-heading-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.krav-meta-line {
+  display: block;
+  font-size: 0.84rem;
+}
+
+.krav-heading-copy small {
+  color: #65727d;
+  line-height: 1.35;
+  font-size: 0.78rem;
+}
+
+.krav-progress-card small {
+  color: #65727d;
+  line-height: 1.35;
+}
+
+.krav-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #e8edf2;
+  overflow: hidden;
+}
+
+.krav-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8b3f47 0%, #b56a72 100%);
+}
+
+.krav-next-card,
+.krav-exam-card,
+.krav-technique-detail {
+  display: grid;
+  gap: 10px;
+}
+
+.krav-next-head,
+.krav-exam-head,
+.krav-category-head,
+.krav-technique-detail-head,
+.krav-technique-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.krav-next-head strong,
+.krav-exam-head strong,
+.krav-category-head strong,
+.krav-technique-detail-head strong,
+.krav-technique-card-top strong {
+  color: #182229;
+  line-height: 1.2;
+  font-size: 1.04rem;
+}
+
+.krav-next-head span,
+.krav-exam-head span,
+.krav-category-head span,
+.krav-technique-detail-head span,
+.krav-technique-card-top span {
+  color: #65727d;
+  line-height: 1.35;
+}
+
+.krav-next-head strong,
+.krav-exam-head strong {
+  font-size: 1.1rem;
+}
+
+.krav-feature-label {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #f3eceb;
+  color: #7a4650;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.krav-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.krav-risk-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.krav-risk-chip-listo {
+  background: #edf8f0;
+  color: #2f6b42;
+}
+
+.krav-risk-chip-riesgo-medio {
+  background: #fff4ea;
+  color: #9a5b14;
+}
+
+.krav-risk-chip-riesgo-alto {
+  background: #f8e9eb;
+  color: #8a3a45;
+}
+
+.krav-curriculum-groups,
+.krav-alert-grid,
+.krav-log-list {
+  display: grid;
+  gap: 12px;
+}
+
+.krav-category-group,
+.krav-technique-detail,
+.krav-log-card {
+  padding: 14px 15px;
+  border: 1px solid #e6ebf1;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+}
+
+.krav-category-group {
+  display: grid;
+  gap: 10px;
+}
+
+.krav-category-toggle {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.krav-category-toggle:hover .krav-category-head,
+.krav-category-toggle:focus-visible .krav-category-head {
+  border-color: #d4dde5;
+  background: #f6f9fc;
+}
+
+.krav-category-head {
+  padding: 12px 13px;
+  border: 1px solid #e6ebf1;
+  border-radius: 15px;
+  background: #f9fbfd;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.krav-technique-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.krav-technique-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px 11px;
+  border: 1px solid #e6ebf1;
+  border-radius: 16px;
+  background: #f9fbfd;
+}
+
+.krav-technique-card .metrics-source-chip,
+.krav-technique-detail .metrics-source-chip {
+  font-size: 0.72rem;
+  padding: 4px 8px;
+}
+
+.krav-technique-inline-details {
+  display: grid;
+  gap: 0;
+}
+
+.krav-technique-inline-details summary {
+  color: #51606c;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.krav-technique-inline-details p {
+  margin: 8px 0 0;
+}
+
+.krav-detail-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.krav-next-card .entry-actions,
+.krav-technique-card .entry-actions,
+.krav-log-card .entry-actions {
+  margin-top: 2px;
+}
+
+.krav-technique-card .entry-actions .button,
+.krav-next-card .entry-actions .button,
+.krav-technique-detail .entry-actions .button {
+  min-height: 40px;
+  padding: 8px 12px;
+}
+
+.krav-exam-card .mini-stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.krav-practice-form {
+  gap: 16px;
+}
+
+.krav-selector-groups {
+  display: grid;
+  gap: 8px;
+}
+
+.krav-selector-group {
+  border: 1px solid #e2e8ef;
+  border-radius: 14px;
+  background: #fbfcfe;
+}
+
+.krav-selector-group summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 12px;
+  color: #1f2a33;
+  font-weight: 600;
+}
+
+.krav-selector-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.krav-selector-group summary small {
+  color: #667684;
+  font-weight: 500;
+}
+
+.krav-selector-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.krav-selector-item {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  color: #42515f;
+  line-height: 1.35;
+}
+
+.krav-selector-item input {
+  margin-top: 2px;
+}
+
+.krav-empty-state-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px 15px;
+  border: 1px dashed #d5dde5;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+}
+
+@media (max-width: 900px) {
+  .krav-progress-grid,
+  .krav-technique-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .krav-exam-card .mini-stat-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .hydration-mini-grid,
   .foods-layout,
@@ -3357,6 +3745,48 @@ button {
   .fasting-live-metrics {
     grid-template-columns: 1fr;
   }
+
+  .krav-board {
+    gap: 12px;
+  }
+
+  .krav-panel-next {
+    order: 1;
+  }
+
+  .krav-panel-exam {
+    order: 2;
+  }
+
+  .krav-panel-progress {
+    order: 3;
+  }
+
+  .krav-panel-alerts {
+    order: 4;
+  }
+
+  .krav-panel-curriculum {
+    order: 5;
+  }
+
+  .krav-panel-log {
+    order: 6;
+  }
+
+  .krav-progress-grid,
+  .krav-technique-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .krav-next-head,
+  .krav-exam-head,
+  .krav-category-head,
+  .krav-technique-detail-head,
+  .krav-technique-card-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 @media (max-width: 480px) {
@@ -3443,6 +3873,37 @@ button {
 
   .private-agenda-week-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .krav-category-group,
+  .krav-technique-detail,
+  .krav-log-card,
+  .krav-technique-card {
+    padding: 11px;
+    border-radius: 15px;
+  }
+
+  .krav-chip-row {
+    justify-content: flex-start;
+  }
+
+  .krav-category-head,
+  .krav-next-head,
+  .krav-exam-head,
+  .krav-technique-detail-head,
+  .krav-technique-card-top {
+    gap: 8px;
+  }
+
+  .krav-selector-group summary {
+    padding: 9px 10px;
+  }
+
+  .krav-technique-card .entry-actions .button,
+  .krav-next-card .entry-actions .button,
+  .krav-technique-detail .entry-actions .button {
+    min-height: 38px;
+    padding: 8px 11px;
   }
 
   .private-agenda-toolbar,
@@ -3771,5 +4232,24 @@ button {
 
   .private-medication-count strong {
     font-size: 1.6rem;
+  }
+
+  .krav-meta-line,
+  .krav-heading-copy small {
+    font-size: 0.8rem;
+  }
+
+  .krav-technique-card,
+  .krav-technique-detail,
+  .krav-log-card,
+  .krav-empty-state-card {
+    padding: 10px 11px;
+  }
+
+  .krav-technique-card .entry-actions .button,
+  .krav-next-card .entry-actions .button,
+  .krav-technique-detail .entry-actions .button {
+    min-height: 36px;
+    font-size: 0.82rem;
   }
 }
