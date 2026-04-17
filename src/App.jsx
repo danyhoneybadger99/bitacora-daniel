@@ -145,6 +145,7 @@ import {
   formatPercentValue,
   formatUnitValue,
   formatWeightValue,
+  getNumericMetric,
   getLatestEntry,
   shiftDateByDays,
   sumBy,
@@ -263,6 +264,20 @@ function getPrivateAgendaDate(entry) {
   if (!entry) return '';
   if (entry.nextApplication) return normalizeDateString(entry.nextApplication);
   return normalizeDateString(entry.date);
+}
+
+function scrollElementIntoViewIfNeeded(element) {
+  if (!element || typeof window === 'undefined') return;
+
+  const rect = element.getBoundingClientRect();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+  if (rect.top >= 84 && rect.bottom <= viewportHeight - 24) return;
+
+  element.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  });
 }
 
 function formatAgendaDayLabel(dateString) {
@@ -512,6 +527,7 @@ function App() {
   const [selectedKravTechniqueId, setSelectedKravTechniqueId] = useState('');
   const [kravTechniqueNoteDraft, setKravTechniqueNoteDraft] = useState('');
   const [kravExpandedCategories, setKravExpandedCategories] = useState({});
+  const [kravCategoryShowAll, setKravCategoryShowAll] = useState({});
   const [fastingNow, setFastingNow] = useState(() => Date.now());
   const [backupInputKey, setBackupInputKey] = useState(0);
   const [backupFeedback, setBackupFeedback] = useState({ type: '', text: '' });
@@ -561,6 +577,8 @@ function App() {
   const privatePaymentSectionRef = useRef(null);
   const privateEventSectionRef = useRef(null);
   const privateFinancialSummaryRef = useRef(null);
+  const kravTechniqueDetailRef = useRef(null);
+  const pendingKravDetailScrollRef = useRef(false);
 
   useEffect(() => {
     document.title = 'Bitacora Daniel';
@@ -1061,6 +1079,77 @@ function App() {
     }),
     [sortedMetrics]
   );
+  const metricBaseEntry = useMemo(
+    () => sortedMetrics.find((item) => item.id === 'metric-base-2026-04-10') || sortedMetrics.find((item) => item.date === '2026-04-10') || null,
+    [sortedMetrics]
+  );
+  const metricBaseComparisonCards = useMemo(() => {
+    const latestEntry = latestMetric;
+
+    function buildBaseComparison({ label, field, unit = '', formatter = 'unit', prefer = 'down' }) {
+      const baseValue = getNumericMetric(metricBaseEntry?.[field]);
+      const latestValue = getNumericMetric(latestEntry?.[field]);
+
+      const formatValue = (value) => {
+        if (formatter === 'weight') return formatWeightValue(value, unit || 'kg', 'sin dato');
+        if (formatter === 'percent') return formatPercentValue(value, 'sin dato');
+        return formatUnitValue(value, unit, { maximumFractionDigits: 1, fallback: 'sin dato' });
+      };
+
+      if (baseValue === null) {
+        return {
+          label,
+          value: 'Sin base',
+          detail: 'No existe referencia base para comparar.',
+          className: 'metric-base-trend metric-base-trend-muted',
+        };
+      }
+
+      if (latestValue === null || !latestEntry) {
+        return {
+          label,
+          value: 'Sin dato actual',
+          detail: `Base ${formatValue(baseValue)}`,
+          className: 'metric-base-trend metric-base-trend-muted',
+        };
+      }
+
+      const delta = latestValue - baseValue;
+      if (delta === 0 || latestEntry.id === metricBaseEntry?.id) {
+        return {
+          label,
+          value: 'Sin cambio aún',
+          detail: `Base ${formatValue(baseValue)} · Actual ${formatValue(latestValue)}`,
+          className: 'metric-base-trend metric-base-trend-neutral',
+        };
+      }
+
+      const isImproving = prefer === 'up' ? delta > 0 : delta < 0;
+      const arrow = delta > 0 ? '↑' : '↓';
+      const absoluteDelta = Math.abs(delta);
+      const deltaText =
+        formatter === 'weight'
+          ? formatWeightValue(absoluteDelta, unit || 'kg', '--')
+          : formatter === 'percent'
+            ? formatPercentValue(absoluteDelta, '--')
+            : formatUnitValue(absoluteDelta, unit, { maximumFractionDigits: 1, fallback: '--' });
+
+      return {
+        label,
+        value: `${arrow} ${deltaText}`,
+        detail: `Base ${formatValue(baseValue)} · Actual ${formatValue(latestValue)}`,
+        className: isImproving ? 'metric-base-trend metric-base-trend-good' : 'metric-base-trend metric-base-trend-caution',
+      };
+    }
+
+    return [
+      buildBaseComparison({ label: 'Peso', field: 'weight', unit: 'kg', formatter: 'weight', prefer: 'down' }),
+      buildBaseComparison({ label: 'Grasa corporal', field: 'bodyFat', unit: '%', formatter: 'percent', prefer: 'down' }),
+      buildBaseComparison({ label: 'Músculo esquelético', field: 'skeletalMuscleMass', unit: 'kg', formatter: 'weight', prefer: 'up' }),
+      buildBaseComparison({ label: 'Masa grasa', field: 'bodyFatMass', unit: 'kg', formatter: 'weight', prefer: 'down' }),
+      buildBaseComparison({ label: 'Cintura', field: 'waist', unit: 'cm', formatter: 'unit', prefer: 'down' }),
+    ];
+  }, [latestMetric, metricBaseEntry]);
   const todaysFastingProtocol = useMemo(
     () => findFastingProtocolForDate(diaryData.fastingProtocols || [], currentDate) || null,
     [currentDate, diaryData.fastingProtocols]
@@ -1363,7 +1452,7 @@ function App() {
   );
   const kravPracticeLogCards = useMemo(
     () =>
-      kravPracticeLogs.map((item) => ({
+      sortByDateDesc(kravPracticeLogs).map((item) => ({
         ...item,
         coachLabel: item.coach === 'otro' ? item.coachCustomName || 'Otro coach' : kravCoachLabelByValue[item.coach] || item.coach,
         techniqueNames: item.techniqueIds
@@ -1371,6 +1460,52 @@ function App() {
           .filter(Boolean),
       })),
     [kravPracticeLogs, kravCoachLabelByValue, kravCurriculum]
+  );
+  const latestKravPracticeLog = kravPracticeLogCards[0] || null;
+  const kravPracticeLogsThisWeek = useMemo(
+    () => kravPracticeLogCards.filter((item) => item.date && isDateInRange(item.date, currentWeekStart, currentWeekEnd)),
+    [kravPracticeLogCards, currentWeekEnd, currentWeekStart]
+  );
+  const kravWeeklyTechniqueNames = useMemo(
+    () => [...new Set(kravPracticeLogsThisWeek.flatMap((item) => item.techniqueNames || []))],
+    [kravPracticeLogsThisWeek]
+  );
+  const kravPendingReviewNotes = useMemo(
+    () =>
+      kravPracticeLogsThisWeek
+        .map((item) => String(item.reviewNeeded || '').trim())
+        .filter(Boolean),
+    [kravPracticeLogsThisWeek]
+  );
+  const kravLogSummaryCards = useMemo(
+    () => [
+      {
+        label: 'Última práctica',
+        value: latestKravPracticeLog ? formatDate(latestKravPracticeLog.date) : 'Sin práctica registrada',
+        detail: latestKravPracticeLog ? latestKravPracticeLog.techniqueNames.slice(0, 2).join(' · ') || 'Sin técnica listada' : 'Registra tu primera sesión técnica.',
+      },
+      {
+        label: 'Coach más reciente',
+        value: latestKravPracticeLog?.coachLabel || 'Sin coach registrado',
+        detail: latestKravPracticeLog ? (latestKravPracticeLog.sparring === 'si' ? 'Última sesión con sparring' : 'Última sesión sin sparring') : 'Aún no hay sesiones cargadas.',
+      },
+      {
+        label: 'Técnicas esta semana',
+        value: kravWeeklyTechniqueNames.length > 0 ? `${kravWeeklyTechniqueNames.length}` : 'Sin técnicas registradas',
+        detail: kravWeeklyTechniqueNames.length > 0 ? kravWeeklyTechniqueNames.slice(0, 3).join(' · ') : 'Esta semana todavía no sumas práctica técnica.',
+      },
+      {
+        label: 'Sparring esta semana',
+        value: `${kravPracticeLogsThisWeek.filter((item) => item.sparring === 'si').length}`,
+        detail: kravPracticeLogsThisWeek.length > 0 ? `${kravPracticeLogsThisWeek.length} sesión(es) técnicas en la semana` : 'Sin sesiones registradas en la semana.',
+      },
+      {
+        label: 'Puntos a repasar',
+        value: kravPendingReviewNotes.length > 0 ? `${kravPendingReviewNotes.length}` : 'Sin repaso abierto',
+        detail: kravPendingReviewNotes[0] || 'Aún no hay tareas de repaso pendientes.',
+      },
+    ],
+    [kravPendingReviewNotes, kravPracticeLogsThisWeek, kravWeeklyTechniqueNames, latestKravPracticeLog]
   );
   const activePrivateCycle = useMemo(() => getPrivateActiveCycle(privateCycles), [privateCycles]);
   const hasActivePrivateCycle = Boolean(activePrivateCycle);
@@ -2094,6 +2229,17 @@ function lockPrivateModule(feedbackText = '') {
   }, [selectedKravTechniqueId, selectedKravTechnique, nextKravTechnique]);
 
   useEffect(() => {
+    if (!pendingKravDetailScrollRef.current || !selectedKravTechnique || !kravTechniqueDetailRef.current) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      scrollElementIntoViewIfNeeded(kravTechniqueDetailRef.current);
+      pendingKravDetailScrollRef.current = false;
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [selectedKravTechnique, kravExpandedCategories]);
+
+  useEffect(() => {
     if (kravCurriculumByCategory.length === 0) return;
     setKravExpandedCategories((current) => {
       if (Object.keys(current).length > 0) return current;
@@ -2480,6 +2626,8 @@ function lockPrivateModule(feedbackText = '') {
     setShowKravPracticeBuilder(false);
     setSelectedKravTechniqueId('');
     setKravTechniqueNoteDraft('');
+    setKravExpandedCategories({});
+    setKravCategoryShowAll({});
     lockPrivateModule();
     setBackupFeedback({
       type: 'success',
@@ -3484,8 +3632,22 @@ function lockPrivateModule(feedbackText = '') {
 
   function openKravTechniqueDetails(techniqueId) {
     const technique = kravCurriculum.find((item) => item.id === techniqueId);
+    if (technique?.category) {
+      setKravExpandedCategories((current) => ({
+        ...current,
+        [technique.category]: true,
+      }));
+    }
+    pendingKravDetailScrollRef.current = true;
     setSelectedKravTechniqueId(techniqueId);
     setKravTechniqueNoteDraft(technique?.notes || '');
+
+    if (selectedKravTechniqueId === techniqueId && kravTechniqueDetailRef.current) {
+      window.requestAnimationFrame(() => {
+        scrollElementIntoViewIfNeeded(kravTechniqueDetailRef.current);
+        pendingKravDetailScrollRef.current = false;
+      });
+    }
   }
 
   function saveKravTechniqueNotes() {
@@ -3506,6 +3668,13 @@ function lockPrivateModule(feedbackText = '') {
 
   function toggleKravCategory(category) {
     setKravExpandedCategories((current) => ({
+      ...current,
+      [category]: !current[category],
+    }));
+  }
+
+  function toggleKravCategoryShowAll(category) {
+    setKravCategoryShowAll((current) => ({
       ...current,
       [category]: !current[category],
     }));
@@ -5840,7 +6009,16 @@ function lockPrivateModule(feedbackText = '') {
                     <button
                       className="button button-secondary"
                       type="button"
+                      onClick={() => handleKravTechniqueLevelChange(nextKravTechnique.id, -1)}
+                      disabled={(Number(nextKravTechnique.level) || 0) <= 0}
+                    >
+                      Bajar nivel
+                    </button>
+                    <button
+                      className="button button-secondary"
+                      type="button"
                       onClick={() => handleKravTechniqueLevelChange(nextKravTechnique.id, 1)}
+                      disabled={(Number(nextKravTechnique.level) || 0) >= 4}
                     >
                       Subir nivel
                     </button>
@@ -5960,7 +6138,7 @@ function lockPrivateModule(feedbackText = '') {
               className="card-soft krav-panel krav-panel-curriculum"
             >
               {selectedKravTechnique ? (
-                <div className="krav-technique-detail" id="krav-curriculum-detail">
+                <div className="krav-technique-detail" id="krav-curriculum-detail" ref={kravTechniqueDetailRef}>
                   <span className="krav-feature-label">Técnica destacada</span>
                   <div className="krav-technique-detail-head">
                     <div className="krav-heading-copy">
@@ -6004,7 +6182,23 @@ function lockPrivateModule(feedbackText = '') {
                     <button className="button button-secondary" type="button" onClick={() => handleKravTechniquePractice(selectedKravTechnique.id)}>
                       Practiqué hoy
                     </button>
-                    <button className="button button-secondary" type="button" onClick={() => handleKravTechniqueLevelChange(selectedKravTechnique.id, 1)}>
+                    <button className="button button-secondary" type="button" onClick={() => openKravTechniqueDetails(selectedKravTechnique.id)}>
+                      Ver técnica
+                    </button>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      onClick={() => handleKravTechniqueLevelChange(selectedKravTechnique.id, -1)}
+                      disabled={(Number(selectedKravTechnique.level) || 0) <= 0}
+                    >
+                      Bajar nivel
+                    </button>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      onClick={() => handleKravTechniqueLevelChange(selectedKravTechnique.id, 1)}
+                      disabled={(Number(selectedKravTechnique.level) || 0) >= 4}
+                    >
                       Subir nivel
                     </button>
                   </div>
@@ -6013,78 +6207,116 @@ function lockPrivateModule(feedbackText = '') {
 
               <div className="krav-curriculum-groups">
                 {kravCurriculumByCategory.map((group) => (
-                  <div className="krav-category-group" key={group.category}>
-                    <button
-                      className="krav-category-toggle"
-                      type="button"
-                      onClick={() => toggleKravCategory(group.category)}
-                      aria-expanded={Boolean(kravExpandedCategories[group.category])}
-                      aria-controls={`krav-category-${group.category}`}
-                    >
-                      <div className="krav-category-head">
-                        <div className="krav-heading-copy">
-                          <strong>{group.label}</strong>
-                          <span className="krav-meta-line">{`${group.label} · ${formatKravTechniqueCount(group.items.length)}`}</span>
-                        </div>
-                        <div className="krav-chip-row">
-                          <span className="metrics-source-chip">
-                            {formatKravPercent(
-                              group.items.length > 0
-                                ? group.items.reduce((sum, item) => sum + getKravTechniqueProgress(item.level), 0) / group.items.length
-                                : 0
-                            )}
-                          </span>
-                          <span className="metrics-source-chip">{kravExpandedCategories[group.category] ? 'Ocultar' : 'Expandir'}</span>
-                        </div>
-                      </div>
-                    </button>
+                  (() => {
+                    const visibleTechniques = kravCategoryShowAll[group.category] ? group.items : group.items.slice(0, 6);
+                    const hasHiddenTechniques = group.items.length > 6;
 
-                    {kravExpandedCategories[group.category] ? (
-                      <div className="krav-technique-grid" id={`krav-category-${group.category}`}>
-                        {group.items.map((technique) => {
-                          const daysSincePractice = getDaysSincePractice(technique.lastPracticedAt, currentDate);
-                          return (
-                            <article className="krav-technique-card" key={technique.id}>
-                              <div className="krav-technique-card-top">
-                                <div className="krav-heading-copy">
-                                  <strong>{technique.name}</strong>
-                                  <span className="krav-meta-line">
-                                    {(kravCategoryLabels[technique.category] || technique.category)} · {kravStageLabels[technique.stage] || technique.stage}
-                                  </span>
-                                </div>
-                                <div className="krav-chip-row">
-                                  <span className="metrics-source-chip">Nivel {technique.level}/4</span>
-                                  <span className="metrics-source-chip">
-                                    {daysSincePractice === 0 ? 'Practicada hoy' : formatKravDaysWithoutPractice(daysSincePractice)}
-                                  </span>
-                                  <span className="metrics-source-chip">
-                                    {technique.isExamRelevant ? 'Examen' : 'Apoyo'}
-                                  </span>
-                                </div>
+                    return (
+                      <div className="krav-category-group" key={group.category}>
+                        <button
+                          className="krav-category-toggle"
+                          type="button"
+                          onClick={() => toggleKravCategory(group.category)}
+                          aria-expanded={Boolean(kravExpandedCategories[group.category])}
+                          aria-controls={`krav-category-${group.category}`}
+                        >
+                          <div className="krav-category-head">
+                            <div className="krav-heading-copy">
+                              <strong>{group.label}</strong>
+                              <span className="krav-meta-line">{`${group.label} · ${formatKravTechniqueCount(group.items.length)}`}</span>
+                            </div>
+                            <div className="krav-chip-row">
+                              <span className="metrics-source-chip">
+                                {formatKravPercent(
+                                  group.items.length > 0
+                                    ? group.items.reduce((sum, item) => sum + getKravTechniqueProgress(item.level), 0) / group.items.length
+                                    : 0
+                                )}
+                              </span>
+                              <span className="metrics-source-chip">{kravExpandedCategories[group.category] ? 'Ocultar' : 'Expandir'}</span>
+                            </div>
+                          </div>
+                        </button>
+
+                        {kravExpandedCategories[group.category] ? (
+                          <>
+                            <div className="krav-technique-grid" id={`krav-category-${group.category}`}>
+                              {visibleTechniques.map((technique) => {
+                                const daysSincePractice = getDaysSincePractice(technique.lastPracticedAt, currentDate);
+                                return (
+                                  <article className="krav-technique-card" key={technique.id}>
+                                    <div className="krav-technique-card-top">
+                                      <div className="krav-heading-copy">
+                                        <strong>{technique.name}</strong>
+                                        <span className="krav-meta-line">
+                                          {(kravCategoryLabels[technique.category] || technique.category)} · {kravStageLabels[technique.stage] || technique.stage}
+                                        </span>
+                                      </div>
+                                      <div className="krav-chip-row">
+                                        <span className="metrics-source-chip">Nivel {technique.level}/4</span>
+                                        <span className="metrics-source-chip">
+                                          {daysSincePractice === 0 ? 'Practicada hoy' : formatKravDaysWithoutPractice(daysSincePractice)}
+                                        </span>
+                                        <span className="metrics-source-chip">
+                                          {technique.isExamRelevant ? 'Examen' : 'Apoyo'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <details className="inline-details krav-technique-inline-details">
+                                      <summary>Ver resumen técnico</summary>
+                                      {technique.description ? <p className="metrics-notes">{technique.description}</p> : null}
+                                      {technique.tips ? <p className="metrics-notes">Tip: {technique.tips}</p> : null}
+                                      {technique.notes ? <p className="metrics-notes">Notas: {technique.notes}</p> : null}
+                                    </details>
+                                    <div className="entry-actions">
+                                      <button
+                                        className="button button-secondary"
+                                        type="button"
+                                        onClick={() => handleKravTechniqueLevelChange(technique.id, -1)}
+                                        disabled={(Number(technique.level) || 0) <= 0}
+                                      >
+                                        Bajar nivel
+                                      </button>
+                                      <button
+                                        className="button button-primary"
+                                        type="button"
+                                        onClick={() => handleKravTechniqueLevelChange(technique.id, 1)}
+                                        disabled={(Number(technique.level) || 0) >= 4}
+                                      >
+                                        Subir nivel
+                                      </button>
+                                      <button className="button button-secondary" type="button" onClick={() => handleKravTechniquePractice(technique.id)}>
+                                        Practiqué hoy
+                                      </button>
+                                      <button className="button button-secondary" type="button" onClick={() => openKravTechniqueDetails(technique.id)}>
+                                        Ver técnica
+                                      </button>
+                                    </div>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                            {hasHiddenTechniques ? (
+                              <div className="krav-category-footer">
+                                <small>
+                                  {kravCategoryShowAll[group.category]
+                                    ? `Mostrando ${formatKravTechniqueCount(group.items.length)}.`
+                                    : `Mostrando ${visibleTechniques.length} de ${group.items.length} técnicas.`}
+                                </small>
+                                <button
+                                  className="button button-secondary krav-category-more-button"
+                                  type="button"
+                                  onClick={() => toggleKravCategoryShowAll(group.category)}
+                                >
+                                  {kravCategoryShowAll[group.category] ? 'Ver menos' : 'Ver más técnicas'}
+                                </button>
                               </div>
-                              <details className="inline-details krav-technique-inline-details">
-                                <summary>Ver resumen técnico</summary>
-                                {technique.description ? <p className="metrics-notes">{technique.description}</p> : null}
-                                {technique.tips ? <p className="metrics-notes">Tip: {technique.tips}</p> : null}
-                                {technique.notes ? <p className="metrics-notes">Notas: {technique.notes}</p> : null}
-                              </details>
-                              <div className="entry-actions">
-                                <button className="button button-primary" type="button" onClick={() => handleKravTechniqueLevelChange(technique.id, 1)}>
-                                  Subir nivel
-                                </button>
-                                <button className="button button-secondary" type="button" onClick={() => handleKravTechniquePractice(technique.id)}>
-                                  Practiqué hoy
-                                </button>
-                                <button className="button button-secondary" type="button" onClick={() => openKravTechniqueDetails(technique.id)}>
-                                  Ver técnica
-                                </button>
-                              </div>
-                            </article>
-                          );
-                        })}
+                            ) : null}
+                          </>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
+                    );
+                  })()
                 ))}
               </div>
             </SectionCard>
@@ -6098,6 +6330,16 @@ function lockPrivateModule(feedbackText = '') {
                 <button className="button button-secondary" type="button" onClick={() => setShowKravPracticeBuilder((current) => !current)}>
                   {showKravPracticeBuilder ? 'Ocultar formulario' : 'Mostrar formulario'}
                 </button>
+              </div>
+
+              <div className="mini-stat-grid krav-log-summary-grid">
+                {kravLogSummaryCards.map((item) => (
+                  <article className="mini-stat krav-log-summary-card" key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <small>{item.detail}</small>
+                  </article>
+                ))}
               </div>
 
               {showKravPracticeBuilder ? (
@@ -6332,6 +6574,22 @@ function lockPrivateModule(feedbackText = '') {
                 <small>{metricSummarySourceLabels.bodyFatMass}</small>
               </div>
             </div>
+
+            <SectionCard
+              title="Progreso desde InBody base"
+              subtitle="Compara el último registro contra la base del 10 abr 2026."
+              className="card-soft"
+            >
+              <div className="metrics-trend-grid metrics-base-grid">
+                {metricBaseComparisonCards.map((item) => (
+                  <article className="metrics-trend-card metrics-base-card" key={item.label}>
+                    <span>{item.label}</span>
+                    <strong className={item.className}>{item.value}</strong>
+                    <p>{item.detail}</p>
+                  </article>
+                ))}
+              </div>
+            </SectionCard>
 
             <SectionCard
               title="Tendencia reciente"

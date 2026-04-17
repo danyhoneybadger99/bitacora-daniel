@@ -388,6 +388,16 @@ button {
   width: 100%;
 }
 
+@media (min-width: 1200px) {
+  .progress-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dashboard-krav-progress-card {
+    grid-column: span 2;
+  }
+}
+
 .summary-item {
   padding: 16px;
   border-radius: 18px;
@@ -1103,6 +1113,14 @@ button {
   line-height: 1.3;
 }
 
+.mini-stat small,
+.weekly-note small {
+  display: block;
+  margin-top: 6px;
+  color: #6c7a86;
+  line-height: 1.35;
+}
+
 .weekly-note-stack {
   display: grid;
   gap: 12px;
@@ -1280,6 +1298,37 @@ button {
 }
 
 .metric-trend-muted {
+  color: #7a8792;
+}
+
+.metrics-base-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.metrics-base-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 248, 251, 0.94));
+  border-color: #dfe5eb;
+}
+
+.metric-base-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metric-base-trend-good {
+  color: #2f7b57;
+}
+
+.metric-base-trend-caution {
+  color: #a24246;
+}
+
+.metric-base-trend-neutral {
+  color: #55636f;
+}
+
+.metric-base-trend-muted {
   color: #7a8792;
 }
 
@@ -3237,6 +3286,14 @@ button {
   gap: 10px;
 }
 
+.krav-log-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.krav-log-summary-card {
+  min-height: 100%;
+}
+
 .krav-category-toggle {
   width: 100%;
   padding: 0;
@@ -3264,6 +3321,23 @@ button {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 8px;
+}
+
+.krav-category-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.krav-category-footer small {
+  color: #667684;
+  line-height: 1.35;
+}
+
+.krav-category-more-button {
+  flex: 0 0 auto;
 }
 
 .krav-technique-card {
@@ -3389,6 +3463,10 @@ button {
 
   .krav-exam-card .mini-stat-grid {
     grid-template-columns: 1fr;
+  }
+
+  .krav-log-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -4251,5 +4329,28 @@ button {
   .krav-technique-detail .entry-actions .button {
     min-height: 36px;
     font-size: 0.82rem;
+  }
+
+  .krav-category-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .krav-category-more-button {
+    width: 100%;
+  }
+}
+
+@media (min-width: 1200px) {
+  .progress-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-krav-progress-card {
+    grid-column: 1 / -1;
+  }
+
+  .dashboard-krav-actions .button {
+    width: auto;
   }
 }

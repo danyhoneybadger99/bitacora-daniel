@@ -1,5 +1,6 @@
 import { defaultState, STORAGE_KEY } from '../data/defaultState';
 import { createEmptyKravSettings, mergeOrangeKravCurriculum } from './domain/krav';
+import { mergeInitialMetricSeed } from './domain/metrics';
 import { repairPrivateCycle2026Data } from './domain/private';
 import { normalizeDateString } from './date';
 
@@ -475,6 +476,7 @@ export function migrateAppData(parsed = {}) {
     privateCycleMedications: normalizedPrivateCycleMedications,
     privateSeedVersion,
   });
+  const normalizedMetricEntries = mergeInitialMetricSeed(normalizeBodyMetrics(parsed.bodyMetrics));
   const migrated = {
     foods: normalizeFoods(parsed.foods),
     foodTemplates: normalizeFoodTemplates(parsed.foodTemplates),
@@ -482,7 +484,7 @@ export function migrateAppData(parsed = {}) {
     supplements: normalizeSupplements(parsed.supplements),
     routines: normalizeRoutines(routinesSource),
     exercises: normalizeExercises(parsed.exercises),
-    bodyMetrics: normalizeBodyMetrics(parsed.bodyMetrics),
+    bodyMetrics: normalizedMetricEntries,
     fastingProtocols: normalizeFastingProtocols(parsed.fastingProtocols),
     fastingLogs: normalizeFastingLogs(parsed.fastingLogs),
     fastingFreeDays: normalizeFastingFreeDays(parsed.fastingFreeDays),
