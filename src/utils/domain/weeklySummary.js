@@ -1,9 +1,8 @@
 import { getEndOfWeek, getStartOfWeek, isDateInRange, sortByDateDesc } from '../date';
 import {
   doesFastingOverlapWeek,
-  findFastingProtocolForDate,
-  formatProtocolLabel,
   getFastingDatesInsideRange,
+  getEffectiveFastingTargetHours,
   getFastingHoursInsideRange,
   getFastingRecordDate,
   resolveFastingLogConflicts,
@@ -94,13 +93,13 @@ export function buildWeeklySummary({
   const supplementAdherence = supplementTotal > 0 ? (supplementsTaken / supplementTotal) * 100 : null;
   const weeklyFastingEntries = resolvedFastingLogs.map((item) => {
     const recordDate = getFastingRecordDate(item);
-    const protocol = findFastingProtocolForDate(diaryData.fastingProtocols || [], recordDate || start);
-    const status = getWeeklyFastingStatus(item, protocol, fastingNow);
+    const targetHours = getEffectiveFastingTargetHours(item, null);
+    const status = getWeeklyFastingStatus(item, null, fastingNow);
 
     return {
       item,
       recordDate,
-      protocol,
+      targetHours,
       status,
       overlapHours: getFastingHoursInsideRange(item, start, end, fastingNow),
     };
@@ -108,10 +107,10 @@ export function buildWeeklySummary({
   const fastingCompleted = weeklyFastingEntries.filter((entry) => entry.status === 'cumplido').length;
   const fastingInProgress = weeklyFastingEntries.filter((entry) => entry.status === 'en curso').length;
   const fastingDeviations = weeklyFastingEntries.filter((entry) => entry.status === 'roto').length;
-  const fastingFreeDaysCount = weeklyFastingFreeDays.length;
+  const fastingFreeDaysCount = weeklyFastingFreeDays.filter((date) => !fastingDates.includes(date)).length;
   const fastingHours = weeklyFastingEntries.reduce((total, entry) => total + entry.overlapHours, 0);
   const omadCompleted = weeklyFastingEntries.filter((entry) => {
-    const expectedProtocolText = String(entry.item.expectedProtocol || formatProtocolLabel(entry.protocol) || '').toLowerCase();
+    const expectedProtocolText = String(entry.item.expectedProtocol || '').toLowerCase();
     return entry.status === 'cumplido' && expectedProtocolText.includes('omad');
   }).length;
   const settledFastingLogs = weeklyFastingEntries.filter((entry) => entry.status === 'cumplido' || entry.status === 'roto').length;

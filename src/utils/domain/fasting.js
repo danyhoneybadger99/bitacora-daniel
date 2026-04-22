@@ -16,6 +16,7 @@ export function createEmptyFastingLog() {
   return {
     date: getToday(),
     expectedProtocol: '',
+    targetHours: '',
     actualStartDateTime: '',
     actualBreakDateTime: '',
     actualDuration: '',
@@ -102,6 +103,20 @@ export function calculateLiveElapsedHours(startDateTime, nowTimestamp) {
   return diffMs / (1000 * 60 * 60);
 }
 
+function parseFastingTargetHours(value) {
+  const protocolText = String(value || '').toLowerCase();
+  if (!protocolText) return 0;
+
+  const hoursMatch = protocolText.match(/(\d+(?:\.\d+)?)\s*horas?/);
+  if (hoursMatch) return Number(hoursMatch[1] || 0);
+
+  const windowMatch = protocolText.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+  if (windowMatch) return Number(windowMatch[1] || 0);
+
+  if (protocolText.includes('omad')) return 23;
+  return 0;
+}
+
 export function isFastingLogActiveAt(log, nowTimestamp = Date.now()) {
   if (!log?.actualStartDateTime) return false;
 
@@ -120,7 +135,10 @@ export function isFastingLogActiveAt(log, nowTimestamp = Date.now()) {
 }
 
 export function getFastingPlannedDurationHours(log) {
-  if (!log?.actualStartDateTime) return 0;
+  if (!log?.actualStartDateTime) {
+    const manualDuration = Number(log?.actualDuration || 0);
+    return manualDuration > 0 ? manualDuration : 0;
+  }
 
   if (log.actualBreakDateTime) {
     const calculatedDuration = Number(
@@ -132,15 +150,21 @@ export function getFastingPlannedDurationHours(log) {
   const directDuration = Number(log.actualDuration || 0);
   if (directDuration > 0) return directDuration;
 
-  const protocolText = String(log.expectedProtocol || '').toLowerCase();
-  const hoursMatch = protocolText.match(/(\d+(?:\.\d+)?)\s*horas?/);
-  if (hoursMatch) return Number(hoursMatch[1] || 0);
+  const targetDuration = Number(log.targetHours || log.expectedDuration || log.plannedDuration || 0);
+  if (Number.isFinite(targetDuration) && targetDuration > 0) return targetDuration;
 
-  const windowMatch = protocolText.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
-  if (windowMatch) return Number(windowMatch[1] || 0);
+  return parseFastingTargetHours(log.expectedProtocol);
+}
 
-  if (protocolText.includes('omad')) return 23;
-  return 0;
+export function getEffectiveFastingTargetHours(log, protocol) {
+  const directLogTarget = Number(log?.targetHours || log?.expectedDuration || log?.plannedDuration || 0);
+  if (Number.isFinite(directLogTarget) && directLogTarget > 0) return directLogTarget;
+
+  const explicitLogTarget = parseFastingTargetHours(log?.expectedProtocol);
+  if (explicitLogTarget > 0) return explicitLogTarget;
+
+  const protocolTarget = Number(protocol?.expectedDuration || 0);
+  return Number.isFinite(protocolTarget) && protocolTarget > 0 ? protocolTarget : 0;
 }
 
 export function compareFastingPriority(a, b, nowTimestamp = Date.now()) {
@@ -192,8 +216,52 @@ export function getActiveFastingLog(logs, nowTimestamp = Date.now()) {
   return [...activeLogs].sort((a, b) => compareFastingPriority(a, b, nowTimestamp))[0];
 }
 
+function hasRealFastingData(log) {
+  return Boolean(
+    log?.actualStartDateTime ||
+      log?.actualBreakDateTime ||
+      Number(log?.actualDuration || 0) > 0
+  );
+}
+
+function doesFastingLogTouchDate(log, dateString, nowTimestamp = Date.now()) {
+  const targetDate = normalizeDateString(dateString);
+  if (!targetDate || !hasRealFastingData(log)) return false;
+
+  const recordDate = getFastingRecordDate(log);
+  const breakDate = normalizeDateString(log?.actualBreakDateTime);
+  const range = getFastingTimeRange(log, nowTimestamp);
+  if (range) {
+    const dayStart = new Date(`${targetDate}T00:00:00`);
+    const dayEnd = new Date(`${shiftDateByDays(targetDate, 1)}T00:00:00`);
+    return (range.start < dayEnd && range.end > dayStart) || recordDate === targetDate || breakDate === targetDate;
+  }
+
+  return recordDate === targetDate || breakDate === targetDate;
+}
+
+export function getPrimaryFastingLogForDate(logs, dateString, nowTimestamp = Date.now()) {
+  const targetDate = normalizeDateString(dateString || getToday());
+  if (!targetDate) return null;
+
+  const candidates = (logs || []).filter((item) =>
+    doesFastingLogTouchDate(item, targetDate, nowTimestamp)
+  );
+  if (candidates.length === 0) return null;
+
+  const activeCandidates = candidates.filter((item) => isFastingLogActiveAt(item, nowTimestamp));
+  if (activeCandidates.length > 0) {
+    return [...activeCandidates].sort((a, b) => compareFastingPriority(a, b, nowTimestamp))[0];
+  }
+
+  const resolvedCandidates = resolveFastingLogConflicts(candidates, nowTimestamp);
+  if (resolvedCandidates.length === 0) return null;
+
+  return [...resolvedCandidates].sort((a, b) => compareFastingPriority(a, b, nowTimestamp))[0];
+}
+
 export function getFastingElapsedHours(log, nowTimestamp = Date.now()) {
-  if (!log?.actualStartDateTime) return 0;
+  if (!log?.actualStartDateTime) return Number(log?.actualDuration || 0);
 
   if (log.actualBreakDateTime && !isFastingLogActiveAt(log, nowTimestamp)) {
     return Number(log.actualDuration || calculateFastingDurationHours(log.actualStartDateTime, log.actualBreakDateTime) || 0);
@@ -203,13 +271,24 @@ export function getFastingElapsedHours(log, nowTimestamp = Date.now()) {
 }
 
 export function getFastingStatusLabel(log, protocol, nowTimestamp = Date.now()) {
-  if (!log || !log.actualStartDateTime) return 'pendiente';
+  if (!log) return 'pendiente';
+
+  if (!log.actualStartDateTime && Number(log.actualDuration || 0) > 0) {
+    const duration = getFastingElapsedHours(log, nowTimestamp);
+    const expected = getEffectiveFastingTargetHours(log, protocol);
+
+    if (log.completed === 'si') return 'cumplido';
+    if (expected > 0) return duration >= expected ? 'cumplido' : 'roto';
+    return 'roto';
+  }
+
+  if (!log.actualStartDateTime) return 'pendiente';
 
   const start = new Date(log.actualStartDateTime);
   if (Number.isNaN(start.getTime()) || nowTimestamp < start.getTime()) return 'pendiente';
 
   const duration = getFastingElapsedHours(log, nowTimestamp);
-  const expected = Number(protocol?.expectedDuration || 0);
+  const expected = getEffectiveFastingTargetHours(log, protocol);
 
   if (isFastingLogActiveAt(log, nowTimestamp)) {
     return 'en curso';
@@ -233,6 +312,9 @@ export function getCurrentDateTimeValue(nowTimestamp = Date.now()) {
 }
 
 export function getFastingDisplayText(protocol, log) {
+  const logProtocol = String(log?.expectedProtocol || '').trim();
+  if (logProtocol && (!log || !log.actualBreakDateTime)) return `Objetivo: ${logProtocol}`;
+  if (logProtocol) return `Protocolo esperado: ${logProtocol}`;
   if (!protocol) return 'Sin protocolo esperado';
   if (!log || !log.actualBreakDateTime) return `Objetivo: ${formatProtocolLabel(protocol)}`;
   return protocol.eatingWindow || `Protocolo esperado: ${formatProtocolLabel(protocol)}`;
@@ -266,6 +348,11 @@ export function isFastingFreeDay(freeDays = [], dateString = '') {
   return (freeDays || []).some((item) => normalizeDateString(item) === targetDate);
 }
 
+function isDateInsideFastingRange(dateString, startDate, endDate) {
+  const targetDate = normalizeDateString(dateString);
+  return Boolean(targetDate && targetDate >= startDate && targetDate <= endDate);
+}
+
 export function getFastingTimeRange(log, nowTimestamp = Date.now()) {
   if (!log?.actualStartDateTime) return null;
 
@@ -283,7 +370,9 @@ export function getFastingTimeRange(log, nowTimestamp = Date.now()) {
 
 export function doesFastingOverlapWeek(log, startDate, endDate, nowTimestamp = Date.now()) {
   const range = getFastingTimeRange(log, nowTimestamp);
-  if (!range) return false;
+  if (!range) {
+    return hasRealFastingData(log) && isDateInsideFastingRange(getFastingRecordDate(log), startDate, endDate);
+  }
 
   const weekStart = new Date(`${startDate}T00:00:00`);
   const weekEndExclusive = new Date(`${shiftDateByDays(endDate, 1)}T00:00:00`);
@@ -293,7 +382,11 @@ export function doesFastingOverlapWeek(log, startDate, endDate, nowTimestamp = D
 
 export function getFastingHoursInsideRange(log, startDate, endDate, nowTimestamp = Date.now()) {
   const range = getFastingTimeRange(log, nowTimestamp);
-  if (!range) return 0;
+  if (!range) {
+    return isDateInsideFastingRange(getFastingRecordDate(log), startDate, endDate)
+      ? Number(log?.actualDuration || 0)
+      : 0;
+  }
 
   const weekStart = new Date(`${startDate}T00:00:00`);
   const weekEndExclusive = new Date(`${shiftDateByDays(endDate, 1)}T00:00:00`);
@@ -306,7 +399,10 @@ export function getFastingHoursInsideRange(log, startDate, endDate, nowTimestamp
 
 export function getFastingDatesInsideRange(log, startDate, endDate, nowTimestamp = Date.now()) {
   const range = getFastingTimeRange(log, nowTimestamp);
-  if (!range) return [];
+  if (!range) {
+    const recordDate = getFastingRecordDate(log);
+    return hasRealFastingData(log) && isDateInsideFastingRange(recordDate, startDate, endDate) ? [recordDate] : [];
+  }
 
   const weekStart = new Date(`${startDate}T00:00:00`);
   const weekEndInclusive = new Date(`${endDate}T23:59:59`);
@@ -328,11 +424,20 @@ export function getFastingDatesInsideRange(log, startDate, endDate, nowTimestamp
 }
 
 export function getWeeklyFastingStatus(log, protocol, nowTimestamp = Date.now()) {
+  if (!log?.actualStartDateTime && Number(log?.actualDuration || 0) > 0) {
+    const duration = getFastingElapsedHours(log, nowTimestamp);
+    const expected = getEffectiveFastingTargetHours(log, protocol);
+
+    if (log.completed === 'si') return 'cumplido';
+    if (expected > 0) return duration >= expected ? 'cumplido' : 'roto';
+    return 'roto';
+  }
+
   if (!log?.actualStartDateTime) return 'pendiente';
   if (!log.actualBreakDateTime) return 'en curso';
 
   const duration = getFastingElapsedHours(log, nowTimestamp);
-  const expected = Number(protocol?.expectedDuration || 0);
+  const expected = getEffectiveFastingTargetHours(log, protocol);
 
   if (log.completed === 'si') return 'cumplido';
   if (expected > 0) return duration >= expected ? 'cumplido' : 'roto';

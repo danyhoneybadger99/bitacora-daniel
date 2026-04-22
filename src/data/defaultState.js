@@ -1,6 +1,6 @@
 import { createPrivateCycle2026SeedData } from '../utils/domain/private';
 import { createEmptyKravSettings, createOrangeKravCurriculum } from '../utils/domain/krav';
-import { createInitialMetricSeed } from '../utils/domain/metrics';
+import { createInitialMetricSeed, createRecentManualMetricSeed } from '../utils/domain/metrics';
 import { getToday } from '../utils/date';
 
 const defaultFastingProtocols = [
@@ -127,7 +127,7 @@ export const defaultState = {
   supplements: [],
   routines: [],
   exercises: [],
-  bodyMetrics: [createInitialMetricSeed()],
+  bodyMetrics: [createRecentManualMetricSeed(), createInitialMetricSeed()],
   fastingProtocols: defaultFastingProtocols,
   fastingLogs: [],
   fastingFreeDays: [],

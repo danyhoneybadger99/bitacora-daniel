@@ -323,7 +323,8 @@ button {
 
 .dashboard-krav-progress-card {
   display: grid;
-  gap: 8px;
+  gap: 7px;
+  min-height: 168px;
 }
 
 .dashboard-krav-snapshot {
@@ -341,7 +342,7 @@ button {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  padding: 5px 10px;
+  padding: 4px 9px;
   border-radius: 999px;
   background: #f2e7ad;
   color: #6e5810;
@@ -349,16 +350,34 @@ button {
   font-weight: 700;
 }
 
+.dashboard-krav-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.dashboard-krav-meta span {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(238, 221, 151, 0.48);
+  color: #705915;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
 .dashboard-krav-next {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 .dashboard-krav-title-group {
   display: grid;
-  gap: 7px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -372,7 +391,7 @@ button {
 
 .dashboard-krav-progress-card .progress-track {
   background: rgba(123, 97, 19, 0.12);
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .dashboard-krav-progress-card .progress-fill {
@@ -386,6 +405,7 @@ button {
 
 .dashboard-krav-actions .button {
   width: 100%;
+  padding: 8px 12px;
 }
 
 @media (min-width: 1200px) {
@@ -394,7 +414,7 @@ button {
   }
 
   .dashboard-krav-progress-card {
-    grid-column: span 2;
+    grid-column: auto;
   }
 }
 
@@ -1032,6 +1052,15 @@ button {
   gap: 16px;
 }
 
+.dashboard-main-grid {
+  gap: 12px;
+}
+
+.dashboard-main-grid > .card {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
 .weekly-executive-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1040,12 +1069,12 @@ button {
 
 .weekly-hero-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .weekly-hero-card {
-  padding: 18px;
+  padding: 14px 15px;
   border-radius: 20px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 251, 0.92));
   border: 1px solid #dde5ea;
@@ -1060,13 +1089,13 @@ button {
 
 .weekly-hero-card strong {
   display: block;
-  margin-top: 8px;
-  font-size: 1.7rem;
+  margin-top: 6px;
+  font-size: 1.42rem;
 }
 
 .weekly-hero-card small {
   display: block;
-  margin-top: 8px;
+  margin-top: 6px;
   color: #5c6974;
   line-height: 1.45;
 }
@@ -1123,7 +1152,8 @@ button {
 
 .weekly-note-stack {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .supplement-summary-grid {
@@ -1172,6 +1202,16 @@ button {
   display: block;
   margin-top: 8px;
   font-size: 1.7rem;
+}
+
+.fasting-summary-primary-card {
+  grid-column: span 2;
+  background: linear-gradient(180deg, rgba(250, 253, 251, 0.98), rgba(235, 244, 239, 0.95));
+  border-color: #cadbd0;
+}
+
+.fasting-summary-primary-card strong {
+  font-size: 1.45rem;
 }
 
 .supplement-checklist-card {
@@ -1302,10 +1342,11 @@ button {
 }
 
 .metrics-base-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .metrics-base-card {
+  padding: 13px 14px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 248, 251, 0.94));
   border-color: #dfe5eb;
 }
@@ -1372,6 +1413,31 @@ button {
   align-content: start;
 }
 
+.fasting-action-panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(250, 253, 251, 0.98), rgba(239, 246, 241, 0.94));
+  border: 1px solid #d9e5dc;
+}
+
+.fasting-primary-actions .button {
+  min-height: 42px;
+  font-weight: 800;
+}
+
+.fasting-secondary-actions .button {
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 0.84rem;
+}
+
+.fasting-manual-helper {
+  margin: 0;
+  padding: 0 2px;
+}
+
 .fasting-live-card {
   display: grid;
   gap: 10px;
@@ -1379,6 +1445,20 @@ button {
   border-radius: 20px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 252, 0.94));
   border: 1px solid #dbe3ea;
+}
+
+.fasting-active-summary-card {
+  gap: 8px;
+  padding: 12px;
+}
+
+.fasting-active-summary-card .fasting-live-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fasting-active-summary-card .fasting-live-metric {
+  padding: 9px 10px;
 }
 
 .fasting-live-header {
@@ -1593,6 +1673,44 @@ button {
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(248, 250, 248, 0.98), rgba(241, 245, 242, 0.92));
   border: 1px solid #dde5df;
+}
+
+.objective-progress-summary-card {
+  background: linear-gradient(180deg, rgba(247, 251, 248, 0.99), rgba(234, 244, 238, 0.94));
+  border-color: #cbded2;
+}
+
+.objective-progress-summary-card strong {
+  color: #1f4934;
+}
+
+.objective-plan-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.objective-plan-strip span {
+  display: block;
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #dde7de;
+}
+
+.objective-plan-strip small {
+  display: block;
+  color: #65737f;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.objective-plan-strip strong {
+  display: block;
+  margin-top: 4px;
+  color: #1d2a33;
+  font-size: 0.94rem;
+  line-height: 1.25;
 }
 
 .backup-panel {
@@ -3116,6 +3234,18 @@ button {
   margin-bottom: 14px;
 }
 
+.fasting-templates-card {
+  background: linear-gradient(180deg, rgba(250, 251, 249, 0.96), rgba(244, 247, 245, 0.9));
+}
+
+.fasting-templates-card .card-header {
+  margin-bottom: 8px;
+}
+
+.fasting-advanced-templates {
+  margin-top: 10px;
+}
+
 .history-item strong {
   line-height: 1.35;
 }
@@ -3478,6 +3608,7 @@ button {
   .weekly-detail-grid,
   .weekly-executive-grid,
   .weekly-hero-grid,
+  .weekly-note-stack,
   .dev-storage-grid,
   .goal-grid,
   .backup-meta-grid,
@@ -3494,6 +3625,14 @@ button {
 
   .private-layout {
     grid-template-columns: 1fr;
+  }
+
+  .fasting-summary-primary-card {
+    grid-column: auto;
+  }
+
+  .objective-plan-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .private-agenda-week-grid {
@@ -4343,11 +4482,11 @@ button {
 
 @media (min-width: 1200px) {
   .progress-card-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .dashboard-krav-progress-card {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .dashboard-krav-actions .button {

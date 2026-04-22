@@ -3,6 +3,8 @@ import { formatUnitValue, getNumericMetric } from './shared';
 
 const baseMetricSeedId = 'metric-base-2026-04-10';
 const baseMetricSeedDate = '2026-04-10';
+const recentManualMetricSeedId = 'metric-manual-2026-04-22';
+const recentManualMetricSeedDate = '2026-04-22';
 const baseMetricSeedMatchFields = [
   'weight',
   'skeletalMuscleMass',
@@ -14,6 +16,17 @@ const baseMetricSeedMatchFields = [
   'basalMetabolicRate',
   'waistHipRatio',
   'visceralFatLevel',
+  'waist',
+  'chest',
+  'arm',
+  'leg',
+  'calf',
+  'forearm',
+  'upperBackTorso',
+  'hips',
+  'neck',
+];
+const recentManualMetricSeedMatchFields = [
   'waist',
   'chest',
   'arm',
@@ -85,24 +98,41 @@ export function createInitialMetricSeed() {
   };
 }
 
-function matchesBaseMetricSeed(item, seed) {
+export function createRecentManualMetricSeed() {
+  return {
+    ...createEmptyMetric(),
+    id: recentManualMetricSeedId,
+    date: recentManualMetricSeedDate,
+    waist: '79',
+    chest: '101',
+    arm: '35',
+    leg: '55',
+    calf: '35',
+    forearm: '29',
+    upperBackTorso: '121',
+    hips: '91',
+    neck: '39',
+    dataSource: 'manual',
+    observations: 'Registro manual reciente de medidas corporales para comparar contra InBody base.',
+  };
+}
+
+function matchesMetricSeed(item, seed, fields) {
   if (!item || typeof item !== 'object') return false;
   if (item.id === seed.id) return true;
   if (item.date !== seed.date) return false;
 
-  return baseMetricSeedMatchFields.every((field) => String(item[field] ?? '') === String(seed[field] ?? ''));
+  return fields.every((field) => String(item[field] ?? '') === String(seed[field] ?? ''));
 }
 
-export function mergeInitialMetricSeed(items = []) {
-  const normalizedItems = Array.isArray(items) ? items : [];
-  const seed = createInitialMetricSeed();
-  const existingIndex = normalizedItems.findIndex((item) => matchesBaseMetricSeed(item, seed));
+function mergeMetricSeed(items, seed, fields) {
+  const existingIndex = items.findIndex((item) => matchesMetricSeed(item, seed, fields));
 
   if (existingIndex === -1) {
-    return [seed, ...normalizedItems];
+    return [seed, ...items];
   }
 
-  return normalizedItems.map((item, index) =>
+  return items.map((item, index) =>
     index === existingIndex
       ? {
           ...item,
@@ -112,6 +142,12 @@ export function mergeInitialMetricSeed(items = []) {
         }
       : item
   );
+}
+
+export function mergeInitialMetricSeed(items = []) {
+  const normalizedItems = Array.isArray(items) ? items : [];
+  const withBase = mergeMetricSeed(normalizedItems, createInitialMetricSeed(), baseMetricSeedMatchFields);
+  return mergeMetricSeed(withBase, createRecentManualMetricSeed(), recentManualMetricSeedMatchFields);
 }
 
 export function formatMetricValue(value, unit = '') {
