@@ -4,10 +4,15 @@ export const privateCategoryLabels = {
   trt: 'TRT',
   testosterona: 'Testosterona',
   cipionate: 'Cipionate',
+  't-sustanon': 'T sustanón',
+  'hormona-diaria': 'Hormona diaria',
   oxandrolone: 'Oxandrolona',
   oxandrolona: 'Oxandrolona',
+  tamoxifeno: 'Tamoxifeno',
+  clomifeno: 'Clomifeno',
   masteron: 'Masteron',
   primo: 'Primo',
+  primobolan: 'Primobolan',
   trembolona: 'Trembolona',
   wistrol: 'Winstrol',
   winstrol: 'Winstrol',
@@ -24,6 +29,7 @@ export const privateCategoryLabels = {
   soporte: 'Soporte',
   control: 'Control',
   pct: 'PCT',
+  envio: 'Envío',
   laboratorio: 'Laboratorio',
   'nota-clinica': 'Nota clinica',
 };
@@ -102,7 +108,7 @@ export const privateDailyScaleOptions = [
   { value: '5', label: '5 · Muy bueno' },
 ];
 
-export const PRIVATE_CYCLE_2026_SEED_VERSION = 5;
+export const PRIVATE_CYCLE_2026_SEED_VERSION = 6;
 const PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE = '2026-04-16';
 
 export function createEmptyPrivateCycle() {
@@ -300,6 +306,17 @@ export function getPrivateCanonicalCategory(value) {
   const aliases = {
     oxandrolone: 'oxandrolona',
     oxandrolona: 'oxandrolona',
+    tamoxifeno: 'tamoxifeno',
+    clomifeno: 'clomifeno',
+    't-sustanon': 't-sustanon',
+    't sustanon': 't-sustanon',
+    't sustanon ': 't-sustanon',
+    sustanon: 't-sustanon',
+    'hormona-diaria': 'hormona-diaria',
+    'hormona diaria': 'hormona-diaria',
+    primobolan: 'primobolan',
+    envio: 'envio',
+    'cobro de envio': 'envio',
     wistrol: 'winstrol',
     winstrol: 'winstrol',
     'peptidos-ozempic': 'peptidos',
@@ -708,16 +725,229 @@ export function createPrivateCycle2026SeedData(cycleId = 'private-cycle-2026') {
   };
 }
 
-export function repairPrivateCycle2026Data({
-  privateCycles = [],
-  privateProducts = [],
-  privatePayments = [],
-  privateHormonalEntries = [],
-  privateDailyChecks = [],
-  privateCycleMedications = [],
-  privateSeedVersion = 0,
-} = {}) {
-  const seed = createPrivateCycle2026SeedData();
+export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', status = 'planeado') {
+  return {
+    privateSeedVersion: PRIVATE_CYCLE_2026_SEED_VERSION,
+    privateCycles: [
+      {
+        id: cycleId,
+        name: 'Ciclo #2 - 2026',
+        type: 'personalizado',
+        startDate: '2026-04-14',
+        estimatedEndDate: '',
+        status,
+        objective: '',
+        notes:
+          'Ciclo con protectores, compuestos y pagos confirmados. Sustanón sigue pendiente por confirmar y no entra al total confirmado. BPC-157 queda fuera de compras activas y totales.',
+      },
+    ],
+    privateProducts: [
+      {
+        id: 'private-product-cycle2-clomifeno-2026-04-15',
+        cycleId,
+        name: 'Clomifeno',
+        category: 'clomifeno',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '1450',
+        supplier: '',
+        purchaseDate: '2026-04-15',
+        status: 'comprado',
+        notes: 'Protector confirmado para el ciclo.',
+      },
+      {
+        id: 'private-product-cycle2-tamoxifeno-2026-04-15',
+        cycleId,
+        name: 'Tamoxifeno',
+        category: 'tamoxifeno',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '1370',
+        supplier: '',
+        purchaseDate: '2026-04-15',
+        status: 'comprado',
+        notes: 'Protector confirmado para el ciclo.',
+      },
+      {
+        id: 'private-product-cycle2-oxandrolona-2026-04-15',
+        cycleId,
+        name: 'Oxandrolona',
+        category: 'oxandrolona',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '1250',
+        supplier: '',
+        purchaseDate: '2026-04-15',
+        status: 'comprado',
+        notes: 'Protector / oral confirmado para el ciclo.',
+      },
+      {
+        id: 'private-product-cycle2-liver-cleanse-2026-04-15',
+        cycleId,
+        name: 'Liver Cleanse',
+        category: 'liver-cleanse',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '650',
+        supplier: '',
+        purchaseDate: '2026-04-15',
+        status: 'comprado',
+        notes: 'Protector confirmado para el ciclo.',
+      },
+      {
+        id: 'private-product-cycle2-envio-2026-04-15',
+        cycleId,
+        name: 'Cobro de envío',
+        category: 'envio',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '270',
+        supplier: '',
+        purchaseDate: '2026-04-15',
+        status: 'comprado',
+        notes: 'Cargo logístico confirmado para el ciclo.',
+      },
+      {
+        id: 'private-product-cycle2-trembo-2026',
+        cycleId,
+        name: 'Trembo',
+        category: 'trembolona',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '1450',
+        supplier: '',
+        purchaseDate: '',
+        status: 'comprado',
+        notes: 'Compuesto TRT confirmado.',
+      },
+      {
+        id: 'private-product-cycle2-wistrol-2026',
+        cycleId,
+        name: 'Wistrol',
+        category: 'wistrol',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '1400',
+        supplier: '',
+        purchaseDate: '',
+        status: 'comprado',
+        notes: 'Compuesto TRT confirmado.',
+      },
+      {
+        id: 'private-product-cycle2-hormona-diaria-2026',
+        cycleId,
+        name: 'Hormona diaria',
+        category: 'hormona-diaria',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '20000',
+        supplier: '',
+        purchaseDate: '',
+        status: 'comprado',
+        notes: 'Monto confirmado para el bloque TRT.',
+      },
+      {
+        id: 'private-product-cycle2-primobolan-2026',
+        cycleId,
+        name: 'Primobolan',
+        category: 'primobolan',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '1950',
+        supplier: '',
+        purchaseDate: '',
+        status: 'comprado',
+        notes: 'Compuesto TRT confirmado.',
+      },
+      {
+        id: 'private-product-cycle2-clembuterol-2026',
+        cycleId,
+        name: 'Clembuterol',
+        category: 'clembuterol',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '1200',
+        supplier: '',
+        purchaseDate: '',
+        status: 'comprado',
+        notes: 'Compuesto TRT confirmado.',
+      },
+      {
+        id: 'private-product-cycle2-sustanon-2026',
+        cycleId,
+        name: 'T sustanón',
+        category: 't-sustanon',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '',
+        supplier: '',
+        purchaseDate: '',
+        status: 'pendiente',
+        notes: 'Costo pendiente por confirmar. No incluido en el total confirmado.',
+      },
+    ],
+    privatePayments: [
+      {
+        id: 'private-payment-cycle2-2026-04-14',
+        cycleId,
+        concept: 'Pago ciclo #2 - 2026',
+        date: '2026-04-14',
+        amount: '950',
+        method: '',
+        status: 'pagado',
+        notes: '',
+      },
+      {
+        id: 'private-payment-cycle2-2026-04-15',
+        cycleId,
+        concept: 'Pago ciclo #2 - 2026',
+        date: '2026-04-15',
+        amount: '3000',
+        method: '',
+        status: 'pagado',
+        notes: '',
+      },
+      {
+        id: 'private-payment-cycle2-2026-04-22',
+        cycleId,
+        concept: 'Pago ciclo #2 - 2026',
+        date: '2026-04-22',
+        amount: '5000',
+        method: '',
+        status: 'pagado',
+        notes: '',
+      },
+    ],
+    privateHormonalEntries: [],
+    privateDailyChecks: [],
+    privateCycleMedications: [],
+  };
+}
+
+function applyPrivateCycleSeedBundle(
+  {
+    privateCycles = [],
+    privateProducts = [],
+    privatePayments = [],
+    privateHormonalEntries = [],
+    privateDailyChecks = [],
+    privateCycleMedications = [],
+    privateSeedVersion = 0,
+  },
+  seed,
+  { medicationCorrections = [] } = {}
+) {
   const seedCycle = seed.privateCycles[0];
   const existingCycle = privateCycles.find(
     (item) =>
@@ -727,9 +957,15 @@ export function repairPrivateCycle2026Data({
   const resolvedCycleId = existingCycle?.id || seedCycle.id;
 
   const repairedCycle = {
-    ...(existingCycle || seedCycle),
     ...seedCycle,
+    ...(existingCycle || {}),
     id: resolvedCycleId,
+    name: existingCycle?.name || seedCycle.name,
+    type: existingCycle?.type || seedCycle.type,
+    startDate: existingCycle?.startDate || seedCycle.startDate,
+    estimatedEndDate: existingCycle?.estimatedEndDate || seedCycle.estimatedEndDate,
+    status: existingCycle?.status || seedCycle.status,
+    objective: existingCycle?.objective || seedCycle.objective,
     notes: mergePrivateNotes(existingCycle?.notes, seedCycle.notes),
   };
 
@@ -750,6 +986,7 @@ export function repairPrivateCycle2026Data({
       nextProducts[existingProductIndex] = {
         ...currentProduct,
         cycleId: resolvedCycleId,
+        name: currentProduct.name || seedProduct.name,
         category: currentProduct.category || seedProduct.category,
         purchasedQuantity: isBlankValue(currentProduct.purchasedQuantity)
           ? seedProduct.purchasedQuantity
@@ -760,6 +997,7 @@ export function repairPrivateCycle2026Data({
           !isBlankValue(seedProduct.totalCost) && isBlankValue(currentProduct.totalCost)
             ? seedProduct.totalCost
             : currentProduct.totalCost,
+        supplier: currentProduct.supplier || seedProduct.supplier,
         purchaseDate: currentProduct.purchaseDate || seedProduct.purchaseDate,
         status: currentProduct.status || seedProduct.status,
         notes: mergePrivateNotes(currentProduct.notes, seedProduct.notes),
@@ -912,54 +1150,57 @@ export function repairPrivateCycle2026Data({
     });
   });
 
-  const oxandrolonaIndex = nextMedications.findIndex(
-    (item) =>
-      normalizePrivateSeedKey(item.name) === normalizePrivateSeedKey('Oxandrolona') &&
-      canReusePrivateCycleRecord(item.cycleId, resolvedCycleId, 'private-medication-oxandrolona-2026')
-  );
+  medicationCorrections.forEach((correction) => {
+    const medicationIndex = nextMedications.findIndex(
+      (item) =>
+        normalizePrivateSeedKey(item.name) === normalizePrivateSeedKey(correction.medicationName) &&
+        canReusePrivateCycleRecord(item.cycleId, resolvedCycleId, correction.seedId || correction.medicationName)
+    );
 
-  if (oxandrolonaIndex >= 0) {
-    const oxandrolona = nextMedications[oxandrolonaIndex];
-    const correctionStatus = getPrivateMedicationDailyStatus(oxandrolona, PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE);
-    const desiredTakenSlots = ['manana'];
+    if (medicationIndex === -1) return;
+
+    const medication = nextMedications[medicationIndex];
+    const correctionStatus = getPrivateMedicationDailyStatus(medication, correction.date);
+    const desiredTakenSlots = correction.desiredTakenSlots || [];
     const currentTakenSlots = correctionStatus.takenSlots;
 
     if (
-      currentTakenSlots.length !== desiredTakenSlots.length ||
-      currentTakenSlots.some((slot) => !desiredTakenSlots.includes(slot))
+      currentTakenSlots.length === desiredTakenSlots.length &&
+      currentTakenSlots.every((slot) => desiredTakenSlots.includes(slot))
     ) {
-      const currentRemaining = toSafeNumber(oxandrolona.remainingInventory);
-      const initialInventory = toSafeNumber(oxandrolona.initialInventory);
-      const delta = currentTakenSlots.length - desiredTakenSlots.length;
-      const nextRemaining = Math.max(0, Math.min(currentRemaining + delta, initialInventory || currentRemaining + Math.abs(delta)));
-      const nextHistory = Array.isArray(oxandrolona.intakeHistory) ? [...oxandrolona.intakeHistory] : [];
-      const currentIndex = nextHistory.findIndex((entry) => entry?.date === PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE);
-
-      if (currentIndex >= 0) {
-        nextHistory[currentIndex] = {
-          ...nextHistory[currentIndex],
-          date: PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE,
-          takenSlots: desiredTakenSlots,
-          updatedAt: nextHistory[currentIndex]?.updatedAt || new Date(`${PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE}T12:00:00`).toISOString(),
-        };
-      } else {
-        nextHistory.unshift({
-          date: PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE,
-          takenSlots: desiredTakenSlots,
-          updatedAt: new Date(`${PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE}T12:00:00`).toISOString(),
-        });
-      }
-
-      nextMedications[oxandrolonaIndex] = {
-        ...oxandrolona,
-        intakeHistory: nextHistory,
-        remainingInventory: String(nextRemaining),
-        lastTakenAt:
-          oxandrolona.lastTakenAt ||
-          new Date(`${PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE}T12:00:00`).toISOString(),
-      };
+      return;
     }
-  }
+
+    const currentRemaining = toSafeNumber(medication.remainingInventory);
+    const initialInventory = toSafeNumber(medication.initialInventory);
+    const delta = currentTakenSlots.length - desiredTakenSlots.length;
+    const nextRemaining = Math.max(0, Math.min(currentRemaining + delta, initialInventory || currentRemaining + Math.abs(delta)));
+    const nextHistory = Array.isArray(medication.intakeHistory) ? [...medication.intakeHistory] : [];
+    const currentIndex = nextHistory.findIndex((entry) => entry?.date === correction.date);
+    const correctionTimestamp = new Date(`${correction.date}T12:00:00`).toISOString();
+
+    if (currentIndex >= 0) {
+      nextHistory[currentIndex] = {
+        ...nextHistory[currentIndex],
+        date: correction.date,
+        takenSlots: desiredTakenSlots,
+        updatedAt: nextHistory[currentIndex]?.updatedAt || correctionTimestamp,
+      };
+    } else if (desiredTakenSlots.length > 0) {
+      nextHistory.unshift({
+        date: correction.date,
+        takenSlots: desiredTakenSlots,
+        updatedAt: correctionTimestamp,
+      });
+    }
+
+    nextMedications[medicationIndex] = {
+      ...medication,
+      intakeHistory: desiredTakenSlots.length > 0 ? nextHistory : nextHistory.filter((entry) => entry?.date !== correction.date),
+      remainingInventory: String(nextRemaining),
+      lastTakenAt: medication.lastTakenAt || correctionTimestamp,
+    };
+  });
 
   return {
     privateCycles: nextCycles,
@@ -972,9 +1213,94 @@ export function repairPrivateCycle2026Data({
   };
 }
 
+export function repairPrivateCycle2026Data({
+  privateCycles = [],
+  privateProducts = [],
+  privatePayments = [],
+  privateHormonalEntries = [],
+  privateDailyChecks = [],
+  privateCycleMedications = [],
+  privateSeedVersion = 0,
+} = {}) {
+  const cycle1State = applyPrivateCycleSeedBundle(
+    {
+      privateCycles,
+      privateProducts,
+      privatePayments,
+      privateHormonalEntries,
+      privateDailyChecks,
+      privateCycleMedications,
+      privateSeedVersion,
+    },
+    createPrivateCycle2026SeedData(),
+    {
+      medicationCorrections: [
+        {
+          medicationName: 'Oxandrolona',
+          seedId: 'private-medication-oxandrolona-2026',
+          date: PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE,
+          desiredTakenSlots: ['manana'],
+        },
+      ],
+    }
+  );
+
+  const shouldCreateCycle2AsActive = !cycle1State.privateCycles.some((item) => item.status === 'activo');
+
+  return applyPrivateCycleSeedBundle(
+    cycle1State,
+    createPrivateCycle2SeedData('private-cycle-2-2026', shouldCreateCycle2AsActive ? 'activo' : 'planeado')
+  );
+}
+
 export function getPrivateCycleFinancialSummary(cycleId, privateProducts = [], privatePayments = []) {
   const cycleProducts = cycleId ? privateProducts.filter((item) => item.cycleId === cycleId) : [];
   const cyclePayments = cycleId ? privatePayments.filter((item) => item.cycleId === cycleId) : [];
+
+  const getFinancialBucket = (item) => {
+    const normalizedName = normalizePrivateSeedKey(item?.name);
+    const normalizedCategory = getPrivateCanonicalCategory(item?.category);
+
+    if (
+      normalizedCategory === 'tamoxifeno' ||
+      normalizedCategory === 'clomifeno' ||
+      normalizedCategory === 'oxandrolona' ||
+      normalizedCategory === 'liver-cleanse' ||
+      normalizedCategory === 'envio' ||
+      normalizedName.includes('tamox') ||
+      normalizedName.includes('clomif') ||
+      normalizedName.includes('oxandrol') ||
+      normalizedName.includes('liver') ||
+      normalizedName.includes('envio')
+    ) {
+      return 'protectors';
+    }
+
+    if (
+      normalizedCategory === 'trt' ||
+      normalizedCategory === 'testosterona' ||
+      normalizedCategory === 'cipionate' ||
+      normalizedCategory === 't-sustanon' ||
+      normalizedCategory === 'hormona-diaria' ||
+      normalizedCategory === 'primo' ||
+      normalizedCategory === 'primobolan' ||
+      normalizedCategory === 'trembolona' ||
+      normalizedCategory === 'winstrol' ||
+      normalizedCategory === 'clembuterol' ||
+      normalizedName.includes('susta') ||
+      normalizedName.includes('hormona diaria') ||
+      normalizedName.includes('primob') ||
+      normalizedName.includes('primo') ||
+      normalizedName.includes('trembo') ||
+      normalizedName.includes('wistrol') ||
+      normalizedName.includes('winstrol') ||
+      normalizedName.includes('clembuter')
+    ) {
+      return 'trt';
+    }
+
+    return 'other';
+  };
 
   const totalInvested = cycleProducts.reduce((sum, item) => sum + toSafeNumber(item.totalCost), 0);
   const totalPaid = cyclePayments
@@ -985,11 +1311,28 @@ export function getPrivateCycleFinancialSummary(cycleId, privateProducts = [], p
     .reduce((sum, item) => sum + toSafeNumber(item.amount), 0);
   const pendingBalance = Math.max(totalInvested - totalPaid, pendingPayments, 0);
   const orderedPayments = [...cyclePayments].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  const protectorsSubtotal = cycleProducts
+    .filter((item) => getFinancialBucket(item) === 'protectors')
+    .reduce((sum, item) => sum + toSafeNumber(item.totalCost), 0);
+  const trtConfirmedSubtotal = cycleProducts
+    .filter((item) => getFinancialBucket(item) === 'trt')
+    .reduce((sum, item) => sum + toSafeNumber(item.totalCost), 0);
+  const confirmedTotal = protectorsSubtotal + trtConfirmedSubtotal;
+  const confirmedPendingBalance = Math.max(confirmedTotal - totalPaid, 0);
+  const unresolvedProducts = cycleProducts
+    .filter((item) => isBlankValue(item.totalCost))
+    .map((item) => item.name || 'Producto pendiente');
 
   return {
     totalInvested,
     totalPaid,
     pendingBalance,
+    protectorsSubtotal,
+    trtConfirmedSubtotal,
+    confirmedTotal,
+    confirmedPendingBalance,
+    unresolvedProducts,
+    hasOperationalBreakdown: protectorsSubtotal > 0 || trtConfirmedSubtotal > 0,
     orderedPayments,
     cycleProducts,
     cyclePayments,

@@ -6,6 +6,7 @@ import HistoryView from './components/HistoryView';
 import ProgressCard from './components/ProgressCard';
 import RecordForm from './components/RecordForm';
 import SectionCard from './components/SectionCard';
+import { cutMayReferenceGroups, cutMayReferenceRule } from './data/cutMayReference';
 import { defaultState } from './data/defaultState';
 import { isSupabaseConfigured } from './lib/supabase';
 import { buildTodaySummary } from './utils/domain/dashboardSummary';
@@ -179,7 +180,95 @@ const tabs = [
   { id: 'settings', label: 'Ajustes' },
 ];
 
+const goalSettingFields = ['calories', 'protein', 'weight', 'hydrationBase', 'hydrationHighActivity'];
+const cutReferenceFieldGroups = [
+  {
+    title: 'Composición objetivo',
+    helper: 'Referencia corporal para el corte rumbo a 10% de grasa.',
+    fields: [
+      { name: 'cutReferenceCurrentWeight', label: 'Peso actual (kg)', step: '0.1' },
+      { name: 'cutReferenceTargetWeight10', label: 'Peso objetivo 10% (kg)', step: '0.1' },
+      { name: 'cutReferenceFatToLose', label: 'Grasa a perder (kg)', step: '0.1' },
+      { name: 'cutReferenceEstimatedDeficit', label: 'Déficit total estimado (kcal)', step: '1' },
+    ],
+  },
+  {
+    title: 'Gasto energético',
+    helper: 'Base operativa para no perder contexto entre mantenimiento y corte.',
+    fields: [
+      { name: 'cutReferenceBmr', label: 'BMR (kcal)', step: '1' },
+      { name: 'cutReferenceTdee', label: 'TDEE operativo (kcal)', step: '1' },
+      { name: 'cutReferenceMaintenanceMin', label: 'Mantenimiento útil mínimo (kcal)', step: '1' },
+      { name: 'cutReferenceMaintenanceMax', label: 'Mantenimiento útil máximo (kcal)', step: '1' },
+    ],
+  },
+  {
+    title: 'Rangos calóricos',
+    helper: 'Zona útil de corte y límites de agresividad.',
+    fields: [
+      { name: 'cutReferenceCutMin', label: 'Corte útil mínimo (kcal)', step: '1' },
+      { name: 'cutReferenceCutMax', label: 'Corte útil máximo (kcal)', step: '1' },
+      { name: 'cutReferenceConservativeMin', label: 'Corte conservador mínimo (kcal)', step: '1' },
+      { name: 'cutReferenceConservativeMax', label: 'Corte conservador máximo (kcal)', step: '1' },
+      { name: 'cutReferenceEffectiveMin', label: 'Corte efectivo mínimo (kcal)', step: '1' },
+      { name: 'cutReferenceEffectiveMax', label: 'Corte efectivo máximo (kcal)', step: '1' },
+      { name: 'cutReferenceAggressiveBelow', label: 'Muy agresivo debajo de (kcal)', step: '1' },
+    ],
+  },
+  {
+    title: 'Rangos de macros',
+    helper: 'Guardrails mínimos y máximos para sostener el corte.',
+    fields: [
+      { name: 'cutReferenceProteinMin', label: 'Proteína mínima recomendada (g)', step: '1' },
+      { name: 'cutReferenceProteinMax', label: 'Proteína máxima recomendada (g)', step: '1' },
+      { name: 'cutReferenceFatMin', label: 'Grasa mínima recomendada (g)', step: '1' },
+      { name: 'cutReferenceFatMax', label: 'Grasa máxima recomendada (g)', step: '1' },
+    ],
+  },
+];
+const cutReferenceFieldNames = cutReferenceFieldGroups.flatMap((group) => group.fields.map((field) => field.name));
+
 const kravBeltOptions = ['amarilla', 'naranja', 'verde', 'azul', 'marron', 'negra'];
+const privateDailyHormonalPanelOrder = ['oxandrolona', 'liver-cleanse', 'tamoxifeno', 'clomifeno'];
+
+function pickGoalFormValues(goals = {}) {
+  return goalSettingFields.reduce((result, fieldName) => {
+    result[fieldName] = goals?.[fieldName] ?? defaultState.goals[fieldName] ?? '';
+    return result;
+  }, {});
+}
+
+function pickCutReferenceFormValues(goals = {}) {
+  return cutReferenceFieldNames.reduce((result, fieldName) => {
+    result[fieldName] = goals?.[fieldName] ?? defaultState.goals[fieldName] ?? '';
+    return result;
+  }, {});
+}
+
+function normalizeOperationalKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function getPrivateDailyHormonalPanelKey(item) {
+  const normalizedName = normalizeOperationalKey(item?.name);
+  const normalizedAlias = normalizeOperationalKey(item?.alias);
+
+  if (normalizedName.includes('oxandrol') || normalizedAlias.includes('oxandrol')) return 'oxandrolona';
+  if (normalizedName.includes('liver')) return 'liver-cleanse';
+  if (normalizedName.includes('tamox')) return 'tamoxifeno';
+  if (normalizedName.includes('clomif')) return 'clomifeno';
+  return '';
+}
+
+function getPrivateMedicationDisplayName(item) {
+  const key = getPrivateDailyHormonalPanelKey(item);
+  if (key === 'liver-cleanse') return 'Liver Cleanse';
+  return item?.name || 'Control sin nombre';
+}
 
 function sortPrivateRecordsByDate(items = [], dateField = 'date') {
   return [...items].sort((a, b) => {
@@ -212,6 +301,36 @@ function formatShortDateTimeHuman(value) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(parsed).replace(',', ' ·');
+}
+
+function formatSettingsRange(minValue, maxValue, unit = '') {
+  const hasMin = getNumericMetric(minValue) !== null;
+  const hasMax = getNumericMetric(maxValue) !== null;
+
+  if (!hasMin && !hasMax) return 'Sin dato';
+  if (hasMin && hasMax) {
+    return `${formatUnitValue(minValue, unit, { maximumFractionDigits: 0, fallback: '--' })} · ${formatUnitValue(maxValue, unit, {
+      maximumFractionDigits: 0,
+      fallback: '--',
+    })}`;
+  }
+
+  const singleValue = hasMin ? minValue : maxValue;
+  return formatUnitValue(singleValue, unit, { maximumFractionDigits: 0, fallback: 'Sin dato' });
+}
+
+function formatCompactSettingsRange(minValue, maxValue, unit = '') {
+  const min = getNumericMetric(minValue);
+  const max = getNumericMetric(maxValue);
+  const formatter = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+
+  if (min === null && max === null) return 'Sin dato';
+  if (min !== null && max !== null) {
+    return `${formatter.format(min)}-${formatter.format(max)}${unit ? ` ${unit}` : ''}`;
+  }
+
+  const singleValue = min ?? max;
+  return `${formatter.format(singleValue)}${unit ? ` ${unit}` : ''}`;
 }
 
 function formatPrivateDate(value) {
@@ -500,7 +619,8 @@ function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [diaryData, setDiaryData] = useState(defaultState);
   const [hasLoadedData, setHasLoadedData] = useState(false);
-  const [goalForm, setGoalForm] = useState(defaultState.goals);
+  const [goalForm, setGoalForm] = useState(() => pickGoalFormValues(defaultState.goals));
+  const [cutReferenceForm, setCutReferenceForm] = useState(() => pickCutReferenceFormValues(defaultState.goals));
   const [objectiveForm, setObjectiveForm] = useState(defaultState.objectives?.[0] || createEmptyObjective());
   const [foodForm, setFoodForm] = useState(createEmptyFood);
   const [hydrationForm, setHydrationForm] = useState(createEmptyHydration);
@@ -591,6 +711,7 @@ function App() {
   const syncRefreshInFlightRef = useRef(false);
   const lastSyncRefreshAtRef = useRef(0);
   const privateAutoLockTimeoutRef = useRef(null);
+  const privateDailyHormonalSectionRef = useRef(null);
   const privateCycleSectionRef = useRef(null);
   const privateDailyCheckSectionRef = useRef(null);
   const privateMedicationSectionRef = useRef(null);
@@ -796,7 +917,8 @@ function App() {
     saveAppData(snapshot);
     skipNextRemoteSyncRef.current = true;
     setDiaryData(snapshot);
-    setGoalForm(snapshot.goals || defaultState.goals);
+    setGoalForm(pickGoalFormValues(snapshot.goals || defaultState.goals));
+    setCutReferenceForm(pickCutReferenceFormValues(snapshot.goals || defaultState.goals));
     setObjectiveForm(
       (snapshot.objectives && snapshot.objectives[0]) ||
         defaultState.objectives?.[0] ||
@@ -881,7 +1003,8 @@ function App() {
     syncDeviceIdRef.current = preparedData.syncMeta.deviceId;
     latestPersistedDataRef.current = preparedData;
     setDiaryData(preparedData);
-    setGoalForm(preparedData.goals || defaultState.goals);
+    setGoalForm(pickGoalFormValues(preparedData.goals || defaultState.goals));
+    setCutReferenceForm(pickCutReferenceFormValues(preparedData.goals || defaultState.goals));
     setObjectiveForm((preparedData.objectives && preparedData.objectives[0]) || defaultState.objectives?.[0] || createEmptyObjective());
     setSyncLastSyncedAt(preparedData.syncMeta?.lastSyncedAt || '');
     const loadTimestamp = getCurrentDateTimeValue();
@@ -1093,8 +1216,11 @@ function App() {
       chest: getLatestMetricFieldSnapshot(sortedMetrics, 'chest'),
       arm: getLatestMetricFieldSnapshot(sortedMetrics, 'arm'),
       leg: getLatestMetricFieldSnapshot(sortedMetrics, 'leg'),
+      calf: getLatestMetricFieldSnapshot(sortedMetrics, 'calf'),
+      forearm: getLatestMetricFieldSnapshot(sortedMetrics, 'forearm'),
       upperBackTorso: getLatestMetricFieldSnapshot(sortedMetrics, 'upperBackTorso'),
       hips: getLatestMetricFieldSnapshot(sortedMetrics, 'hips'),
+      neck: getLatestMetricFieldSnapshot(sortedMetrics, 'neck'),
     }),
     [sortedMetrics]
   );
@@ -1116,6 +1242,7 @@ function App() {
       const baseValue = getNumericMetric(metricBaseEntry?.[field]);
       const latestSnapshot = metricFieldSnapshots[field];
       const latestValue = getNumericMetric(latestSnapshot?.rawValue);
+      const currentDateLabel = latestSnapshot?.date ? formatDate(latestSnapshot.date) : '';
 
       const formatValue = (value) => {
         if (formatter === 'weight') return formatWeightValue(value, unit || 'kg', 'sin dato');
@@ -1126,18 +1253,22 @@ function App() {
       if (baseValue === null) {
         return {
           label,
-          value: 'Sin base',
+          currentValue: 'Sin base',
+          changeLabel: 'Sin referencia',
           detail: 'No existe referencia base para comparar.',
-          className: 'metric-base-trend metric-base-trend-muted',
+          trendClass: 'metric-base-trend metric-base-trend-muted',
+          snapshotLabel: 'Sin base',
         };
       }
 
       if (latestValue === null || !latestSnapshot?.date) {
         return {
           label,
-          value: 'Sin dato actual',
-          detail: `Base ${formatValue(baseValue)}`,
-          className: 'metric-base-trend metric-base-trend-muted',
+          currentValue: 'Sin dato actual',
+          changeLabel: `Base ${formatValue(baseValue)}`,
+          detail: 'Todavía no hay una medición reciente para esta referencia.',
+          trendClass: 'metric-base-trend metric-base-trend-muted',
+          snapshotLabel: 'Sin medición reciente',
         };
       }
 
@@ -1145,13 +1276,15 @@ function App() {
       if (delta === 0 || latestSnapshot.date === metricBaseEntry?.date) {
         return {
           label,
-          value: 'Sin cambio aún',
-          detail: `Base ${formatValue(baseValue)} · Actual ${formatValue(latestValue)}`,
-          className: 'metric-base-trend metric-base-trend-neutral',
+          currentValue: formatValue(latestValue),
+          changeLabel: 'Sin cambio aún',
+          detail: `Base ${formatValue(baseValue)}${currentDateLabel ? ` · ${currentDateLabel}` : ''}`,
+          trendClass: 'metric-base-trend metric-base-trend-neutral',
+          snapshotLabel: currentDateLabel || 'Registro actual',
         };
       }
 
-      const isImproving = prefer === 'up' ? delta > 0 : delta < 0;
+      const isImproving = prefer === 'up' ? delta > 0 : prefer === 'neutral' ? null : delta < 0;
       const arrow = delta > 0 ? '↑' : '↓';
       const absoluteDelta = Math.abs(delta);
       const deltaText =
@@ -1160,12 +1293,20 @@ function App() {
           : formatter === 'percent'
             ? formatPercentValue(absoluteDelta, '--')
             : formatUnitValue(absoluteDelta, unit, { maximumFractionDigits: 1, fallback: '--' });
+      const directionLabel = delta > 0 ? 'Subió' : 'Bajó';
 
       return {
         label,
-        value: `${arrow} ${deltaText}`,
-        detail: `Base ${formatValue(baseValue)} · Actual ${formatValue(latestValue)}`,
-        className: isImproving ? 'metric-base-trend metric-base-trend-good' : 'metric-base-trend metric-base-trend-caution',
+        currentValue: formatValue(latestValue),
+        changeLabel: `${arrow} ${deltaText}`,
+        detail: `${directionLabel} vs base ${formatValue(baseValue)}${currentDateLabel ? ` · ${currentDateLabel}` : ''}`,
+        trendClass:
+          isImproving === null
+            ? 'metric-base-trend metric-base-trend-neutral'
+            : isImproving
+              ? 'metric-base-trend metric-base-trend-good'
+              : 'metric-base-trend metric-base-trend-caution',
+        snapshotLabel: currentDateLabel || 'Última medición',
       };
     }
 
@@ -1178,8 +1319,11 @@ function App() {
       buildBaseComparison({ label: 'Pecho', field: 'chest', unit: 'cm', formatter: 'unit', prefer: 'up' }),
       buildBaseComparison({ label: 'Brazo', field: 'arm', unit: 'cm', formatter: 'unit', prefer: 'up' }),
       buildBaseComparison({ label: 'Pierna', field: 'leg', unit: 'cm', formatter: 'unit', prefer: 'up' }),
+      buildBaseComparison({ label: 'Pantorrilla', field: 'calf', unit: 'cm', formatter: 'unit', prefer: 'up' }),
+      buildBaseComparison({ label: 'Antebrazo', field: 'forearm', unit: 'cm', formatter: 'unit', prefer: 'up' }),
       buildBaseComparison({ label: 'Dorsal', field: 'upperBackTorso', unit: 'cm', formatter: 'unit', prefer: 'up' }),
       buildBaseComparison({ label: 'Cadera', field: 'hips', unit: 'cm', formatter: 'unit', prefer: 'down' }),
+      buildBaseComparison({ label: 'Cuello', field: 'neck', unit: 'cm', formatter: 'unit', prefer: 'neutral' }),
     ];
   }, [metricBaseEntry, metricFieldSnapshots]);
   const fastingFreeDays = useMemo(
@@ -1329,6 +1473,7 @@ function App() {
     () => calculateObjectiveProgress(objectiveForm.startWeight, objectiveForm.currentWeight, objectiveForm.targetWeight),
     [objectiveForm.currentWeight, objectiveForm.startWeight, objectiveForm.targetWeight]
   );
+  const isObjectiveCutGoal = objectiveForm.goalType === 'corte';
   const backupMeta = diaryData.backupMeta || defaultState.backupMeta;
   const syncMeta = diaryData.syncMeta || defaultState.syncMeta;
   const privateVault = diaryData.privateVault || defaultState.privateVault;
@@ -1565,8 +1710,15 @@ function App() {
         privatePayments,
         privateEntries,
         now: new Date(),
-      }),
+    }),
     [privateCycles, privateProducts, privatePayments, privateEntries]
+  );
+  const privateCycleFinancialMap = useMemo(
+    () =>
+      new Map(
+        privateCycles.map((item) => [item.id, getPrivateCycleFinancialSummary(item.id, privateProducts, privatePayments)])
+      ),
+    [privateCycles, privateProducts, privatePayments]
   );
   const activeCycleFinancialSummary = useMemo(
     () => getPrivateCycleFinancialSummary(activePrivateCycle?.id || '', privateProducts, privatePayments),
@@ -1638,6 +1790,8 @@ function App() {
         const status = getPrivateMedicationDailyStatus(item, currentDate);
         return {
           ...item,
+          displayName: getPrivateMedicationDisplayName(item),
+          panelKey: getPrivateDailyHormonalPanelKey(item),
           dailyStatus: status,
           dailyLabel:
             status.expectedCount > 1
@@ -1651,6 +1805,35 @@ function App() {
       }),
     [activeCycleMedications, currentDate]
   );
+  const dailyHormonalMedicationCards = useMemo(() => {
+    const panelOrderMap = new Map(privateDailyHormonalPanelOrder.map((value, index) => [value, index]));
+
+    return privateMedicationCards
+      .filter((item) => panelOrderMap.has(item.panelKey))
+      .sort((a, b) => {
+        const orderA = panelOrderMap.get(a.panelKey) ?? 99;
+        const orderB = panelOrderMap.get(b.panelKey) ?? 99;
+        if (orderA !== orderB) return orderA - orderB;
+        return String(a.displayName || a.name || '').localeCompare(String(b.displayName || b.name || ''), 'es-MX');
+      });
+  }, [privateMedicationCards]);
+  const dailyHormonalMedicationSummary = useMemo(() => {
+    const totalControls = dailyHormonalMedicationCards.length;
+    const completedControls = dailyHormonalMedicationCards.filter((item) => item.dailyStatus.isComplete).length;
+    const lowInventoryControls = dailyHormonalMedicationCards.filter(
+      (item) => item.dailyStatus.isLowInventory || item.dailyStatus.isOutOfStock
+    ).length;
+    const completedDoses = dailyHormonalMedicationCards.reduce((sum, item) => sum + item.dailyStatus.takenCount, 0);
+    const expectedDoses = dailyHormonalMedicationCards.reduce((sum, item) => sum + item.dailyStatus.expectedCount, 0);
+
+    return {
+      totalControls,
+      completedControls,
+      lowInventoryControls,
+      completedDoses,
+      expectedDoses,
+    };
+  }, [dailyHormonalMedicationCards]);
   const privateTimeline = useMemo(
     () =>
       activePrivateCycle
@@ -2016,6 +2199,72 @@ function lockPrivateModule(feedbackText = '') {
   const weightGoal = Number(diaryData.goals?.weight || 0);
   const hydrationBaseGoal = Number(diaryData.goals?.hydrationBase || 0);
   const hydrationHighActivityGoal = Number(diaryData.goals?.hydrationHighActivity || 0);
+  const cutReferenceGoals = diaryData.goals || defaultState.goals;
+  const cutReferenceTdee = getNumericMetric(cutReferenceGoals.cutReferenceTdee);
+  const cutReferenceProteinMin = getNumericMetric(cutReferenceGoals.cutReferenceProteinMin);
+  const cutReferenceProteinMax = getNumericMetric(cutReferenceGoals.cutReferenceProteinMax);
+  const cutReferenceFatMin = getNumericMetric(cutReferenceGoals.cutReferenceFatMin);
+  const cutReferenceFatMax = getNumericMetric(cutReferenceGoals.cutReferenceFatMax);
+  const cutReferenceCutMin = getNumericMetric(cutReferenceGoals.cutReferenceCutMin);
+  const cutReferenceCutMax = getNumericMetric(cutReferenceGoals.cutReferenceCutMax);
+  const cutReferenceProteinRangeLabel = formatCompactSettingsRange(
+    cutReferenceGoals.cutReferenceProteinMin,
+    cutReferenceGoals.cutReferenceProteinMax,
+    'g'
+  );
+  const cutReferenceFatRangeLabel = formatCompactSettingsRange(
+    cutReferenceGoals.cutReferenceFatMin,
+    cutReferenceGoals.cutReferenceFatMax,
+    'g'
+  );
+  const cutReferenceCutRangeLabel = formatCompactSettingsRange(
+    cutReferenceGoals.cutReferenceCutMin,
+    cutReferenceGoals.cutReferenceCutMax,
+    'kcal'
+  );
+  const cutReferenceMacrosLabel = `${cutReferenceProteinRangeLabel} proteína • ${cutReferenceFatRangeLabel} grasa`;
+  const hasCutReferenceLoaded =
+    cutReferenceTdee !== null ||
+    cutReferenceProteinMin !== null ||
+    cutReferenceProteinMax !== null ||
+    cutReferenceCutMin !== null ||
+    cutReferenceCutMax !== null ||
+    cutReferenceFatMin !== null ||
+    cutReferenceFatMax !== null;
+  const cutReferenceSummaryCards = useMemo(
+    () => [
+      {
+        label: 'Objetivo 10%',
+        value: `${formatWeightValue(cutReferenceForm.cutReferenceTargetWeight10, 'kg', 'Sin dato')}`,
+        detail: `Actual ${formatWeightValue(cutReferenceForm.cutReferenceCurrentWeight, 'kg', 'Sin dato')} · Grasa a perder ${formatWeightValue(
+          cutReferenceForm.cutReferenceFatToLose,
+          'kg',
+          'Sin dato'
+        )}`,
+      },
+      {
+        label: 'TDEE operativo',
+        value: formatIntegerValue(cutReferenceForm.cutReferenceTdee, 'kcal', 'Sin dato'),
+        detail: `Mantenimiento útil ${formatSettingsRange(cutReferenceForm.cutReferenceMaintenanceMin, cutReferenceForm.cutReferenceMaintenanceMax, 'kcal')}`,
+      },
+      {
+        label: 'Corte útil',
+        value: formatSettingsRange(cutReferenceForm.cutReferenceCutMin, cutReferenceForm.cutReferenceCutMax, 'kcal'),
+        detail: `Efectivo ${formatSettingsRange(cutReferenceForm.cutReferenceEffectiveMin, cutReferenceForm.cutReferenceEffectiveMax, 'kcal')} · Muy agresivo debajo de ${formatIntegerValue(cutReferenceForm.cutReferenceAggressiveBelow, 'kcal', 'Sin dato')}`,
+      },
+      {
+        label: 'Proteína',
+        value: formatSettingsRange(cutReferenceForm.cutReferenceProteinMin, cutReferenceForm.cutReferenceProteinMax, 'g'),
+        detail: `Meta diaria guardada ${formatIntegerValue(proteinGoal, 'g', 'Sin dato')}`,
+      },
+      {
+        label: 'Grasa',
+        value: formatSettingsRange(cutReferenceForm.cutReferenceFatMin, cutReferenceForm.cutReferenceFatMax, 'g'),
+        detail: `Déficit total estimado ${formatIntegerValue(cutReferenceForm.cutReferenceEstimatedDeficit, 'kcal', 'Sin dato')}`,
+      },
+    ],
+    [cutReferenceForm, proteinGoal]
+  );
 
   const todaySummary = useMemo(
     () =>
@@ -2130,11 +2379,23 @@ function lockPrivateModule(feedbackText = '') {
   }, [diaryData]);
 
   const dailyFatLimitGrams = 80;
+  const todayFatGrams = Number(todaySummary.fat || 0);
   const proteinAlert = proteinGoal > 0 && todaySummary.protein < proteinGoal;
-  const fatAlert = Number(todaySummary.fat || 0) > dailyFatLimitGrams;
-  const dailyFatProgress = dailyFatLimitGrams > 0 ? (Number(todaySummary.fat || 0) / dailyFatLimitGrams) * 100 : 0;
-  const dailyFatStatus = fatAlert ? 'Excedida' : dailyFatProgress >= 80 ? 'Cerca del límite' : 'Normal';
-  const dailyFatTone = fatAlert ? 'alert' : dailyFatProgress >= 80 ? 'energy' : 'success';
+  const fatAlert = todayFatGrams > dailyFatLimitGrams;
+  const dailyFatProgress = dailyFatLimitGrams > 0 ? (todayFatGrams / dailyFatLimitGrams) * 100 : 0;
+  const hasDailyFatCutRange = cutReferenceFatMin !== null && cutReferenceFatMax !== null;
+  const dailyFatStatus = fatAlert
+    ? 'Excedida'
+    : hasDailyFatCutRange
+      ? todayFatGrams < cutReferenceFatMin
+        ? 'Baja'
+        : todayFatGrams <= cutReferenceFatMax
+          ? 'En rango'
+          : 'Arriba del rango'
+      : dailyFatProgress >= 80
+        ? 'Cerca del límite'
+        : 'Normal';
+  const dailyFatTone = fatAlert ? 'alert' : dailyFatStatus === 'Arriba del rango' ? 'energy' : dailyFatStatus === 'En rango' ? 'success' : undefined;
   const calorieProgress = calorieGoal > 0 ? (todaySummary.calories / calorieGoal) * 100 : 0;
   const proteinProgress = proteinGoal > 0 ? (todaySummary.protein / proteinGoal) * 100 : 0;
   const hydrationProgress = hydrationBaseGoal > 0 ? (todaySummary.hydrationMl / hydrationBaseGoal) * 100 : 0;
@@ -2144,6 +2405,20 @@ function lockPrivateModule(feedbackText = '') {
       ? Math.max(0, 100 - (Math.abs(Number(todaySummary.weight) - weightGoal) / weightGoal) * 100)
       : 0;
   const isSundayReminderVisible = getDayOfWeekKey(currentDate) === 'domingo';
+  const dashboardProteinReferenceLabel =
+    cutReferenceProteinMin !== null && cutReferenceProteinMax !== null ? `Rango corte: ${cutReferenceProteinRangeLabel}` : 'Sin referencia de corte';
+  const dashboardProteinHelper = proteinGoal > 0
+    ? proteinAlert
+      ? `Te faltan ${formatUnitValue(proteinGoal - todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} • ${dashboardProteinReferenceLabel}`
+      : `Meta de proteina cumplida • ${dashboardProteinReferenceLabel}`
+    : dashboardProteinReferenceLabel;
+  const dashboardFatSubtitle = hasDailyFatCutRange
+    ? `Límite operativo: ${formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })} • Meta corte: ${cutReferenceFatRangeLabel}`
+    : `Límite operativo: ${formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })}`;
+  const dashboardCutReferenceMiniLabel =
+    cutReferenceCutMin !== null || cutReferenceCutMax !== null
+      ? cutReferenceCutRangeLabel
+      : 'Sin referencia de corte';
   const recentFoods = useMemo(() => sortFoods(diaryData.foods), [diaryData.foods]);
   const visibleRecentFoods = useMemo(
     () => (showAllRecentFoods ? recentFoods : recentFoods.slice(0, 5)),
@@ -2490,7 +2765,20 @@ function lockPrivateModule(feedbackText = '') {
     setDiaryData((current) => ({
       ...current,
       goals: {
+        ...current.goals,
         ...goalForm,
+      },
+    }));
+  }
+
+  function handleCutReferenceSubmit(event) {
+    event.preventDefault();
+    markPersistenceReason('guardar:cut-reference');
+    setDiaryData((current) => ({
+      ...current,
+      goals: {
+        ...current.goals,
+        ...cutReferenceForm,
       },
     }));
   }
@@ -2596,7 +2884,8 @@ function lockPrivateModule(feedbackText = '') {
 
         markPersistenceReason('importar:backup');
         setDiaryData(importedData);
-        setGoalForm(importedData.goals || defaultState.goals);
+        setGoalForm(pickGoalFormValues(importedData.goals || defaultState.goals));
+        setCutReferenceForm(pickCutReferenceFormValues(importedData.goals || defaultState.goals));
         setObjectiveForm(
           (importedData.objectives && importedData.objectives[0]) ||
             defaultState.objectives?.[0] ||
@@ -2646,7 +2935,8 @@ function lockPrivateModule(feedbackText = '') {
     markPersistenceReason('reset:app');
     clearAppData();
     setDiaryData(defaultState);
-    setGoalForm(defaultState.goals);
+    setGoalForm(pickGoalFormValues(defaultState.goals));
+    setCutReferenceForm(pickCutReferenceFormValues(defaultState.goals));
     setObjectiveForm(defaultState.objectives?.[0] || createEmptyObjective());
     resetFoodForm();
     resetHydrationForm();
@@ -4160,6 +4450,7 @@ function lockPrivateModule(feedbackText = '') {
             <div className="progress-card-grid">
               <ProgressCard
                 title="Calorias"
+                className="dashboard-mobile-card-calories"
                 value={formatIntegerValue(todaySummary.calories, 'kcal', '0 kcal')}
                 subtitle={
                   calorieGoal > 0
@@ -4177,59 +4468,31 @@ function lockPrivateModule(feedbackText = '') {
 
               <ProgressCard
                 title="Proteina"
+                className="dashboard-mobile-card-protein"
                 value={formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}
                 subtitle={
                   proteinGoal > 0
                     ? `Minimo diario: ${formatUnitValue(proteinGoal, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}`
-                    : 'Define un minimo de proteina.'
+                    : dashboardProteinReferenceLabel
                 }
                 progress={proteinProgress}
                 tone={proteinAlert ? 'alert' : 'success'}
-                helper={
-                  proteinGoal > 0
-                    ? proteinAlert
-                      ? `Te faltan ${formatUnitValue(proteinGoal - todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}`
-                      : 'Meta de proteina cumplida'
-                    : 'Sin meta configurada'
-                }
+                helper={dashboardProteinHelper}
               />
 
               <ProgressCard
                 title="Grasa diaria"
+                className="dashboard-mobile-card-fat"
                 value={formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}
-                subtitle={`Límite operativo: ${formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })}`}
+                subtitle={dashboardFatSubtitle}
                 progress={dailyFatProgress}
                 tone={dailyFatTone}
                 helper={dailyFatStatus}
               />
 
               <ProgressCard
-                title="Peso actual"
-                value={formatMetricValue(todaySummary.weight, todaySummary.weight === '--' ? '' : ' kg')}
-                subtitle={weightGoal > 0 ? `Objetivo: ${formatWeightValue(weightGoal, 'kg', '--')}` : 'Configura un peso objetivo.'}
-                progress={weightProgress}
-                tone="weight"
-                helper={
-                  todaySummary.bodyFat !== '--' || todaySummary.skeletalMuscleMass !== '--'
-                    ? `Grasa: ${formatMetricText(todaySummary.bodyFat, todaySummary.bodyFat === '--' ? '' : '%')} • Musculo: ${formatMetricText(
-                        todaySummary.skeletalMuscleMass,
-                        todaySummary.skeletalMuscleMass === '--' ? '' : ' kg'
-                      )}`
-                    : getWeightMessage(todaySummary.weight === '--' ? null : Number(todaySummary.weight), weightGoal)
-                }
-              />
-
-              <ProgressCard
-                title="Actividad"
-                value={formatIntegerValue(todaySummary.exerciseCalories, 'kcal', '0 kcal')}
-                subtitle={`${formatIntegerValue(todaySummary.exerciseMinutes, 'min', '0 min')} de ejercicio hoy`}
-                progress={Math.min((todaySummary.exerciseMinutes / 60) * 100, 100)}
-                tone="movement"
-                helper={`${todaySummary.exerciseEntries} sesiones registradas`}
-              />
-
-              <ProgressCard
                 title="Ayuno"
+                className="dashboard-mobile-card-fasting"
                 value={displayedFastingProtocolLabel}
                 subtitle={
                   todaySummary.fastingStatus === 'dia libre'
@@ -4268,7 +4531,25 @@ function lockPrivateModule(feedbackText = '') {
               />
 
               <ProgressCard
+                title="Peso actual"
+                className="dashboard-mobile-card-weight"
+                value={formatMetricValue(todaySummary.weight, todaySummary.weight === '--' ? '' : ' kg')}
+                subtitle={weightGoal > 0 ? `Objetivo: ${formatWeightValue(weightGoal, 'kg', '--')}` : 'Configura un peso objetivo.'}
+                progress={weightProgress}
+                tone="weight"
+                helper={
+                  todaySummary.bodyFat !== '--' || todaySummary.skeletalMuscleMass !== '--'
+                    ? `Grasa: ${formatMetricText(todaySummary.bodyFat, todaySummary.bodyFat === '--' ? '' : '%')} • Musculo: ${formatMetricText(
+                        todaySummary.skeletalMuscleMass,
+                        todaySummary.skeletalMuscleMass === '--' ? '' : ' kg'
+                      )}`
+                    : getWeightMessage(todaySummary.weight === '--' ? null : Number(todaySummary.weight), weightGoal)
+                }
+              />
+
+              <ProgressCard
                 title="Hidratacion"
+                className="dashboard-mobile-card-hydration"
                 value={formatUnitValue(todaySummary.hydrationMl, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}
                 subtitle={`Meta diaria: ${formatUnitValue(hydrationBaseGoal || 0, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}`}
                 progress={hydrationProgress}
@@ -4280,7 +4561,17 @@ function lockPrivateModule(feedbackText = '') {
                 }
               />
 
-              <article className="progress-card progress-card-krav dashboard-krav-progress-card">
+              <ProgressCard
+                title="Actividad"
+                className="dashboard-mobile-card-activity"
+                value={formatIntegerValue(todaySummary.exerciseCalories, 'kcal', '0 kcal')}
+                subtitle={`${formatIntegerValue(todaySummary.exerciseMinutes, 'min', '0 min')} de ejercicio hoy`}
+                progress={Math.min((todaySummary.exerciseMinutes / 60) * 100, 100)}
+                tone="movement"
+                helper={`${todaySummary.exerciseEntries} sesiones registradas`}
+              />
+
+              <article className="progress-card progress-card-krav dashboard-krav-progress-card dashboard-mobile-card-krav">
                 <div className="progress-card-top dashboard-krav-head">
                   <div className="dashboard-krav-title-group">
                     <span>Krav Maga</span>
@@ -4306,21 +4597,25 @@ function lockPrivateModule(feedbackText = '') {
               </article>
             </div>
 
-            {proteinAlert ? (
-              <div className="alert-banner">
-                <strong>Alerta de proteina:</strong> hoy llevas {formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} y tu minimo configurado es {formatUnitValue(proteinGoal, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}.
-              </div>
-            ) : null}
+            {proteinAlert || fatAlert || isSundayReminderVisible ? (
+              <div className="dashboard-alert-stack">
+                {proteinAlert ? (
+                  <div className="alert-banner">
+                    <strong>Alerta de proteina:</strong> hoy llevas {formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} y tu minimo configurado es {formatUnitValue(proteinGoal, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}.
+                  </div>
+                ) : null}
 
-            {fatAlert ? (
-              <div className="alert-banner">
-                <strong>Alerta de grasa:</strong> hoy llevas {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}; limite operativo {formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })}.
-              </div>
-            ) : null}
+                {fatAlert ? (
+                  <div className="alert-banner">
+                    <strong>Alerta de grasa:</strong> hoy llevas {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}; limite operativo {formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })}.
+                  </div>
+                ) : null}
 
-            {isSundayReminderVisible ? (
-              <div className="alert-banner alert-banner-sunday">
-                <strong>Domingo con control:</strong> evita azucar, harina y exceso de calorias. No tires a la basura el esfuerzo de la semana.
+                {isSundayReminderVisible ? (
+                  <div className="alert-banner alert-banner-sunday">
+                    <strong>Domingo con control:</strong> evita azucar, harina y exceso de calorias. No tires a la basura el esfuerzo de la semana.
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -4366,6 +4661,11 @@ function lockPrivateModule(feedbackText = '') {
                     <small className="helper-text">
                       El dashboard resume comida, suplementos y ejercicio de hoy, pero usa la ultima metrica disponible aunque no sea de hoy.
                     </small>
+                  </div>
+                  <div className="mini-stat">
+                    <span>Corte útil</span>
+                    <strong>{dashboardCutReferenceMiniLabel}</strong>
+                    <small>{cutReferenceTdee !== null ? `TDEE operativo ${formatIntegerValue(cutReferenceTdee, 'kcal', 'Sin dato')}` : 'Referencia desde Ajustes'}</small>
                   </div>
                 </div>
               </SectionCard>
@@ -4562,6 +4862,33 @@ function lockPrivateModule(feedbackText = '') {
                   </div>
                 </div>
 
+                {isObjectiveCutGoal ? (
+                  <div className="objective-cut-reference-panel">
+                    <div className="objective-cut-reference-head">
+                      <strong>Referencia de corte cargada</strong>
+                      <small>Apoyo visual tomado desde Ajustes para que la meta de corte no pierda contexto operativo.</small>
+                    </div>
+                    <div className="mini-stat-grid objective-cut-reference-grid">
+                      <div className="mini-stat">
+                        <span>TDEE operativo</span>
+                        <strong>{formatIntegerValue(cutReferenceTdee, 'kcal', 'Sin dato')}</strong>
+                      </div>
+                      <div className="mini-stat">
+                        <span>Rango útil de corte</span>
+                        <strong>{cutReferenceCutRangeLabel}</strong>
+                      </div>
+                      <div className="mini-stat">
+                        <span>Macros de referencia</span>
+                        <strong>{cutReferenceMacrosLabel}</strong>
+                      </div>
+                      <div className="mini-stat">
+                        <span>Estado</span>
+                        <strong>{hasCutReferenceLoaded ? 'Referencia cargada' : 'Aún sin referencia'}</strong>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="form-actions">
                   <button className="button button-primary" type="submit">Guardar objetivo</button>
                 </div>
@@ -4571,14 +4898,35 @@ function lockPrivateModule(feedbackText = '') {
             <div className="split-layout objective-layout">
               <SectionCard title="Guardrails nutricionales" subtitle="Limites simples para sostener la ejecucion semanal." className="card-soft">
                 <form className="record-form objective-subform" onSubmit={handleObjectiveSubmit}>
+                  {isObjectiveCutGoal && hasCutReferenceLoaded ? (
+                    <p className="section-helper objective-cut-reference-helper">
+                      Referencia visible: TDEE operativo {formatIntegerValue(cutReferenceTdee, 'kcal', 'Sin dato')} • Corte útil {cutReferenceCutRangeLabel} • Proteína {cutReferenceProteinRangeLabel}
+                    </p>
+                  ) : null}
                   <div className="form-grid">
                     <label className="field">
                       <span>Calorias promedio objetivo</span>
-                      <input name="averageCaloriesTarget" type="number" min="0" step="1" value={objectiveForm.averageCaloriesTarget} onChange={handleFormChange(setObjectiveForm)} />
+                      <input
+                        name="averageCaloriesTarget"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={objectiveForm.averageCaloriesTarget}
+                        onChange={handleFormChange(setObjectiveForm)}
+                        placeholder={isObjectiveCutGoal && !objectiveForm.averageCaloriesTarget && cutReferenceCutMin !== null ? String(cutReferenceCutMin) : ''}
+                      />
                     </label>
                     <label className="field">
                       <span>Limite superior promedio</span>
-                      <input name="averageUpperLimit" type="number" min="0" step="1" value={objectiveForm.averageUpperLimit} onChange={handleFormChange(setObjectiveForm)} />
+                      <input
+                        name="averageUpperLimit"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={objectiveForm.averageUpperLimit}
+                        onChange={handleFormChange(setObjectiveForm)}
+                        placeholder={isObjectiveCutGoal && !objectiveForm.averageUpperLimit && cutReferenceCutMax !== null ? String(cutReferenceCutMax) : ''}
+                      />
                     </label>
                     <label className="field">
                       <span>Minimo habitual</span>
@@ -4586,7 +4934,15 @@ function lockPrivateModule(feedbackText = '') {
                     </label>
                     <label className="field">
                       <span>Proteina minima</span>
-                      <input name="proteinMinimum" type="number" min="0" step="1" value={objectiveForm.proteinMinimum} onChange={handleFormChange(setObjectiveForm)} />
+                      <input
+                        name="proteinMinimum"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={objectiveForm.proteinMinimum}
+                        onChange={handleFormChange(setObjectiveForm)}
+                        placeholder={isObjectiveCutGoal && !objectiveForm.proteinMinimum && cutReferenceProteinMin !== null ? String(cutReferenceProteinMin) : ''}
+                      />
                     </label>
                     <label className="field">
                       <span>Hidratacion base</span>
@@ -4620,6 +4976,38 @@ function lockPrivateModule(feedbackText = '') {
                   </div>
                 </form>
               </SectionCard>
+
+              <SectionCard
+                title="Alimentos base de corte"
+                subtitle="Referencia limpia para mayo: simple, visual y alineada con la nota del coach."
+                className="card-soft objective-food-reference-card"
+              >
+                <div className="objective-food-reference-summary">
+                  <strong>Guía rápida de consulta</strong>
+                  <p>Úsala para elegir comidas y compras limpias del corte sin convertir esta pestaña en una tabla nutricional pesada.</p>
+                </div>
+                <div className="objective-food-reference-rule">
+                  <strong>Regla de coach</strong>
+                  <p>{cutMayReferenceRule}</p>
+                </div>
+                <div className="objective-food-reference-grid">
+                  {cutMayReferenceGroups.map((group) => (
+                    <article className="objective-food-group" key={group.title}>
+                      <div className="objective-food-group-head">
+                        <span>{group.title}</span>
+                        {group.description ? <small>{group.description}</small> : null}
+                      </div>
+                      <div className="objective-food-chip-list">
+                        {group.items.map((item) => (
+                          <span className="objective-food-chip" key={`${group.title}-${item}`}>
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </SectionCard>
             </div>
 
           </>
@@ -4627,6 +5015,57 @@ function lockPrivateModule(feedbackText = '') {
 
         {activeTab === 'settings' ? (
           <>
+            <SectionCard
+              title="Parámetros de corte"
+              subtitle="Referencia fija, editable y persistente para consultar rápido tu corte rumbo a 10% de grasa."
+              className="card-soft settings-cut-reference-card"
+            >
+              <div className="metrics-summary-grid settings-cut-reference-summary">
+                {cutReferenceSummaryCards.map((item) => (
+                  <div className="metrics-summary-card settings-cut-reference-summary-card" key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <small>{item.detail}</small>
+                  </div>
+                ))}
+              </div>
+
+              <form className="goal-form settings-cut-reference-form" onSubmit={handleCutReferenceSubmit}>
+                <div className="settings-cut-reference-groups">
+                  {cutReferenceFieldGroups.map((group) => (
+                    <section className="settings-cut-reference-group" key={group.title}>
+                      <div className="settings-cut-reference-group-head">
+                        <strong>{group.title}</strong>
+                        <small>{group.helper}</small>
+                      </div>
+
+                      <div className="goal-grid settings-cut-reference-grid">
+                        {group.fields.map((field) => (
+                          <label className="field" key={field.name}>
+                            <span>{field.label}</span>
+                            <input
+                              name={field.name}
+                              type="number"
+                              min="0"
+                              step={field.step}
+                              value={cutReferenceForm[field.name] || ''}
+                              onChange={handleFormChange(setCutReferenceForm)}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+
+                <div className="form-actions">
+                  <button className="button button-primary" type="submit">
+                    Guardar parámetros de corte
+                  </button>
+                </div>
+              </form>
+            </SectionCard>
+
             <SectionCard
               title="Sincronizacion"
               subtitle="Cache local inmediata con snapshot remoto en Supabase para compartir tu diario entre dispositivos."
@@ -5156,7 +5595,7 @@ function lockPrivateModule(feedbackText = '') {
         ) : null}
         {activeTab === 'fasting' ? (
           <div className="fasting-tab-stack">
-            <SectionCard title="Resumen de hoy" subtitle="Vista rapida basada solo en registros reales y días libres." className="card-soft">
+            <SectionCard title="Resumen de hoy" subtitle="Vista rapida basada solo en registros reales y días libres." className="card-soft fasting-today-summary-card">
               <div className="section-inline-actions section-inline-actions-tight fasting-day-toggle">
                 <button
                   className={`button ${isTodayFastingFree ? 'button-primary' : 'button-secondary'}`}
@@ -5181,31 +5620,31 @@ function lockPrivateModule(feedbackText = '') {
                   <strong>{fastingFeedback.type === 'warning' ? 'Atencion:' : 'Ayuno:'}</strong> {fastingFeedback.text}
                 </div>
               ) : null}
-              <div className="supplement-summary-grid">
-                <div className="supplement-summary-card fasting-summary-primary-card">
+              <div className="supplement-summary-grid fasting-summary-grid">
+                <div className="supplement-summary-card fasting-summary-primary-card fasting-summary-card-status">
                   <span>Estado real</span>
                   <strong>{displayedFastingStatusLabel}</strong>
                   <small className="fasting-summary-note">{displayedFastingSummaryText}</small>
                 </div>
-                <div className="supplement-summary-card">
+                <div className="supplement-summary-card fasting-summary-card-protocol">
                   <span>Registro de hoy</span>
                   <strong>{displayedFastingProtocolLabel}</strong>
                   {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <small className="fasting-summary-note">Hito visual activado desde 16 h de ayuno activo.</small> : null}
                 </div>
-                <div className="supplement-summary-card">
+                <div className="supplement-summary-card fasting-summary-card-elapsed">
                   <span>Horas acumuladas</span>
                   <strong>{displayedFastingStatus === 'pendiente' ? 'Sin registro' : displayedFastingElapsedLabel}</strong>
                 </div>
-                <div className="supplement-summary-card">
+                <div className="supplement-summary-card fasting-summary-card-goal">
                   <span>Meta del registro</span>
                   <strong>{shouldTreatTodayAsFastingFree ? 'Día libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta definida'}</strong>
                 </div>
-                <div className="supplement-summary-card">
+                <div className="supplement-summary-card fasting-summary-card-progress">
                   <span>Progreso</span>
                   <strong>{activeFastingProgressLabel}</strong>
                 </div>
               </div>
-              <div className="fasting-live-card">
+              <div className="fasting-live-card fasting-today-live-card">
                 <div className="fasting-live-header">
                   <div>
                     <strong>{displayedFastingDisplay}</strong>
@@ -6759,10 +7198,10 @@ function lockPrivateModule(feedbackText = '') {
                 {kravPracticeLogCards.length === 0 ? (
                   <div className="empty-state-card krav-empty-state-card">
                     <div className="krav-heading-copy">
-                      <strong>Tu bitácora técnica aún está vacía</strong>
-                      <span className="krav-meta-line">Registra fecha, coach, técnicas practicadas y dos notas claras para convertir la sesión en aprendizaje útil.</span>
+                      <strong>Sin práctica técnica registrada</strong>
+                      <span className="krav-meta-line">Guarda fecha, coach, técnicas y puntos a repasar para arrancar tu bitácora sin fricción.</span>
                     </div>
-                    <div className="entry-actions">
+                    <div className="entry-actions krav-empty-state-actions">
                       <button className="button button-primary" type="button" onClick={() => setShowKravPracticeBuilder(true)}>
                         Registrar práctica técnica
                       </button>
@@ -6865,8 +7304,12 @@ function lockPrivateModule(feedbackText = '') {
               <div className="metrics-trend-grid metrics-base-grid">
                 {metricBaseComparisonCards.map((item) => (
                   <article className="metrics-trend-card metrics-base-card" key={item.label}>
-                    <span>{item.label}</span>
-                    <strong className={item.className}>{item.value}</strong>
+                    <div className="metrics-base-card-top">
+                      <span>{item.label}</span>
+                      <small>{item.snapshotLabel}</small>
+                    </div>
+                    <strong className="metrics-base-current">{item.currentValue}</strong>
+                    <span className={item.trendClass}>{item.changeLabel}</span>
                     <p>{item.detail}</p>
                   </article>
                 ))}
@@ -7780,6 +8223,221 @@ function lockPrivateModule(feedbackText = '') {
                 </SectionCard>
 
                 <div className="private-section-stack">
+                  <div ref={privateDailyHormonalSectionRef}>
+                  <SectionCard
+                    title="Control diario hormonal"
+                    subtitle={
+                      hasActivePrivateCycle
+                        ? 'Panel principal del día para revisar tomas, inventario y alertas de stock en segundos.'
+                        : 'Disponible cuando exista un ciclo activo.'
+                    }
+                    className={`card-soft private-daily-control-panel ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                  >
+                    {hasActivePrivateCycle ? (
+                      <div className="private-medication-stack">
+                        <div className="private-medication-summary-grid">
+                          {dailyHormonalMedicationCards.length > 0 ? (
+                            <>
+                              <article className="private-weekly-card">
+                                <span>Panel activo</span>
+                                <strong>{dailyHormonalMedicationSummary.totalControls} controles</strong>
+                                <small>Liver Cleanse, Tamoxifeno, Clomifeno y Oxandrolona en vista rápida.</small>
+                              </article>
+                              <article className="private-weekly-card">
+                                <span>Tomas de hoy</span>
+                                <strong>{dailyHormonalMedicationSummary.completedDoses}/{dailyHormonalMedicationSummary.expectedDoses}</strong>
+                                <small>{dailyHormonalMedicationSummary.completedControls}/{dailyHormonalMedicationSummary.totalControls} controles completos hoy.</small>
+                              </article>
+                              <article className="private-weekly-card">
+                                <span>Alertas de stock</span>
+                                <strong>{dailyHormonalMedicationSummary.lowInventoryControls}</strong>
+                                <small>Incluye inventario bajo y agotado dentro del panel diario.</small>
+                              </article>
+                            </>
+                          ) : (
+                            <article className="private-weekly-card">
+                              <span>Estado</span>
+                              <strong>Sin controles diarios visibles</strong>
+                              <small>Agrega o vincula los cuatro controles diarios al ciclo activo para usar este panel.</small>
+                            </article>
+                          )}
+                        </div>
+
+                        <div className="private-medication-grid">
+                          {dailyHormonalMedicationCards.length === 0 ? (
+                            <div className="private-empty-state-panel private-empty-state-panel-inline">
+                              <p className="empty-state">
+                                Aún no están disponibles los cuatro controles diarios del ciclo activo.
+                              </p>
+                              <div className="section-inline-actions section-inline-actions-tight">
+                                <button className="button button-secondary" type="button" onClick={() => openPrivateForm('medication')}>
+                                  Abrir ajustes
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+                          {dailyHormonalMedicationCards.map((item) => (
+                            <article className={`private-medication-card private-medication-card-${item.inventoryTone}`.trim()} key={`daily-${item.id}`}>
+                              <div className="private-medication-head">
+                                <div className="private-medication-title-group">
+                                  <strong>{item.displayName}</strong>
+                                  <span>
+                                    {privateMedicationTypeLabels[item.medicationType] || item.medicationType || 'Control'} ·{' '}
+                                    {privateMedicationScheduleLabels[item.scheduleMode] ||
+                                      (item.dailyStatus.expectedCount > 1 ? '2 al día' : '1 al día')}
+                                  </span>
+                                  {item.alias ? <small>{item.alias}</small> : null}
+                                </div>
+                                <div className="private-medication-badges">
+                                  <span className="metrics-source-chip">{item.dailyLabel}</span>
+                                  {item.dailyStatus.isOutOfStock ? (
+                                    <span className="private-medication-badge private-medication-badge-out">Agotado</span>
+                                  ) : null}
+                                  {!item.dailyStatus.isOutOfStock && item.dailyStatus.isLowInventory ? (
+                                    <span className="private-medication-badge private-medication-badge-low">Inventario bajo</span>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div className="private-medication-body">
+                                <div className="private-medication-meta">
+                                  <span>Tomas del día</span>
+                                  <strong>
+                                    {item.dailyStatus.expectedCount > 1
+                                      ? `${item.dailyStatus.takenCount}/${item.dailyStatus.expectedCount}`
+                                      : item.dailyStatus.hasTakenToday
+                                        ? '1/1'
+                                        : '0/1'}
+                                  </strong>
+                                  <small>
+                                    {item.dailyStatus.expectedCount > 1
+                                      ? item.dailyStatus.isComplete
+                                        ? 'Dosis del día completas'
+                                        : 'Aún faltan tomas por marcar'
+                                      : item.dailyStatus.hasTakenToday
+                                        ? 'Tomado hoy'
+                                        : 'Pendiente hoy'}
+                                  </small>
+                                </div>
+                                <div className="private-medication-count">
+                                  <span>Inventario restante</span>
+                                  <strong>{item.dailyStatus.remainingInventory}</strong>
+                                  <small>{item.inventoryLabel}</small>
+                                </div>
+                              </div>
+
+                              {item.notes ? <p className="metrics-notes private-medication-notes">{item.notes}</p> : null}
+
+                              <div className="private-medication-actions">
+                                {item.dailyStatus.expectedCount > 1 ? (
+                                  <div className="private-medication-slot-row">
+                                    <button
+                                      className={`button ${item.dailyStatus.takenSlots.includes('manana') ? 'button-secondary' : 'button-primary'}`}
+                                      type="button"
+                                      onClick={() => {
+                                        bumpPrivateActivity();
+                                        if (item.dailyStatus.takenSlots.includes('manana')) {
+                                          handleUndoPrivateMedicationDose(item.id, 'manana');
+                                          return;
+                                        }
+                                        handlePrivateMedicationDose(item.id, 'manana');
+                                      }}
+                                      disabled={item.dailyStatus.isOutOfStock && !item.dailyStatus.takenSlots.includes('manana')}
+                                    >
+                                      {item.dailyStatus.takenSlots.includes('manana') ? 'Deshacer mañana' : 'Mañana'}
+                                    </button>
+                                    <button
+                                      className={`button ${item.dailyStatus.takenSlots.includes('tarde') ? 'button-secondary' : 'button-primary'}`}
+                                      type="button"
+                                      onClick={() => {
+                                        bumpPrivateActivity();
+                                        if (item.dailyStatus.takenSlots.includes('tarde')) {
+                                          handleUndoPrivateMedicationDose(item.id, 'tarde');
+                                          return;
+                                        }
+                                        handlePrivateMedicationDose(item.id, 'tarde');
+                                      }}
+                                      disabled={item.dailyStatus.isOutOfStock && !item.dailyStatus.takenSlots.includes('tarde')}
+                                    >
+                                      {item.dailyStatus.takenSlots.includes('tarde') ? 'Deshacer tarde' : 'Tarde'}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className={`button ${item.dailyStatus.hasTakenToday ? 'button-secondary' : 'button-primary'}`}
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      if (item.dailyStatus.hasTakenToday) {
+                                        handleUndoPrivateMedicationDose(item.id, 'single');
+                                        return;
+                                      }
+                                      handlePrivateMedicationDose(item.id, 'single');
+                                    }}
+                                    disabled={item.dailyStatus.isOutOfStock && !item.dailyStatus.hasTakenToday}
+                                  >
+                                    {item.dailyStatus.hasTakenToday ? 'Deshacer' : 'Tomar'}
+                                  </button>
+                                )}
+
+                                <div className="entry-actions">
+                                  <button
+                                    className="button button-secondary"
+                                    type="button"
+                                    onClick={() => {
+                                      bumpPrivateActivity();
+                                      startEditing(
+                                        'privateCycleMedications',
+                                        item.id,
+                                        setPrivateMedicationForm,
+                                        setEditingPrivateMedicationId,
+                                        'private'
+                                      );
+                                      openPrivateForm('medication', {
+                                        focusSelector:
+                                          'input[name="remainingInventory"], input[name="name"], textarea[name="notes"]',
+                                      });
+                                    }}
+                                  >
+                                    Ajustar inventario
+                                  </button>
+                                  <button
+                                    className="button button-danger"
+                                    type="button"
+                                    onClick={() => {
+                                      if (!window.confirm(`¿Eliminar ${item.displayName || 'este control'}? Esta acción quita el control y su historial diario.`)) {
+                                        return;
+                                      }
+                                      bumpPrivateActivity();
+                                      deleteRecord(
+                                        'privateCycleMedications',
+                                        item.id,
+                                        setEditingPrivateMedicationId,
+                                        resetPrivateMedicationForm
+                                      );
+                                    }}
+                                  >
+                                    Eliminar
+                                  </button>
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="private-empty-state-panel">
+                        <p className="empty-state">Activa un ciclo para usar el panel diario de control hormonal.</p>
+                        <div className="section-inline-actions section-inline-actions-tight">
+                          <button className="button button-primary" type="button" onClick={() => openPrivateForm('cycle')}>
+                            Crear o activar ciclo
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </SectionCard>
+                  </div>
+
                   <SectionCard
                     title="Resumen operativo"
                     subtitle="Estado actual y actividad reciente."
@@ -7861,6 +8519,9 @@ function lockPrivateModule(feedbackText = '') {
                     className="card-soft private-nav-band"
                   >
                     <div className="section-inline-actions private-nav-actions">
+                      <button className="button button-secondary private-nav-button" type="button" onClick={() => privateDailyHormonalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                        Control diario
+                      </button>
                       <button className="button button-secondary private-nav-button" type="button" onClick={() => scrollToPrivateSection('cycle')}>
                         Ciclos
                       </button>
@@ -8253,49 +8914,19 @@ function lockPrivateModule(feedbackText = '') {
                   </SectionCard>
 
                   <SectionCard
-                    title="Control diario de protectores y oral"
+                    title="Ajustes avanzados del control hormonal"
                     subtitle={
                       hasActivePrivateCycle
-                        ? 'Marca tomas del dia, descuenta inventario y vigila rapidamente los faltantes del ciclo activo.'
+                        ? 'Bloque secundario para altas nuevas, correcciones de inventario y cambios de configuración.'
                         : 'Disponible cuando exista un ciclo activo.'
                     }
-                    className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
+                    className={`card-soft private-medication-management-card private-secondary-card ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
                   >
                     {hasActivePrivateCycle ? (
                       <div className="private-medication-stack" ref={privateMedicationSectionRef}>
-                        <div className="private-medication-summary-grid">
-                          {privateMedicationCards.length > 0 ? (
-                            <>
-                              <article className="private-weekly-card">
-                                <span>Controles activos</span>
-                                <strong>{privateMedicationCards.length}</strong>
-                                <small>Protectores y orales ligados al ciclo activo.</small>
-                              </article>
-                              <article className="private-weekly-card">
-                                <span>Tomados hoy</span>
-                                <strong>
-                                  {
-                                    privateMedicationCards.filter((item) => item.dailyStatus.expectedCount === item.dailyStatus.takenCount).length
-                                  }
-                                  /{privateMedicationCards.length}
-                                </strong>
-                                <small>Cuenta los elementos que ya cumplieron su objetivo diario.</small>
-                              </article>
-                              <article className="private-weekly-card">
-                                <span>Inventario en alerta</span>
-                                <strong>{privateMedicationCards.filter((item) => item.dailyStatus.isLowInventory).length}</strong>
-                                <small>Incluye inventario bajo y agotado.</small>
-                              </article>
-                            </>
-                          ) : (
-                            <article className="private-weekly-card">
-                              <span>Estado</span>
-                              <strong>Sin controles activos</strong>
-                              <small>Agrega protectores u orales del ciclo para empezar a descontar inventario.</small>
-                            </article>
-                          )}
-                        </div>
-
+                        <p className="section-helper">
+                          El panel rápido de uso diario vive arriba. Usa este bloque solo cuando necesites crear un control nuevo o corregir inventario/configuración.
+                        </p>
                         <div className="section-inline-actions section-inline-actions-tight">
                           <button className="button button-secondary private-toggle-button" type="button" onClick={() => togglePrivateForm('medication')}>
                             {privateFormVisibility.medication ? 'Ocultar formulario' : 'Mostrar formulario'}
@@ -8403,155 +9034,10 @@ function lockPrivateModule(feedbackText = '') {
                             submitLabel={editingPrivateMedicationId ? 'Guardar control' : 'Guardar control'}
                           />
                         ) : (
-                          <p className="section-helper">Primero ves el estado operativo del día; abre el formulario solo cuando necesites ajustar inventario o editar un producto.</p>
+                          <p className="section-helper">
+                            El panel diario quedó arriba. Abre este formulario solo cuando necesites crear un control nuevo, corregir inventario o editar su configuración.
+                          </p>
                         )}
-
-                        <div className="private-medication-grid">
-                          {privateMedicationCards.length === 0 ? (
-                            <p className="empty-state">Aun no hay protectores ni orales activos ligados al ciclo actual.</p>
-                          ) : null}
-                          {privateMedicationCards.map((item) => (
-                            <article className={`private-medication-card private-medication-card-${item.inventoryTone}`.trim()} key={item.id}>
-                              <div className="private-medication-head">
-                                <div className="private-medication-title-group">
-                                  <strong>{item.name || 'Control sin nombre'}</strong>
-                                  <span>
-                                    {privateMedicationTypeLabels[item.medicationType] || item.medicationType || 'Control'} ·{' '}
-                                    {privateMedicationScheduleLabels[item.scheduleMode] ||
-                                      (item.dailyStatus.expectedCount > 1 ? '2 al día' : '1 al día')}
-                                  </span>
-                                  {item.alias ? <small>{item.alias}</small> : null}
-                                </div>
-                                <div className="private-medication-badges">
-                                  <span className="metrics-source-chip">{item.dailyLabel}</span>
-                                  {item.dailyStatus.isOutOfStock ? (
-                                    <span className="private-medication-badge private-medication-badge-out">Agotado</span>
-                                  ) : null}
-                                  {!item.dailyStatus.isOutOfStock && item.dailyStatus.isLowInventory ? (
-                                    <span className="private-medication-badge private-medication-badge-low">Quedan 10 o menos</span>
-                                  ) : null}
-                                </div>
-                              </div>
-
-                              <div className="private-medication-body">
-                                <div className="private-medication-count">
-                                  <span>Restantes</span>
-                                  <strong>{item.dailyStatus.remainingInventory}</strong>
-                                  <small>{item.inventoryLabel}</small>
-                                </div>
-                                <div className="private-medication-meta">
-                                  <span>Objetivo diario</span>
-                                  <strong>
-                                    {item.dailyStatus.expectedCount > 1 ? `${item.dailyStatus.expectedCount} tomas` : '1 toma'}
-                                  </strong>
-                                  <small>
-                                    {item.dailyStatus.expectedCount > 1
-                                      ? `Hoy: ${item.dailyStatus.takenCount}/${item.dailyStatus.expectedCount}`
-                                      : item.dailyStatus.hasTakenToday
-                                        ? 'Hoy: tomado'
-                                        : 'Hoy: pendiente'}
-                                  </small>
-                                </div>
-                              </div>
-
-                              {item.notes ? <p className="metrics-notes private-medication-notes">{item.notes}</p> : null}
-
-                              <div className="private-medication-actions">
-                                {item.dailyStatus.expectedCount > 1 ? (
-                                  <div className="private-medication-slot-row">
-                                    <button
-                                      className={`button ${item.dailyStatus.takenSlots.includes('manana') ? 'button-secondary' : 'button-primary'}`}
-                                      type="button"
-                                      onClick={() => {
-                                        bumpPrivateActivity();
-                                        if (item.dailyStatus.takenSlots.includes('manana')) {
-                                          handleUndoPrivateMedicationDose(item.id, 'manana');
-                                          return;
-                                        }
-                                        handlePrivateMedicationDose(item.id, 'manana');
-                                      }}
-                                      disabled={item.dailyStatus.isOutOfStock && !item.dailyStatus.takenSlots.includes('manana')}
-                                    >
-                                      {item.dailyStatus.takenSlots.includes('manana') ? 'Deshacer mañana' : 'Mañana'}
-                                    </button>
-                                    <button
-                                      className={`button ${item.dailyStatus.takenSlots.includes('tarde') ? 'button-secondary' : 'button-primary'}`}
-                                      type="button"
-                                      onClick={() => {
-                                        bumpPrivateActivity();
-                                        if (item.dailyStatus.takenSlots.includes('tarde')) {
-                                          handleUndoPrivateMedicationDose(item.id, 'tarde');
-                                          return;
-                                        }
-                                        handlePrivateMedicationDose(item.id, 'tarde');
-                                      }}
-                                      disabled={item.dailyStatus.isOutOfStock && !item.dailyStatus.takenSlots.includes('tarde')}
-                                    >
-                                      {item.dailyStatus.takenSlots.includes('tarde') ? 'Deshacer tarde' : 'Tarde'}
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    className={`button ${item.dailyStatus.hasTakenToday ? 'button-secondary' : 'button-primary'}`}
-                                    type="button"
-                                    onClick={() => {
-                                      bumpPrivateActivity();
-                                      if (item.dailyStatus.hasTakenToday) {
-                                        handleUndoPrivateMedicationDose(item.id, 'single');
-                                        return;
-                                      }
-                                      handlePrivateMedicationDose(item.id, 'single');
-                                    }}
-                                    disabled={item.dailyStatus.isOutOfStock && !item.dailyStatus.hasTakenToday}
-                                  >
-                                    {item.dailyStatus.hasTakenToday ? 'Deshacer' : 'Tomar'}
-                                  </button>
-                                )}
-
-                                <div className="entry-actions">
-                                  <button
-                                    className="button button-secondary"
-                                    type="button"
-                                    onClick={() => {
-                                      bumpPrivateActivity();
-                                      startEditing(
-                                        'privateCycleMedications',
-                                        item.id,
-                                        setPrivateMedicationForm,
-                                        setEditingPrivateMedicationId,
-                                        'private'
-                                      );
-                                      openPrivateForm('medication', {
-                                        focusSelector:
-                                          'input[name="remainingInventory"], input[name="name"], textarea[name="notes"]',
-                                      });
-                                    }}
-                                  >
-                                    Ajustar inventario
-                                  </button>
-                                  <button
-                                    className="button button-danger"
-                                    type="button"
-                                    onClick={() => {
-                                      if (!window.confirm(`¿Eliminar ${item.name || 'este control'}? Esta acción quita el control y su historial diario.`)) {
-                                        return;
-                                      }
-                                      bumpPrivateActivity();
-                                      deleteRecord(
-                                        'privateCycleMedications',
-                                        item.id,
-                                        setEditingPrivateMedicationId,
-                                        resetPrivateMedicationForm
-                                      );
-                                    }}
-                                  >
-                                    Eliminar
-                                  </button>
-                                </div>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
                       </div>
                     ) : (
                       <div className="private-empty-state-panel">
@@ -8916,7 +9402,10 @@ function lockPrivateModule(feedbackText = '') {
                       )}
                       <div className="metrics-card-list private-card-list">
                         {privateCycles.length === 0 ? <p className="empty-state">Todavia no hay ciclos privados guardados.</p> : null}
-                        {privateCycles.map((item) => (
+                        {privateCycles.map((item) => {
+                          const cycleFinancials = privateCycleFinancialMap.get(item.id);
+
+                          return (
                           <article className="metrics-card private-entry-card" key={item.id}>
                             <div className="metrics-card-top">
                               <div>
@@ -8929,6 +9418,12 @@ function lockPrivateModule(feedbackText = '') {
                               <span>{item.startDate ? `Inicio ${formatPrivateDate(item.startDate)}` : 'Inicio sin dato'}</span>
                               <span>{item.estimatedEndDate ? `Fin ${formatPrivateDate(item.estimatedEndDate)}` : 'Fin sin dato'}</span>
                               <span>{item.objective || 'Objetivo sin dato'}</span>
+                              {cycleFinancials?.hasOperationalBreakdown ? (
+                                <span>{`Protectores ${formatCurrencyMx(cycleFinancials.protectorsSubtotal)} • TRT ${formatCurrencyMx(cycleFinancials.trtConfirmedSubtotal)}`}</span>
+                              ) : null}
+                              {cycleFinancials ? (
+                                <span>{`Confirmado ${formatCurrencyMx(cycleFinancials.confirmedTotal || cycleFinancials.totalInvested)} • Pagado ${formatCurrencyMx(cycleFinancials.totalPaid)} • Pendiente ${formatCurrencyMx(cycleFinancials.confirmedPendingBalance || cycleFinancials.pendingBalance)}`}</span>
+                              ) : null}
                             </div>
                             {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
                             <div className="entry-actions">
@@ -8960,7 +9455,7 @@ function lockPrivateModule(feedbackText = '') {
                               </button>
                             </div>
                           </article>
-                        ))}
+                        )})}
                       </div>
                     </SectionCard>
 
@@ -9391,28 +9886,61 @@ function lockPrivateModule(feedbackText = '') {
                     {hasActivePrivateCycle ? (
                       <div ref={privateFinancialSummaryRef}>
                         <SectionCard
-                          title="Resumen de pagos"
-                          subtitle="Estado financiero del ciclo activo."
+                          title="Resumen financiero"
+                          subtitle="Protectores, TRT confirmado y pagos reales del ciclo activo."
                           className="card-soft private-secondary-pane"
                         >
-                        <div className="backup-meta-grid">
-                          <div className="backup-meta-card">
-                            <span>Costo total acumulado</span>
-                            <strong>{formatCurrencyMx(privateSummary.totalInvested)}</strong>
-                          </div>
-                          <div className="backup-meta-card">
-                            <span>Total pagado</span>
-                            <strong>{formatCurrencyMx(privateSummary.totalPaid)}</strong>
-                          </div>
-                          <div className="backup-meta-card">
-                            <span>Saldo pendiente</span>
-                            <strong>{formatCurrencyMx(privateSummary.pendingBalance)}</strong>
-                          </div>
-                          <div className="backup-meta-card">
-                            <span>Pagos registrados</span>
-                            <strong>{privateSummary.activePaymentsCount}</strong>
-                          </div>
+                        <div className="backup-meta-grid private-financial-summary-grid">
+                          {activeCycleFinancialSummary.hasOperationalBreakdown ? (
+                            <>
+                              <div className="backup-meta-card">
+                                <span>Subtotal protectores</span>
+                                <strong>{formatCurrencyMx(activeCycleFinancialSummary.protectorsSubtotal)}</strong>
+                              </div>
+                              <div className="backup-meta-card">
+                                <span>Subtotal TRT confirmado</span>
+                                <strong>{formatCurrencyMx(activeCycleFinancialSummary.trtConfirmedSubtotal)}</strong>
+                              </div>
+                              <div className="backup-meta-card">
+                                <span>Total parcial confirmado</span>
+                                <strong>{formatCurrencyMx(activeCycleFinancialSummary.confirmedTotal)}</strong>
+                              </div>
+                              <div className="backup-meta-card private-financial-card-emphasis">
+                                <span>Total pagado</span>
+                                <strong>{formatCurrencyMx(activeCycleFinancialSummary.totalPaid)}</strong>
+                              </div>
+                              <div className="backup-meta-card private-financial-card-alert">
+                                <span>Saldo pendiente real</span>
+                                <strong>{formatCurrencyMx(activeCycleFinancialSummary.confirmedPendingBalance)}</strong>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="backup-meta-card">
+                                <span>Costo total acumulado</span>
+                                <strong>{formatCurrencyMx(activeCycleFinancialSummary.totalInvested)}</strong>
+                              </div>
+                              <div className="backup-meta-card private-financial-card-emphasis">
+                                <span>Total pagado</span>
+                                <strong>{formatCurrencyMx(activeCycleFinancialSummary.totalPaid)}</strong>
+                              </div>
+                              <div className="backup-meta-card private-financial-card-alert">
+                                <span>Saldo pendiente</span>
+                                <strong>{formatCurrencyMx(activeCycleFinancialSummary.pendingBalance)}</strong>
+                              </div>
+                            </>
+                          )}
                         </div>
+                        <p className="section-helper">
+                          {activeCycleFinancialSummary.hasOperationalBreakdown
+                            ? `${activeCyclePayments.length} pagos registrados. Confirmado = protectores + TRT con precio real.`
+                            : `${activeCyclePayments.length} pagos registrados para el ciclo activo.`}
+                        </p>
+                        {activeCycleFinancialSummary.unresolvedProducts?.length > 0 ? (
+                          <p className="section-helper">
+                            Pendientes de confirmar: {activeCycleFinancialSummary.unresolvedProducts.join(', ')}. No se suman al total confirmado hasta tener costo real.
+                          </p>
+                        ) : null}
                         <div className="metrics-card-list private-card-list">
                           {activeCyclePayments.length === 0 ? <p className="empty-state">Aun sin pagos.</p> : null}
                           {activeCyclePayments.map((item) => {

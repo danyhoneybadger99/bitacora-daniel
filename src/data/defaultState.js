@@ -1,4 +1,4 @@
-import { createPrivateCycle2026SeedData } from '../utils/domain/private';
+import { repairPrivateCycle2026Data } from '../utils/domain/private';
 import { createEmptyKravSettings, createOrangeKravCurriculum } from '../utils/domain/krav';
 import { createInitialMetricSeed, createRecentManualMetricSeed } from '../utils/domain/metrics';
 import { getToday } from '../utils/date';
@@ -115,7 +115,7 @@ function createDefaultSyncMeta() {
 }
 
 export function createPrivateSeedData() {
-  return createPrivateCycle2026SeedData();
+  return repairPrivateCycle2026Data();
 }
 
 const privateSeedData = createPrivateSeedData();
@@ -149,6 +149,25 @@ export const defaultState = {
     weight: '75',
     hydrationBase: '3200',
     hydrationHighActivity: '4000',
+    cutReferenceCurrentWeight: '75.5',
+    cutReferenceTargetWeight10: '73.0',
+    cutReferenceFatToLose: '2.5',
+    cutReferenceEstimatedDeficit: '19250',
+    cutReferenceBmr: '1788',
+    cutReferenceTdee: '2800',
+    cutReferenceMaintenanceMin: '2750',
+    cutReferenceMaintenanceMax: '2900',
+    cutReferenceCutMin: '2250',
+    cutReferenceCutMax: '2500',
+    cutReferenceConservativeMin: '2400',
+    cutReferenceConservativeMax: '2500',
+    cutReferenceEffectiveMin: '2250',
+    cutReferenceEffectiveMax: '2400',
+    cutReferenceAggressiveBelow: '2200',
+    cutReferenceProteinMin: '160',
+    cutReferenceProteinMax: '190',
+    cutReferenceFatMin: '60',
+    cutReferenceFatMax: '70',
   },
   syncMeta: createDefaultSyncMeta(),
   backupMeta: {

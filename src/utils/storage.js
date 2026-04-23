@@ -426,6 +426,38 @@ function normalizeGoals(goals) {
     weight: goals?.weight ?? defaultState.goals.weight,
     hydrationBase: goals?.hydrationBase ?? defaultState.goals.hydrationBase,
     hydrationHighActivity: goals?.hydrationHighActivity ?? defaultState.goals.hydrationHighActivity,
+    cutReferenceCurrentWeight:
+      goals?.cutReferenceCurrentWeight ?? defaultState.goals.cutReferenceCurrentWeight,
+    cutReferenceTargetWeight10:
+      goals?.cutReferenceTargetWeight10 ?? defaultState.goals.cutReferenceTargetWeight10,
+    cutReferenceFatToLose:
+      goals?.cutReferenceFatToLose ?? defaultState.goals.cutReferenceFatToLose,
+    cutReferenceEstimatedDeficit:
+      goals?.cutReferenceEstimatedDeficit ?? defaultState.goals.cutReferenceEstimatedDeficit,
+    cutReferenceBmr: goals?.cutReferenceBmr ?? defaultState.goals.cutReferenceBmr,
+    cutReferenceTdee: goals?.cutReferenceTdee ?? defaultState.goals.cutReferenceTdee,
+    cutReferenceMaintenanceMin:
+      goals?.cutReferenceMaintenanceMin ?? defaultState.goals.cutReferenceMaintenanceMin,
+    cutReferenceMaintenanceMax:
+      goals?.cutReferenceMaintenanceMax ?? defaultState.goals.cutReferenceMaintenanceMax,
+    cutReferenceCutMin: goals?.cutReferenceCutMin ?? defaultState.goals.cutReferenceCutMin,
+    cutReferenceCutMax: goals?.cutReferenceCutMax ?? defaultState.goals.cutReferenceCutMax,
+    cutReferenceConservativeMin:
+      goals?.cutReferenceConservativeMin ?? defaultState.goals.cutReferenceConservativeMin,
+    cutReferenceConservativeMax:
+      goals?.cutReferenceConservativeMax ?? defaultState.goals.cutReferenceConservativeMax,
+    cutReferenceEffectiveMin:
+      goals?.cutReferenceEffectiveMin ?? defaultState.goals.cutReferenceEffectiveMin,
+    cutReferenceEffectiveMax:
+      goals?.cutReferenceEffectiveMax ?? defaultState.goals.cutReferenceEffectiveMax,
+    cutReferenceAggressiveBelow:
+      goals?.cutReferenceAggressiveBelow ?? defaultState.goals.cutReferenceAggressiveBelow,
+    cutReferenceProteinMin:
+      goals?.cutReferenceProteinMin ?? defaultState.goals.cutReferenceProteinMin,
+    cutReferenceProteinMax:
+      goals?.cutReferenceProteinMax ?? defaultState.goals.cutReferenceProteinMax,
+    cutReferenceFatMin: goals?.cutReferenceFatMin ?? defaultState.goals.cutReferenceFatMin,
+    cutReferenceFatMax: goals?.cutReferenceFatMax ?? defaultState.goals.cutReferenceFatMax,
   };
 }
 

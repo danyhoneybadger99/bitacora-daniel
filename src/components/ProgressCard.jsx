@@ -3,11 +3,11 @@ function clampProgress(value) {
   return Math.max(0, Math.min(100, value));
 }
 
-export default function ProgressCard({ title, value, subtitle, progress, tone = 'neutral', helper }) {
+export default function ProgressCard({ title, value, subtitle, progress, tone = 'neutral', helper, className = '' }) {
   const safeProgress = clampProgress(progress);
 
   return (
-    <article className={`progress-card progress-card-${tone}`}>
+    <article className={`progress-card progress-card-${tone} ${className}`.trim()}>
       <div className="progress-card-top">
         <span>{title}</span>
         <strong>{value}</strong>

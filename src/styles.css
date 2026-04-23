@@ -314,6 +314,11 @@ button {
   line-height: 1.3;
 }
 
+.dashboard-alert-stack {
+  display: grid;
+  gap: 8px;
+}
+
 .progress-card-krav,
 .dashboard-krav-card {
   background: linear-gradient(180deg, #fffdf4 0%, #fbf6df 100%);
@@ -1114,6 +1119,100 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.settings-cut-reference-card {
+  gap: 16px;
+}
+
+.settings-cut-reference-card .card-header {
+  margin-bottom: 2px;
+}
+
+.settings-cut-reference-summary {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.settings-cut-reference-summary-card {
+  background: linear-gradient(180deg, rgba(252, 253, 252, 0.99), rgba(246, 249, 246, 0.95));
+  border-color: #dfe7df;
+  min-height: 0;
+}
+
+.settings-cut-reference-summary-card strong {
+  font-size: 1.22rem;
+  line-height: 1.05;
+}
+
+.settings-cut-reference-form {
+  gap: 14px;
+}
+
+.settings-cut-reference-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-cut-reference-group {
+  display: grid;
+  gap: 12px;
+  padding: 14px 15px;
+  border: 1px solid #dde6de;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 248, 0.92));
+}
+
+.settings-cut-reference-group-head {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-cut-reference-group-head strong {
+  color: #163321;
+  font-size: 0.98rem;
+}
+
+.settings-cut-reference-group-head small {
+  color: #637466;
+  line-height: 1.4;
+}
+
+.settings-cut-reference-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.objective-cut-reference-panel {
+  display: grid;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: 18px;
+  border: 1px solid #d9e5dc;
+  background: linear-gradient(180deg, rgba(249, 252, 249, 0.98), rgba(243, 248, 244, 0.93));
+}
+
+.objective-cut-reference-head {
+  display: grid;
+  gap: 4px;
+}
+
+.objective-cut-reference-head strong {
+  color: #1d3528;
+}
+
+.objective-cut-reference-head small,
+.objective-cut-reference-helper {
+  color: #5e6c75;
+  line-height: 1.4;
+}
+
+.objective-cut-reference-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.krav-empty-state-actions {
+  margin-top: 0;
+}
+
 .mini-stat-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1342,7 +1441,7 @@ button {
 }
 
 .metrics-base-grid {
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .metrics-base-card {
@@ -1351,10 +1450,30 @@ button {
   border-color: #dfe5eb;
 }
 
+.metrics-base-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.metrics-base-card-top small {
+  color: #72808c;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.metrics-base-current {
+  color: #182229;
+}
+
 .metric-base-trend {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .metric-base-trend-good {
@@ -2103,6 +2222,13 @@ button {
   gap: 12px;
 }
 
+.private-empty-state-panel-inline {
+  padding: 14px;
+  border: 1px dashed #d7e1da;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafcfb 100%);
+}
+
 .private-empty-mode-card {
   padding-bottom: 18px;
 }
@@ -2145,6 +2271,17 @@ button {
 .private-section-stack .card-soft {
   padding-top: 16px;
   padding-bottom: 16px;
+}
+
+.private-daily-control-panel {
+  border-color: #d7e4dc;
+  background: linear-gradient(180deg, rgba(250, 252, 250, 0.98), rgba(242, 247, 244, 0.94));
+  box-shadow: 0 16px 34px rgba(25, 42, 34, 0.06);
+}
+
+.private-medication-management-card {
+  background: linear-gradient(180deg, rgba(252, 253, 252, 0.98), rgba(246, 248, 247, 0.94));
+  border-style: dashed;
 }
 
 .private-nav-band {
@@ -2485,13 +2622,13 @@ button {
 
 .private-medication-stack {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .private-medication-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .private-medication-grid {
@@ -2502,8 +2639,8 @@ button {
 
 .private-medication-card {
   display: grid;
-  gap: 10px;
-  padding: 13px 14px;
+  gap: 9px;
+  padding: 12px 13px;
   border: 1px solid #e6ebf1;
   border-radius: 18px;
   background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
@@ -2533,12 +2670,12 @@ button {
 
 .private-medication-title-group {
   display: grid;
-  gap: 3px;
+  gap: 2px;
 }
 
 .private-medication-title-group strong {
   color: #1b242c;
-  font-size: 1rem;
+  font-size: 1.02rem;
   line-height: 1.2;
 }
 
@@ -2549,7 +2686,8 @@ button {
 }
 
 .private-medication-title-group span {
-  font-size: 0.84rem;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .private-medication-title-group small {
@@ -2586,14 +2724,14 @@ button {
 .private-medication-body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 9px;
 }
 
 .private-medication-count,
 .private-medication-meta {
   display: grid;
   gap: 4px;
-  padding: 10px 11px;
+  padding: 9px 10px;
   border-radius: 16px;
   background: #f6f8fb;
   border: 1px solid #e4eaf1;
@@ -2610,12 +2748,12 @@ button {
 .private-medication-count strong,
 .private-medication-meta strong {
   color: #182229;
-  font-size: 1.22rem;
+  font-size: 1.18rem;
   line-height: 1.1;
 }
 
 .private-medication-count strong {
-  font-size: 1.78rem;
+  font-size: 1.7rem;
   letter-spacing: -0.02em;
 }
 
@@ -2633,7 +2771,7 @@ button {
 
 .private-medication-actions {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .private-medication-slot-row {
@@ -2648,6 +2786,20 @@ button {
 
 .private-medication-actions .entry-actions {
   margin-top: 0;
+}
+
+.private-financial-summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.private-financial-card-emphasis {
+  background: linear-gradient(180deg, #f4faf5 0%, #edf6ef 100%);
+  border-color: #d7e6da;
+}
+
+.private-financial-card-alert {
+  background: linear-gradient(180deg, #fff9f1 0%, #fff3e6 100%);
+  border-color: #ead6b9;
 }
 
 .private-alert-grid {
@@ -2714,6 +2866,96 @@ button {
   display: block;
   margin-top: 8px;
   color: #5e6a74;
+}
+
+.objective-food-reference-card {
+  gap: 14px;
+}
+
+.objective-food-reference-summary {
+  padding: 12px 13px;
+  border-radius: 18px;
+  border: 1px solid #dde7df;
+  background: #fbfcfa;
+}
+
+.objective-food-reference-summary strong {
+  display: block;
+  color: #213229;
+}
+
+.objective-food-reference-summary p {
+  margin: 6px 0 0;
+  color: #57646e;
+  line-height: 1.45;
+}
+
+.objective-food-reference-rule {
+  padding: 12px 13px;
+  border-radius: 18px;
+  border: 1px solid #dde7df;
+  background: linear-gradient(180deg, rgba(248, 251, 248, 0.98), rgba(242, 247, 243, 0.93));
+}
+
+.objective-food-reference-rule strong {
+  display: block;
+  color: #213229;
+}
+
+.objective-food-reference-rule p {
+  margin: 6px 0 0;
+  color: #57646e;
+  line-height: 1.45;
+}
+
+.objective-food-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.objective-food-group {
+  display: grid;
+  gap: 8px;
+  padding: 12px 13px;
+  border-radius: 18px;
+  background: #f8faf7;
+  border: 1px solid #e2e8e0;
+}
+
+.objective-food-group-head {
+  display: grid;
+  gap: 3px;
+}
+
+.objective-food-group > span,
+.objective-food-group-head > span {
+  color: #5b6974;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.objective-food-group-head > small {
+  color: #6d7a84;
+  line-height: 1.35;
+}
+
+.objective-food-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.objective-food-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef4ef;
+  border: 1px solid #dbe6dc;
+  color: #33413f;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .metrics-form-stack {
@@ -3228,6 +3470,10 @@ button {
   color: #8a5a12;
   font-weight: 600;
   line-height: 1.35;
+}
+
+.fasting-summary-grid {
+  gap: 10px;
 }
 
 .fasting-section-card .card-header {
@@ -4234,6 +4480,42 @@ button {
     font-size: 0.84rem;
   }
 
+  .progress-card-grid {
+    gap: 10px;
+  }
+
+  .dashboard-mobile-card-calories {
+    order: 1;
+  }
+
+  .dashboard-mobile-card-protein {
+    order: 2;
+  }
+
+  .dashboard-mobile-card-fat {
+    order: 3;
+  }
+
+  .dashboard-mobile-card-fasting {
+    order: 4;
+  }
+
+  .dashboard-mobile-card-weight {
+    order: 5;
+  }
+
+  .dashboard-mobile-card-hydration {
+    order: 6;
+  }
+
+  .dashboard-mobile-card-activity {
+    order: 7;
+  }
+
+  .dashboard-mobile-card-krav {
+    order: 8;
+  }
+
   .card,
   .progress-card,
   .dashboard-compact-card,
@@ -4274,6 +4556,30 @@ button {
     padding: 13px 13px 12px;
   }
 
+  .dashboard-krav-progress-card {
+    gap: 5px;
+    min-height: 0;
+  }
+
+  .dashboard-krav-title-group {
+    gap: 4px;
+  }
+
+  .dashboard-krav-belt,
+  .dashboard-krav-meta span {
+    font-size: 0.72rem;
+    padding: 3px 8px;
+  }
+
+  .dashboard-krav-next {
+    font-size: 0.76rem;
+  }
+
+  .dashboard-krav-actions .button {
+    min-height: 38px;
+    padding: 8px 11px;
+  }
+
   .dashboard-compact-card {
     padding: 13px;
     gap: 7px;
@@ -4300,6 +4606,91 @@ button {
 
   .dashboard-snapshot p {
     font-size: 0.82rem;
+  }
+
+  .alert-banner {
+    padding: 9px 11px;
+    font-size: 0.84rem;
+    line-height: 1.32;
+  }
+
+  .fasting-today-summary-card .card-header {
+    margin-bottom: 12px;
+  }
+
+  .fasting-day-toggle {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .fasting-day-toggle .section-helper {
+    font-size: 0.78rem;
+    line-height: 1.28;
+  }
+
+  .fasting-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .fasting-summary-grid .supplement-summary-card {
+    min-height: 0;
+    padding: 10px 11px;
+  }
+
+  .fasting-summary-grid .supplement-summary-card strong {
+    font-size: 1rem;
+  }
+
+  .fasting-summary-card-status {
+    grid-column: 1 / -1;
+  }
+
+  .fasting-summary-card-protocol {
+    display: none;
+  }
+
+  .fasting-today-live-card {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .fasting-today-live-card .entry-details,
+  .fasting-active-summary-card .entry-details {
+    display: none;
+  }
+
+  .fasting-today-live-card .fasting-live-header span,
+  .fasting-active-summary-card .fasting-live-header span {
+    margin-top: 2px;
+    font-size: 0.8rem;
+  }
+
+  .fasting-today-live-card .fasting-live-badges {
+    justify-content: flex-start;
+  }
+
+  .fasting-primary-actions,
+  .fasting-secondary-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .fasting-primary-actions .button:last-child,
+  .fasting-secondary-actions .button:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .fasting-manual-helper {
+    font-size: 0.8rem;
+    line-height: 1.3;
+  }
+
+  .fasting-active-summary-card {
+    gap: 8px;
+    padding: 11px 12px;
   }
 
   .mini-stat,
@@ -4350,6 +4741,138 @@ button {
   .metrics-advanced-card .field textarea,
   .field textarea {
     min-height: 88px;
+  }
+
+  .private-daily-control-panel .card-header {
+    margin-bottom: 12px;
+  }
+
+  .private-medication-summary-grid {
+    gap: 8px;
+  }
+
+  .private-weekly-card {
+    padding: 10px 11px;
+    gap: 4px;
+  }
+
+  .private-weekly-card strong {
+    font-size: 0.94rem;
+  }
+
+  .private-medication-grid {
+    gap: 10px;
+  }
+
+  .private-medication-card {
+    gap: 8px;
+    padding: 10px 11px;
+  }
+
+  .private-daily-control-panel .private-medication-notes {
+    display: none;
+  }
+
+  .private-medication-head {
+    gap: 8px;
+  }
+
+  .private-medication-title-group strong {
+    font-size: 0.96rem;
+  }
+
+  .private-medication-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .private-medication-count strong {
+    font-size: 1.38rem;
+  }
+
+  .private-medication-meta strong {
+    font-size: 1.02rem;
+  }
+
+  .private-medication-slot-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .private-medication-actions .button {
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 0.84rem;
+  }
+
+  .krav-next-card,
+  .krav-technique-detail,
+  .krav-log-card,
+  .krav-empty-state-card {
+    gap: 8px;
+  }
+
+  .krav-next-head strong,
+  .krav-technique-detail-head strong {
+    font-size: 0.98rem;
+  }
+
+  .krav-feature-label {
+    padding: 3px 8px;
+    font-size: 0.68rem;
+  }
+
+  .krav-category-head {
+    padding: 10px 11px;
+  }
+
+  .krav-technique-card {
+    gap: 6px;
+    padding: 9px 10px;
+  }
+
+  .krav-technique-card .metrics-source-chip,
+  .krav-technique-detail .metrics-source-chip {
+    font-size: 0.68rem;
+    padding: 3px 7px;
+  }
+
+  .krav-next-card .entry-actions,
+  .krav-technique-card .entry-actions,
+  .krav-technique-detail .entry-actions {
+    gap: 6px;
+  }
+
+  .krav-technique-card .entry-actions .button,
+  .krav-next-card .entry-actions .button,
+  .krav-technique-detail .entry-actions .button {
+    min-height: 36px;
+    padding: 7px 10px;
+    font-size: 0.82rem;
+  }
+
+  .krav-empty-state-card strong {
+    font-size: 0.96rem;
+  }
+
+  .objective-progress-panel,
+  .objective-cut-reference-panel {
+    padding: 12px 13px;
+  }
+
+  .settings-cut-reference-card {
+    gap: 14px;
+  }
+
+  .settings-cut-reference-summary-card strong {
+    font-size: 1.08rem;
+  }
+
+  .settings-cut-reference-groups {
+    gap: 12px;
+  }
+
+  .settings-cut-reference-group {
+    padding: 12px 13px;
   }
 }
 
@@ -4451,6 +4974,10 @@ button {
     font-size: 1.6rem;
   }
 
+  .private-daily-control-panel .private-medication-slot-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .krav-meta-line,
   .krav-heading-copy small {
     font-size: 0.8rem;
@@ -4477,6 +5004,12 @@ button {
 
   .krav-category-more-button {
     width: 100%;
+  }
+
+  .objective-progress-panel,
+  .objective-cut-reference-panel,
+  .settings-cut-reference-group {
+    padding: 11px 12px;
   }
 }
 

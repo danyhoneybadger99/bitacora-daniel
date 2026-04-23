@@ -3,8 +3,10 @@ import { formatUnitValue, getNumericMetric } from './shared';
 
 const baseMetricSeedId = 'metric-base-2026-04-10';
 const baseMetricSeedDate = '2026-04-10';
-const recentManualMetricSeedId = 'metric-manual-2026-04-22';
-const recentManualMetricSeedDate = '2026-04-22';
+const recentManualMetricSeedId = 'metric-manual-2026-04-17';
+const recentManualMetricSeedDate = '2026-04-17';
+const recentManualMetricLegacySeedId = 'metric-manual-2026-04-22';
+const recentManualMetricLegacySeedDate = '2026-04-22';
 const baseMetricSeedMatchFields = [
   'weight',
   'skeletalMuscleMass',
@@ -117,6 +119,30 @@ export function createRecentManualMetricSeed() {
   };
 }
 
+function normalizeRecentManualMetricSeed(items = []) {
+  const seed = createRecentManualMetricSeed();
+  const remainingItems = [];
+  let foundLegacySeed = false;
+
+  items.forEach((item) => {
+    const matchesLegacyId =
+      item?.id === recentManualMetricSeedId ||
+      item?.id === recentManualMetricLegacySeedId;
+    const matchesLegacyDate =
+      item?.date === recentManualMetricSeedDate ||
+      item?.date === recentManualMetricLegacySeedDate;
+
+    if (matchesLegacyId || matchesLegacyDate) {
+      foundLegacySeed = true;
+      return;
+    }
+
+    remainingItems.push(item);
+  });
+
+  return foundLegacySeed ? [seed, ...remainingItems] : remainingItems;
+}
+
 function matchesMetricSeed(item, seed, fields) {
   if (!item || typeof item !== 'object') return false;
   if (item.id === seed.id) return true;
@@ -145,7 +171,7 @@ function mergeMetricSeed(items, seed, fields) {
 }
 
 export function mergeInitialMetricSeed(items = []) {
-  const normalizedItems = Array.isArray(items) ? items : [];
+  const normalizedItems = normalizeRecentManualMetricSeed(Array.isArray(items) ? items : []);
   const withBase = mergeMetricSeed(normalizedItems, createInitialMetricSeed(), baseMetricSeedMatchFields);
   return mergeMetricSeed(withBase, createRecentManualMetricSeed(), recentManualMetricSeedMatchFields);
 }
