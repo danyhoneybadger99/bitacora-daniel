@@ -1,11 +1,19 @@
-﻿
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import EntryList from './components/EntryList';
 import GoalForm from './components/GoalForm';
-import HistoryView from './components/HistoryView';
 import ProgressCard from './components/ProgressCard';
 import RecordForm from './components/RecordForm';
 import SectionCard from './components/SectionCard';
+import DashboardTab from './components/tabs/DashboardTab';
+import FastingTab from './components/tabs/FastingTab';
+import HistoryTab from './components/tabs/HistoryTab';
+import HormonalTab from './components/tabs/HormonalTab';
+import KravMagaTab from './components/tabs/KravMagaTab';
+import MetricsTab from './components/tabs/MetricsTab';
+import ObjectivesTab from './components/tabs/ObjectivesTab';
+import SupplementsTab from './components/tabs/SupplementsTab';
+import WeeklyTab from './components/tabs/WeeklyTab';
 import { cutMayReferenceGroups, cutMayReferenceRule } from './data/cutMayReference';
 import { defaultState } from './data/defaultState';
 import { isSupabaseConfigured } from './lib/supabase';
@@ -457,18 +465,18 @@ function normalizeTextToken(value) {
 
 function getMetricTrendPresentation(trend) {
   if (trend === 'bajo') {
-    return { label: '↓ bajo', className: 'metric-trend metric-trend-down' };
+    return { label: '↓ bajó', className: 'metric-trend metric-trend-down' };
   }
 
   if (trend === 'subio') {
-    return { label: '↑ subio', className: 'metric-trend metric-trend-up' };
+    return { label: '↑ subió', className: 'metric-trend metric-trend-up' };
   }
 
   if (trend === 'sin cambio') {
-    return { label: '→ sin cambio', className: 'metric-trend metric-trend-neutral' };
+    return { label: 'Sin cambio aún', className: 'metric-trend metric-trend-neutral' };
   }
 
-  return { label: 'sin referencia', className: 'metric-trend metric-trend-muted' };
+  return { label: 'Sin referencia', className: 'metric-trend metric-trend-muted' };
 }
 
 function formatFastingStatusCopy(status, { isFreeDay = false, reachedGoal = false } = {}) {
@@ -602,7 +610,7 @@ function getPrivateAgendaEventDetail(item, linkedProduct) {
     detailParts.push(linkedProduct.name);
   }
 
-  return detailParts.join(' • ');
+  return detailParts.join(' · ');
 }
 
 function App() {
@@ -858,7 +866,7 @@ function App() {
     window.setTimeout(() => {
       const targetNode = targetMap[nextFormKey]?.current;
       targetNode?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      const focusSelector = options.focusSelector || 'input, select, textarea';
+      const focusSelector = options.focusSelector || 'input, select, textárea';
       const firstField = targetNode?.querySelector(focusSelector);
       if (firstField instanceof HTMLElement) {
         firstField.focus();
@@ -874,7 +882,7 @@ function App() {
       date: targetDate,
     }));
     openPrivateForm('event', {
-      focusSelector: 'input[name="time"], input[name="name"], select[name="eventType"], textarea[name="notes"]',
+      focusSelector: 'input[name="time"], input[name="name"], select[name="eventType"], textárea[name="notes"]',
     });
   }
 
@@ -1273,18 +1281,17 @@ function App() {
       }
 
       const delta = latestValue - baseValue;
-      if (delta === 0 || latestSnapshot.date === metricBaseEntry?.date) {
-        return {
-          label,
-          currentValue: formatValue(latestValue),
-          changeLabel: 'Sin cambio aún',
-          detail: `Base ${formatValue(baseValue)}${currentDateLabel ? ` · ${currentDateLabel}` : ''}`,
-          trendClass: 'metric-base-trend metric-base-trend-neutral',
-          snapshotLabel: currentDateLabel || 'Registro actual',
-        };
-      }
+        if (delta === 0 || latestSnapshot.date === metricBaseEntry?.date) {
+          return {
+            label,
+            currentValue: formatValue(latestValue),
+            changeLabel: 'Sin cambio aún',
+            detail: `Base ${formatValue(baseValue)}${currentDateLabel ? ` · ${currentDateLabel}` : ''}`,
+            trendClass: 'metric-base-trend metric-change-neutral',
+            snapshotLabel: currentDateLabel || 'Registro actual',
+          };
+        }
 
-      const isImproving = prefer === 'up' ? delta > 0 : prefer === 'neutral' ? null : delta < 0;
       const arrow = delta > 0 ? '↑' : '↓';
       const absoluteDelta = Math.abs(delta);
       const deltaText =
@@ -1295,20 +1302,15 @@ function App() {
             : formatUnitValue(absoluteDelta, unit, { maximumFractionDigits: 1, fallback: '--' });
       const directionLabel = delta > 0 ? 'Subió' : 'Bajó';
 
-      return {
-        label,
-        currentValue: formatValue(latestValue),
-        changeLabel: `${arrow} ${deltaText}`,
-        detail: `${directionLabel} vs base ${formatValue(baseValue)}${currentDateLabel ? ` · ${currentDateLabel}` : ''}`,
-        trendClass:
-          isImproving === null
-            ? 'metric-base-trend metric-base-trend-neutral'
-            : isImproving
-              ? 'metric-base-trend metric-base-trend-good'
-              : 'metric-base-trend metric-base-trend-caution',
-        snapshotLabel: currentDateLabel || 'Última medición',
-      };
-    }
+        return {
+          label,
+          currentValue: formatValue(latestValue),
+          changeLabel: `${arrow} ${deltaText}`,
+          detail: `${directionLabel} vs base ${formatValue(baseValue)}${currentDateLabel ? ` · ${currentDateLabel}` : ''}`,
+          trendClass: delta > 0 ? 'metric-base-trend metric-change-up' : 'metric-base-trend metric-change-down',
+          snapshotLabel: currentDateLabel || 'Última medición',
+        };
+      }
 
     return [
       buildBaseComparison({ label: 'Peso', field: 'weight', unit: 'kg', formatter: 'weight', prefer: 'down' }),
@@ -1373,7 +1375,7 @@ function App() {
   }, [activeFastingElapsedHours, activeFastingGoalHours]);
   const activeFastingDifferenceText = useMemo(() => {
     if (activeFastingDifferenceHours === null) return 'Sin meta esperada';
-    if (activeFastingDifferenceHours >= 0) return `Meta alcanzada • superaste ${formatHoursLabel(activeFastingDifferenceHours)}`;
+    if (activeFastingDifferenceHours >= 0) return `Meta alcanzada · superaste ${formatHoursLabel(activeFastingDifferenceHours)}`;
     return `Faltaron ${formatHoursLabel(Math.abs(activeFastingDifferenceHours))}`;
   }, [activeFastingDifferenceHours]);
   const activeFastingAutophagy = activeFastingStatus === 'en curso' && activeFastingElapsedHours >= 16;
@@ -1386,7 +1388,7 @@ function App() {
       : activeFastingStatus === 'en curso' && activeFastingReachedGoal
         ? 'Meta alcanzada · en curso'
         : formatPercentValue(activeFastingProgressPercent, '0%');
-  const displayedFastingStatus = shouldTreatTodayAsFastingFree ? 'dia libre' : activeFastingStatus;
+  const displayedFastingStatus = shouldTreatTodayAsFastingFree ? 'día libre' : activeFastingStatus;
   const displayedFastingStatusLabel = formatFastingStatusCopy(activeFastingStatus, {
     isFreeDay: shouldTreatTodayAsFastingFree,
     reachedGoal: activeFastingReachedGoal,
@@ -1695,7 +1697,7 @@ function App() {
       {
         label: 'Puntos a repasar',
         value: kravPendingReviewNotes.length > 0 ? `${kravPendingReviewNotes.length}` : 'Sin repaso abierto',
-        detail: kravPendingReviewNotes[0] || 'Aún no hay tareas de repaso pendientes.',
+        detail: kravPendingReviewNotes[0] || 'Aún no hay táreas de repaso pendientes.',
       },
     ],
     [kravPendingReviewNotes, kravPracticeLogsThisWeek, kravWeeklyTechniqueNames, latestKravPracticeLog]
@@ -2042,7 +2044,7 @@ function App() {
         detail: todayPrivateDailyCheck ? formatPrivateDate(todayPrivateDailyCheck.date) : 'Completa el registro diario.',
       },
       {
-        label: 'Energia semanal',
+        label: 'Energía semanal',
         value: formatPrivateAverageValue(privateHormonalWeeklySummary.energyAverage),
         detail: 'Promedio de energia percibida.',
       },
@@ -2222,7 +2224,7 @@ function lockPrivateModule(feedbackText = '') {
     cutReferenceGoals.cutReferenceCutMax,
     'kcal'
   );
-  const cutReferenceMacrosLabel = `${cutReferenceProteinRangeLabel} proteína • ${cutReferenceFatRangeLabel} grasa`;
+  const cutReferenceMacrosLabel = `${cutReferenceProteinRangeLabel} proteína · ${cutReferenceFatRangeLabel} grasa`;
   const hasCutReferenceLoaded =
     cutReferenceTdee !== null ||
     cutReferenceProteinMin !== null ||
@@ -2307,9 +2309,9 @@ function lockPrivateModule(feedbackText = '') {
   const weeklyProteinStatusLabel = weeklySummary.foodDays === 0
     ? 'Sin registros'
     : proteinGoal > 0 && weeklySummary.averageProteinTracked >= proteinGoal
-      ? 'Proteina bien'
+      ? 'Proteína bien'
       : proteinGoal > 0
-        ? 'Proteina baja'
+        ? 'Proteína baja'
         : 'Sin meta';
   const weeklyConsistencyLabel = weeklySummary.trackedDays >= 5
     ? 'Consistente'
@@ -2409,11 +2411,11 @@ function lockPrivateModule(feedbackText = '') {
     cutReferenceProteinMin !== null && cutReferenceProteinMax !== null ? `Rango corte: ${cutReferenceProteinRangeLabel}` : 'Sin referencia de corte';
   const dashboardProteinHelper = proteinGoal > 0
     ? proteinAlert
-      ? `Te faltan ${formatUnitValue(proteinGoal - todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} • ${dashboardProteinReferenceLabel}`
-      : `Meta de proteina cumplida • ${dashboardProteinReferenceLabel}`
+      ? `Te faltan ${formatUnitValue(proteinGoal - todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} · ${dashboardProteinReferenceLabel}`
+      : `Meta de proteína cumplida · ${dashboardProteinReferenceLabel}`
     : dashboardProteinReferenceLabel;
   const dashboardFatSubtitle = hasDailyFatCutRange
-    ? `Límite operativo: ${formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })} • Meta corte: ${cutReferenceFatRangeLabel}`
+    ? `Límite operativo: ${formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })} · Meta corte: ${cutReferenceFatRangeLabel}`
     : `Límite operativo: ${formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })}`;
   const dashboardCutReferenceMiniLabel =
     cutReferenceCutMin !== null || cutReferenceCutMax !== null
@@ -2426,10 +2428,10 @@ function lockPrivateModule(feedbackText = '') {
   );
 
   const visibleSupplements = useMemo(() => {
-    const sorted = sortSupplements(diaryData.supplements);
+    const sorted = sortSupplements(todaysSupplements);
     if (supplementFilter === 'todos') return sorted;
     return sorted.filter((item) => item.category === supplementFilter);
-  }, [diaryData.supplements, supplementFilter]);
+  }, [supplementFilter, todaysSupplements]);
 
   const pendingSupplements = useMemo(
     () => visibleSupplements.filter((item) => item.taken !== 'si'),
@@ -2441,14 +2443,6 @@ function lockPrivateModule(feedbackText = '') {
     [visibleSupplements]
   );
 
-  const visibleSupplementSummary = useMemo(() => {
-    const total = visibleSupplements.length;
-    const taken = takenSupplements.length;
-    const pending = pendingSupplements.length;
-    const medications = visibleSupplements.filter((item) => item.category === 'medicamento').length;
-
-    return { total, taken, pending, medications };
-  }, [pendingSupplements.length, takenSupplements.length, visibleSupplements]);
   const dailySupplementChecklist = useMemo(
     () =>
       recommendedSupplementChecklist.map((item) => {
@@ -2463,6 +2457,33 @@ function lockPrivateModule(feedbackText = '') {
       }),
     [todaysSupplements]
   );
+  const visibleChecklistSupplements = useMemo(() => {
+    if (supplementFilter === 'todos') return dailySupplementChecklist;
+    return dailySupplementChecklist.filter((item) => item.category === supplementFilter);
+  }, [dailySupplementChecklist, supplementFilter]);
+  const checklistSupplementKeySet = useMemo(
+    () => new Set(recommendedSupplementChecklist.map((item) => normalizeTextToken(item.name))),
+    []
+  );
+  const visibleSupplementRecordsOutsideChecklist = useMemo(
+    () =>
+      visibleSupplements.filter((item) => !checklistSupplementKeySet.has(normalizeTextToken(item.name))),
+    [checklistSupplementKeySet, visibleSupplements]
+  );
+  const visibleSupplementSummary = useMemo(() => {
+    const total = visibleChecklistSupplements.length + visibleSupplementRecordsOutsideChecklist.length;
+    const taken =
+      visibleChecklistSupplements.filter((item) => item.checked).length +
+      visibleSupplementRecordsOutsideChecklist.filter((item) => item.taken === 'si').length;
+    const pending =
+      visibleChecklistSupplements.filter((item) => !item.checked).length +
+      visibleSupplementRecordsOutsideChecklist.filter((item) => item.taken !== 'si').length;
+    const medications =
+      visibleChecklistSupplements.filter((item) => item.category === 'medicamento').length +
+      visibleSupplementRecordsOutsideChecklist.filter((item) => item.category === 'medicamento').length;
+
+    return { total, taken, pending, medications };
+  }, [visibleChecklistSupplements, visibleSupplementRecordsOutsideChecklist]);
 
   const visibleExercises = useMemo(() => {
     const sorted = sortExercises(diaryData.exercises);
@@ -2927,7 +2948,7 @@ function lockPrivateModule(feedbackText = '') {
 
   function handleResetAppData() {
     const confirmed = window.confirm(
-      'Esto reseteara todos los datos guardados localmente en este navegador. Esta accion no se puede deshacer. ¿Deseas continuar?'
+      'Esto reseteará todos los datos guardados localmente en este navegador. Esta acción no se puede deshacer. ¿Deseas continuar?'
     );
 
     if (!confirmed) return;
@@ -3374,7 +3395,7 @@ function lockPrivateModule(feedbackText = '') {
     if (!isValidPrivatePin(privateSetupPin, privateVault)) {
       setPrivateFeedback({
         type: 'error',
-        text: `El PIN debe tener exactamente ${privatePinLength} digitos numericos.`,
+        text: `El PIN debe tener exactamente ${privatePinLength} dígitos numéricos.`,
       });
       return;
     }
@@ -3425,7 +3446,7 @@ function lockPrivateModule(feedbackText = '') {
     if (!isValidPrivatePin(privatePinUpdate.next, privateVault)) {
       setPrivateFeedback({
         type: 'error',
-        text: `El nuevo PIN debe tener exactamente ${privatePinLength} digitos numericos.`,
+        text: `El nuevo PIN debe tener exactamente ${privatePinLength} dígitos numéricos.`,
       });
       return;
     }
@@ -3602,7 +3623,7 @@ function lockPrivateModule(feedbackText = '') {
         lockPrivateModule();
         setPrivateFeedback({
           type: 'success',
-          text: 'Respaldo privado importado. Vuelve a desbloquear el area privada para revisar los datos.',
+          text: 'Respaldo privado importado. Vuelve a desbloquear el área privada para revisar los datos.',
         });
       } catch (error) {
         console.error('[Mi Diario][private] import:error', error);
@@ -4275,43 +4296,45 @@ function lockPrivateModule(feedbackText = '') {
     }));
   }
 
-  function toggleRecommendedSupplement(itemConfig) {
-    const existing = todaysSupplements.find((item) => normalizeTextToken(item.name) === normalizeTextToken(itemConfig.name));
-
-    if (!existing) {
-      const newRecord = {
-        ...createEmptySupplement(),
-        id: createId(),
-        date: currentDate,
-        name: itemConfig.name,
-        category: itemConfig.category,
-        daytime: itemConfig.daytime,
-        foodRelation: itemConfig.foodRelation,
-        frequency: 'diario',
-        taken: 'si',
-        notes: 'Checklist base del dia.',
-      };
-
-      markPersistenceReason('crear:supplements:checklist');
-      setDiaryData((current) => ({
-        ...current,
-        supplements: [newRecord, ...current.supplements],
-      }));
-      return;
-    }
-
+function toggleRecommendedSupplement(itemConfig) {
     markPersistenceReason('actualizar:supplements:checklist');
-    setDiaryData((current) => ({
-      ...current,
-      supplements: current.supplements.map((entry) =>
-        entry.id === existing.id
-          ? {
-              ...entry,
-              taken: entry.taken === 'si' ? 'no' : 'si',
-            }
-          : entry
-      ),
-    }));
+    setDiaryData((current) => {
+      const existing = (current.supplements || []).find(
+        (item) => isSameDate(item.date, currentDate) && normalizeTextToken(item.name) === normalizeTextToken(itemConfig.name)
+      );
+
+      if (!existing) {
+        const newRecord = {
+          ...createEmptySupplement(),
+          id: createId(),
+          date: currentDate,
+          name: itemConfig.name,
+          category: itemConfig.category,
+          daytime: itemConfig.daytime,
+          foodRelation: itemConfig.foodRelation,
+          frequency: 'diario',
+          taken: 'si',
+          notes: 'Checklist base del día.',
+        };
+
+        return {
+          ...current,
+          supplements: [newRecord, ...(current.supplements || [])],
+        };
+      }
+
+      return {
+        ...current,
+        supplements: current.supplements.map((entry) =>
+          entry.id === existing.id
+            ? {
+                ...entry,
+                taken: entry.taken === 'si' ? 'no' : 'si',
+              }
+            : entry
+        ),
+      };
+    });
   }
 
   function duplicateSupplement(id) {
@@ -4446,571 +4469,88 @@ function lockPrivateModule(feedbackText = '') {
 
       <main className="content">
         {activeTab === 'dashboard' ? (
-          <>
-            <div className="progress-card-grid">
-              <ProgressCard
-                title="Calorias"
-                className="dashboard-mobile-card-calories"
-                value={formatIntegerValue(todaySummary.calories, 'kcal', '0 kcal')}
-                subtitle={
-                  calorieGoal > 0
-                    ? `Meta diaria: ${formatIntegerValue(calorieGoal, 'kcal', '0 kcal')}`
-                    : 'Define una meta para ver progreso.'
-                }
-                progress={calorieProgress}
-                tone="energy"
-                helper={
-                  calorieGoal > 0
-                    ? `${formatIntegerValue(Math.max(calorieGoal - todaySummary.calories, 0), 'kcal', '0 kcal')} restantes`
-                    : 'Sin meta configurada'
-                }
-              />
-
-              <ProgressCard
-                title="Proteina"
-                className="dashboard-mobile-card-protein"
-                value={formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}
-                subtitle={
-                  proteinGoal > 0
-                    ? `Minimo diario: ${formatUnitValue(proteinGoal, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}`
-                    : dashboardProteinReferenceLabel
-                }
-                progress={proteinProgress}
-                tone={proteinAlert ? 'alert' : 'success'}
-                helper={dashboardProteinHelper}
-              />
-
-              <ProgressCard
-                title="Grasa diaria"
-                className="dashboard-mobile-card-fat"
-                value={formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}
-                subtitle={dashboardFatSubtitle}
-                progress={dailyFatProgress}
-                tone={dailyFatTone}
-                helper={dailyFatStatus}
-              />
-
-              <ProgressCard
-                title="Ayuno"
-                className="dashboard-mobile-card-fasting"
-                value={displayedFastingProtocolLabel}
-                subtitle={
-                  todaySummary.fastingStatus === 'dia libre'
-                    ? 'Día libre'
-                    : todaySummary.fastingStatus === 'sin registro'
-                      ? 'Sin registro de ayuno'
-                    : todaySummary.fastingStatus === 'pendiente'
-                        ? 'Sin registro de ayuno'
-                        : displayedFastingStatusLabel
-                }
-                progress={
-                  todaySummary.fastingStatus === 'cumplido'
-                    ? 100
-                    : todaySummary.fastingStatus === 'en curso'
-                      ? displayedFastingProgressPercent
-                      : todaySummary.fastingStatus === 'roto'
-                        ? Math.min(displayedFastingProgressPercent, 100)
-                        : 0
-                }
-                tone={todaySummary.fastingStatus === 'roto' ? 'alert' : todaySummary.fastingStatus === 'en curso' ? 'energy' : 'success'}
-                helper={`${
-                  todaySummary.fastingStatus === 'dia libre'
-                    ? 'Día libre guardado'
-                    : todaySummary.fastingStatus === 'sin registro'
-                      ? 'Sin registro real hoy'
-                    : todaySummary.fastingStatus === 'pendiente'
-                      ? 'Sin registro real hoy'
-                      : `${formatHoursLabel(activeFastingElapsedHours)} acumuladas`
-                }${
-                  displayedFastingRemainingHours !== null && todaySummary.fastingStatus === 'en curso'
-                    ? ` • ${formatHoursLabel(displayedFastingRemainingHours)} restantes`
-                    : todaySummary.fastingStatus === 'cumplido'
-                      ? ' • Meta alcanzada'
-                      : ''
-                }`}
-              />
-
-              <ProgressCard
-                title="Peso actual"
-                className="dashboard-mobile-card-weight"
-                value={formatMetricValue(todaySummary.weight, todaySummary.weight === '--' ? '' : ' kg')}
-                subtitle={weightGoal > 0 ? `Objetivo: ${formatWeightValue(weightGoal, 'kg', '--')}` : 'Configura un peso objetivo.'}
-                progress={weightProgress}
-                tone="weight"
-                helper={
-                  todaySummary.bodyFat !== '--' || todaySummary.skeletalMuscleMass !== '--'
-                    ? `Grasa: ${formatMetricText(todaySummary.bodyFat, todaySummary.bodyFat === '--' ? '' : '%')} • Musculo: ${formatMetricText(
-                        todaySummary.skeletalMuscleMass,
-                        todaySummary.skeletalMuscleMass === '--' ? '' : ' kg'
-                      )}`
-                    : getWeightMessage(todaySummary.weight === '--' ? null : Number(todaySummary.weight), weightGoal)
-                }
-              />
-
-              <ProgressCard
-                title="Hidratacion"
-                className="dashboard-mobile-card-hydration"
-                value={formatUnitValue(todaySummary.hydrationMl, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}
-                subtitle={`Meta diaria: ${formatUnitValue(hydrationBaseGoal || 0, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}`}
-                progress={hydrationProgress}
-                tone={hydrationTone}
-                helper={
-                  todaysExercises.length > 0 && hydrationHighActivityGoal > 0
-                    ? `Alta actividad: ${formatUnitValue(hydrationHighActivityGoal, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}`
-                    : `${formatUnitValue(Math.max((hydrationBaseGoal || 0) - todaySummary.hydrationMl, 0), 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })} restantes`
-                }
-              />
-
-              <ProgressCard
-                title="Actividad"
-                className="dashboard-mobile-card-activity"
-                value={formatIntegerValue(todaySummary.exerciseCalories, 'kcal', '0 kcal')}
-                subtitle={`${formatIntegerValue(todaySummary.exerciseMinutes, 'min', '0 min')} de ejercicio hoy`}
-                progress={Math.min((todaySummary.exerciseMinutes / 60) * 100, 100)}
-                tone="movement"
-                helper={`${todaySummary.exerciseEntries} sesiones registradas`}
-              />
-
-              <article className="progress-card progress-card-krav dashboard-krav-progress-card dashboard-mobile-card-krav">
-                <div className="progress-card-top dashboard-krav-head">
-                  <div className="dashboard-krav-title-group">
-                    <span>Krav Maga</span>
-                    <span className="dashboard-krav-belt">{`Cinta ${kravDashboardSnapshot.currentBelt.toLowerCase()}`}</span>
-                  </div>
-                  <strong>{formatKravPercent(kravDashboardSnapshot.totalProgress)}</strong>
-                </div>
-                <div className="dashboard-krav-meta">
-                  <span>{`Objetivo: ${kravDashboardSnapshot.targetBelt}`}</span>
-                  <span>{`${kravDashboardSnapshot.pendingTechniques} pendientes`}</span>
-                </div>
-                <small className="dashboard-krav-next" title={kravDashboardSnapshot.nextTechniqueName}>
-                  Próxima: {kravDashboardSnapshot.nextTechniqueName}
-                </small>
-                <div className="progress-track" aria-hidden="true">
-                  <div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, Number(kravDashboardSnapshot.totalProgress) || 0))}%` }} />
-                </div>
-                <div className="entry-actions dashboard-krav-actions">
-                  <button className="button button-secondary" type="button" onClick={() => setActiveTab('krav')}>
-                    Abrir Krav Maga
-                  </button>
-                </div>
-              </article>
-            </div>
-
-            {proteinAlert || fatAlert || isSundayReminderVisible ? (
-              <div className="dashboard-alert-stack">
-                {proteinAlert ? (
-                  <div className="alert-banner">
-                    <strong>Alerta de proteina:</strong> hoy llevas {formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} y tu minimo configurado es {formatUnitValue(proteinGoal, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}.
-                  </div>
-                ) : null}
-
-                {fatAlert ? (
-                  <div className="alert-banner">
-                    <strong>Alerta de grasa:</strong> hoy llevas {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}; limite operativo {formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })}.
-                  </div>
-                ) : null}
-
-                {isSundayReminderVisible ? (
-                  <div className="alert-banner alert-banner-sunday">
-                    <strong>Domingo con control:</strong> evita azucar, harina y exceso de calorias. No tires a la basura el esfuerzo de la semana.
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="dashboard-main-grid">
-              <SectionCard
-                title="Metas diarias"
-                subtitle="Estas metas se guardan localmente y se usan en el dashboard y el resumen semanal."
-                className="card-soft"
-              >
-                <GoalForm
-                  formData={goalForm}
-                  onChange={handleFormChange(setGoalForm)}
-                  onSubmit={handleGoalSubmit}
-                />
-              </SectionCard>
-
-              <SectionCard title="Pulso del dia" subtitle="Lectura rapida de lo que ya registraste." className="card-soft">
-                <div className="mini-stat-grid">
-                  <div className="mini-stat">
-                    <span>Comida</span>
-                    <strong>{todaySummary.foodEntries} registros</strong>
-                  </div>
-                  <div className="mini-stat">
-                    <span>Macros extra</span>
-                    <strong>
-                      {formatUnitValue(todaySummary.carbs, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} carbos • {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} grasa
-                    </strong>
-                  </div>
-                  <div className="mini-stat">
-                    <span>Suplementos</span>
-                    <strong>{todaySummary.supplementsTakenToday} tomados / {todaySummary.supplementsPendingToday} pendientes</strong>
-                  </div>
-                  <div className="mini-stat">
-                    <span>Ayuno</span>
-                    <strong>{displayedFastingStatusLabel}</strong>
-                  </div>
-                  <div className="mini-stat">
-                    <span>Metricas de hoy / ultimo dato</span>
-                    <strong>
-                      {todaySummary.metricEntries} hoy
-                      {latestMetric ? ` • peso ${formatMetricText(latestMetric.weight, ' kg')}` : ' • sin dato'}
-                    </strong>
-                    <small className="helper-text">
-                      El dashboard resume comida, suplementos y ejercicio de hoy, pero usa la ultima metrica disponible aunque no sea de hoy.
-                    </small>
-                  </div>
-                  <div className="mini-stat">
-                    <span>Corte útil</span>
-                    <strong>{dashboardCutReferenceMiniLabel}</strong>
-                    <small>{cutReferenceTdee !== null ? `TDEE operativo ${formatIntegerValue(cutReferenceTdee, 'kcal', 'Sin dato')}` : 'Referencia desde Ajustes'}</small>
-                  </div>
-                </div>
-              </SectionCard>
-            </div>
-
-            <div className="dashboard-grid dashboard-compact-grid">
-              <SectionCard title="Alimentos" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
-                <div className="dashboard-snapshot">
-                  <strong>{todaysFoods.length === 0 ? 'Sin registros' : formatIntegerValue(todaySummary.calories, 'kcal', '0 kcal')}</strong>
-                  <p>{todaysFoods.length === 0 ? 'Sin alimentos registrados hoy.' : `${todaySummary.foodEntries} registros • ${formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} proteina`}</p>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Hidratacion" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
-                <div className="dashboard-snapshot">
-                  <strong>{formatUnitValue(todaySummary.hydrationMl, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}</strong>
-                  <p>{`Meta ${formatUnitValue(hydrationBaseGoal || 0, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}${todaysExercises.length > 0 && hydrationHighActivityGoal > 0 ? ` • alta ${formatUnitValue(hydrationHighActivityGoal, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}` : ''}`}</p>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Suplementos" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
-                <div className="dashboard-snapshot">
-                  <strong>{todaysSupplements.length === 0 ? 'Sin registros' : `${todaySummary.supplementsTakenToday} tomados`}</strong>
-                  <p>{todaysSupplements.length === 0 ? 'Sin suplementos registrados hoy.' : `${todaySummary.supplementsPendingToday} pendientes • ${todaySummary.medicationsToday} medicamentos`}</p>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Ejercicio" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
-                <div className="dashboard-snapshot">
-                  <strong>{todaysExercises.length === 0 ? 'Sin registros' : formatIntegerValue(todaySummary.exerciseMinutes, 'min', '0 min')}</strong>
-                  <p>{todaysExercises.length === 0 ? 'Sin ejercicio registrado hoy.' : `${formatIntegerValue(todaySummary.exerciseCalories, 'kcal', '0 kcal')} • ${todaySummary.exerciseEntries} sesiones`}</p>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Ayuno" subtitle={displayedFastingProtocolLabel} className="card-soft dashboard-compact-card">
-                <div className="dashboard-snapshot">
-                  <strong>{displayedFastingStatusLabel}</strong>
-                  {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <span className="fasting-autophagy-badge fasting-autophagy-badge-compact">En autofagia</span> : null}
-                  {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <small className="dashboard-hint">Hito visual activado desde 16 h de ayuno activo.</small> : null}
-                  <p>
-                    {todaySummary.fastingStatus === 'dia libre'
-                      ? 'Hoy no hay ayuno.'
-                    : todaySummary.fastingStatus === 'sin registro'
-                        ? 'Sin registro de ayuno hoy.'
-                      : todaySummary.fastingStatus === 'pendiente'
-                        ? 'Sin registro de ayuno hoy.'
-                        : activeFastingStatus === 'en curso' && activeFastingReachedGoal
-                          ? `${formatHoursLabel(activeFastingElapsedHours)} acumuladas • Meta alcanzada y ayuno en curso`
-                          : `${formatHoursLabel(activeFastingElapsedHours)} acumuladas${
-                              displayedFastingRemainingHours !== null ? ` • ${formatHoursLabel(displayedFastingRemainingHours)} restantes` : ' • Meta alcanzada'
-                            }`}
-                  </p>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Objetivo actual" subtitle={activeObjective ? activeObjective.title : 'Sin objetivo activo'} className="card-soft dashboard-compact-card">
-                <div className="dashboard-snapshot">
-                  <strong>
-                    {activeObjective?.targetWeight ? `${formatWeightValue(activeObjective.targetWeight, 'kg', '--')} meta` : 'Sin dato'}
-                  </strong>
-                  <p>
-                    {activeObjective
-                      ? `${formatIntegerValue(activeObjective.averageCaloriesTarget, 'kcal', '--')} prom • tope ${formatIntegerValue(activeObjective.averageUpperLimit, 'kcal', '--')}`
-                      : 'Todavia no has definido una meta activa.'}
-                  </p>
-                  {activeObjective ? (
-                    <small>{`Min habitual ${formatIntegerValue(activeObjective.minimumUsual, 'kcal', '--')} • Prot minima ${formatUnitValue(activeObjective.proteinMinimum, 'g', { maximumFractionDigits: 1, fallback: '--' })}`}</small>
-                  ) : null}
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Metricas" subtitle={latestMetric ? 'Ultimo dato disponible' : 'Sin metricas'} className="card-soft dashboard-compact-card">
-                <div className="dashboard-snapshot">
-                  <strong>{metricFieldSnapshots.weight.date ? formatMetricText(metricFieldSnapshots.weight.rawValue, ' kg') : 'Sin dato'}</strong>
-                  <p>
-                    {metricFieldSnapshots.weight.date
-                      ? `${formatMetricText(metricFieldSnapshots.bodyFat.rawValue, '%')} grasa • ${formatMetricText(metricFieldSnapshots.skeletalMuscleMass.rawValue, ' kg')} musculo`
-                      : 'Aun no has registrado metricas.'}
-                    </p>
-                </div>
-              </SectionCard>
-
-            </div>
-          </>
+          <DashboardTab
+            todaySummary={todaySummary}
+            calorieGoal={calorieGoal}
+            formatIntegerValue={formatIntegerValue}
+            calorieProgress={calorieProgress}
+            proteinGoal={proteinGoal}
+            dashboardProteinReferenceLabel={dashboardProteinReferenceLabel}
+            formatUnitValue={formatUnitValue}
+            proteinProgress={proteinProgress}
+            proteinAlert={proteinAlert}
+            dashboardProteinHelper={dashboardProteinHelper}
+            dashboardFatSubtitle={dashboardFatSubtitle}
+            dailyFatProgress={dailyFatProgress}
+            dailyFatTone={dailyFatTone}
+            dailyFatStatus={dailyFatStatus}
+            displayedFastingProtocolLabel={displayedFastingProtocolLabel}
+            displayedFastingStatusLabel={displayedFastingStatusLabel}
+            displayedFastingProgressPercent={displayedFastingProgressPercent}
+            displayedFastingRemainingHours={displayedFastingRemainingHours}
+            activeFastingElapsedHours={activeFastingElapsedHours}
+            formatHoursLabel={formatHoursLabel}
+            todaySummaryWeight={formatMetricValue(todaySummary.weight, todaySummary.weight === '--' ? '' : ' kg')}
+            weightGoal={weightGoal}
+            formatWeightValue={formatWeightValue}
+            weightProgress={weightProgress}
+            getWeightMessage={getWeightMessage}
+            hydrationBaseGoal={hydrationBaseGoal}
+            hydrationProgress={hydrationProgress}
+            hydrationTone={hydrationTone}
+            todaysExercises={todaysExercises}
+            hydrationHighActivityGoal={hydrationHighActivityGoal}
+            kravDashboardSnapshot={kravDashboardSnapshot}
+            formatKravPercent={formatKravPercent}
+            setActiveTab={setActiveTab}
+            fatAlert={fatAlert}
+            isSundayReminderVisible={isSundayReminderVisible}
+            dailyFatLimitGrams={dailyFatLimitGrams}
+            goalForm={goalForm}
+            handleFormChange={handleFormChange}
+            setGoalForm={setGoalForm}
+            handleGoalSubmit={handleGoalSubmit}
+            latestMetric={latestMetric}
+            dashboardCutReferenceMiniLabel={dashboardCutReferenceMiniLabel}
+            cutReferenceTdee={cutReferenceTdee}
+            todaysFoods={todaysFoods}
+            todaysSupplements={todaysSupplements}
+            activeFastingAutophagy={activeFastingAutophagy}
+            shouldTreatTodayAsFastingFree={shouldTreatTodayAsFastingFree}
+            activeFastingStatus={activeFastingStatus}
+            activeFastingReachedGoal={activeFastingReachedGoal}
+            activeObjective={activeObjective}
+            metricFieldSnapshots={metricFieldSnapshots}
+            formatMetricText={formatMetricText}
+          />
         ) : null}
 
         {activeTab === 'objectives' ? (
-          <>
-            <div className="metrics-summary-grid objective-summary-grid">
-              <div className="metrics-summary-card">
-                <span>Meta activa</span>
-                <strong>{activeObjective?.title || 'Sin objetivo activo'}</strong>
-                <small>{activeObjective ? objectiveTypeLabels[activeObjective.goalType] || activeObjective.goalType : 'Sin dato'}</small>
-              </div>
-              <div className="metrics-summary-card">
-                <span>Peso actual / meta</span>
-                <strong>
-                  {activeObjective
-                    ? `${formatMetricText(activeObjective.currentWeight, ' kg')} / ${formatMetricText(activeObjective.targetWeight, ' kg')}`
-                    : 'Sin suficientes datos'}
-                </strong>
-                <small>{activeObjective ? `Inicio ${formatMetricText(activeObjective.startWeight, ' kg')}` : 'Sin dato'}</small>
-              </div>
-              <div className="metrics-summary-card objective-progress-summary-card">
-                <span>Progreso estimado</span>
-                <strong>{activeObjectiveProgress === null ? 'Sin suficientes datos' : `${activeObjectiveProgress.toFixed(0)}%`}</strong>
-                <small>{activeObjective ? objectiveStatusLabels[activeObjective.status] || activeObjective.status : 'Sin dato'}</small>
-              </div>
-              <div className="metrics-summary-card">
-                <span>Guardrail central</span>
-                <strong>{activeObjective ? `${activeObjective.averageCaloriesTarget || '--'} kcal` : 'Sin dato'}</strong>
-                <small>{activeObjective ? `Proteina minima ${activeObjective.proteinMinimum || '--'} g` : 'Sin dato'}</small>
-              </div>
-            </div>
-
-            <SectionCard title="Meta activa" subtitle="Direccion estrategica de semanas o meses, separada de tus metas diarias." className="card-soft">
-              <form className="record-form" onSubmit={handleObjectiveSubmit}>
-                <div className="form-grid">
-                  <label className="field">
-                    <span>Titulo de la meta</span>
-                    <input name="title" type="text" value={objectiveForm.title} onChange={handleFormChange(setObjectiveForm)} placeholder="Ej. Corte mayo 2026" />
-                  </label>
-                  <label className="field">
-                    <span>Tipo de meta</span>
-                    <select name="goalType" value={objectiveForm.goalType} onChange={handleFormChange(setObjectiveForm)}>
-                      {Object.entries(objectiveTypeLabels).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Fecha de inicio</span>
-                    <input name="startDate" type="date" value={objectiveForm.startDate} onChange={handleFormChange(setObjectiveForm)} />
-                  </label>
-                  <label className="field">
-                    <span>Fecha limite</span>
-                    <input name="deadlineDate" type="date" value={objectiveForm.deadlineDate} onChange={handleFormChange(setObjectiveForm)} />
-                  </label>
-                  <label className="field">
-                    <span>Peso inicial</span>
-                    <input name="startWeight" type="number" min="0" step="0.1" value={objectiveForm.startWeight} onChange={handleFormChange(setObjectiveForm)} />
-                  </label>
-                  <label className="field">
-                    <span>Peso actual</span>
-                    <input name="currentWeight" type="number" min="0" step="0.1" value={objectiveForm.currentWeight} onChange={handleFormChange(setObjectiveForm)} />
-                  </label>
-                  <label className="field">
-                    <span>Peso objetivo</span>
-                    <input name="targetWeight" type="number" min="0" step="0.1" value={objectiveForm.targetWeight} onChange={handleFormChange(setObjectiveForm)} />
-                  </label>
-                  <label className="field">
-                    <span>Estado de la meta</span>
-                    <select name="status" value={objectiveForm.status} onChange={handleFormChange(setObjectiveForm)}>
-                      {Object.entries(objectiveStatusLabels).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="field field-full">
-                    <span>Notas</span>
-                    <textarea name="notes" rows="3" value={objectiveForm.notes} onChange={handleFormChange(setObjectiveForm)} placeholder="Contexto, estrategia y enfoque de esta meta..." />
-                  </label>
-                </div>
-
-                <div className="objective-progress-panel">
-                  <div className="objective-progress-copy">
-                    <strong>{objectiveFormProgress === null ? 'Sin suficientes datos' : `${objectiveFormProgress.toFixed(0)}% de avance estimado`}</strong>
-                    <span>
-                      {objectiveForm.startWeight && objectiveForm.currentWeight && objectiveForm.targetWeight
-                        ? `De ${objectiveForm.startWeight} kg hacia ${objectiveForm.targetWeight} kg, con actual ${objectiveForm.currentWeight} kg`
-                        : 'Completa pesos inicial, actual y objetivo para estimar el progreso.'}
-                    </span>
-                  </div>
-                  <div className="progress-track" aria-hidden="true">
-                    <div className="progress-fill" style={{ width: `${objectiveFormProgress || 0}%` }} />
-                  </div>
-                  <div className="objective-plan-strip">
-                    <span>
-                      <small>Peso inicial</small>
-                      <strong>{formatMetricText(objectiveForm.startWeight, ' kg')}</strong>
-                    </span>
-                    <span>
-                      <small>Peso actual</small>
-                      <strong>{formatMetricText(objectiveForm.currentWeight, ' kg')}</strong>
-                    </span>
-                    <span>
-                      <small>Peso objetivo</small>
-                      <strong>{formatMetricText(objectiveForm.targetWeight, ' kg')}</strong>
-                    </span>
-                    <span>
-                      <small>Fecha límite</small>
-                      <strong>{objectiveForm.deadlineDate ? formatDate(objectiveForm.deadlineDate) : 'Sin fecha'}</strong>
-                    </span>
-                  </div>
-                </div>
-
-                {isObjectiveCutGoal ? (
-                  <div className="objective-cut-reference-panel">
-                    <div className="objective-cut-reference-head">
-                      <strong>Referencia de corte cargada</strong>
-                      <small>Apoyo visual tomado desde Ajustes para que la meta de corte no pierda contexto operativo.</small>
-                    </div>
-                    <div className="mini-stat-grid objective-cut-reference-grid">
-                      <div className="mini-stat">
-                        <span>TDEE operativo</span>
-                        <strong>{formatIntegerValue(cutReferenceTdee, 'kcal', 'Sin dato')}</strong>
-                      </div>
-                      <div className="mini-stat">
-                        <span>Rango útil de corte</span>
-                        <strong>{cutReferenceCutRangeLabel}</strong>
-                      </div>
-                      <div className="mini-stat">
-                        <span>Macros de referencia</span>
-                        <strong>{cutReferenceMacrosLabel}</strong>
-                      </div>
-                      <div className="mini-stat">
-                        <span>Estado</span>
-                        <strong>{hasCutReferenceLoaded ? 'Referencia cargada' : 'Aún sin referencia'}</strong>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="form-actions">
-                  <button className="button button-primary" type="submit">Guardar objetivo</button>
-                </div>
-              </form>
-            </SectionCard>
-
-            <div className="split-layout objective-layout">
-              <SectionCard title="Guardrails nutricionales" subtitle="Limites simples para sostener la ejecucion semanal." className="card-soft">
-                <form className="record-form objective-subform" onSubmit={handleObjectiveSubmit}>
-                  {isObjectiveCutGoal && hasCutReferenceLoaded ? (
-                    <p className="section-helper objective-cut-reference-helper">
-                      Referencia visible: TDEE operativo {formatIntegerValue(cutReferenceTdee, 'kcal', 'Sin dato')} • Corte útil {cutReferenceCutRangeLabel} • Proteína {cutReferenceProteinRangeLabel}
-                    </p>
-                  ) : null}
-                  <div className="form-grid">
-                    <label className="field">
-                      <span>Calorias promedio objetivo</span>
-                      <input
-                        name="averageCaloriesTarget"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={objectiveForm.averageCaloriesTarget}
-                        onChange={handleFormChange(setObjectiveForm)}
-                        placeholder={isObjectiveCutGoal && !objectiveForm.averageCaloriesTarget && cutReferenceCutMin !== null ? String(cutReferenceCutMin) : ''}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Limite superior promedio</span>
-                      <input
-                        name="averageUpperLimit"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={objectiveForm.averageUpperLimit}
-                        onChange={handleFormChange(setObjectiveForm)}
-                        placeholder={isObjectiveCutGoal && !objectiveForm.averageUpperLimit && cutReferenceCutMax !== null ? String(cutReferenceCutMax) : ''}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Minimo habitual</span>
-                      <input name="minimumUsual" type="number" min="0" step="1" value={objectiveForm.minimumUsual} onChange={handleFormChange(setObjectiveForm)} />
-                    </label>
-                    <label className="field">
-                      <span>Proteina minima</span>
-                      <input
-                        name="proteinMinimum"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={objectiveForm.proteinMinimum}
-                        onChange={handleFormChange(setObjectiveForm)}
-                        placeholder={isObjectiveCutGoal && !objectiveForm.proteinMinimum && cutReferenceProteinMin !== null ? String(cutReferenceProteinMin) : ''}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Hidratacion base</span>
-                      <input name="hydrationBase" type="number" min="0" step="50" value={objectiveForm.hydrationBase} onChange={handleFormChange(setObjectiveForm)} />
-                    </label>
-                    <label className="field">
-                      <span>Hidratacion alta actividad</span>
-                      <input name="hydrationHighActivity" type="number" min="0" step="50" value={objectiveForm.hydrationHighActivity} onChange={handleFormChange(setObjectiveForm)} />
-                    </label>
-                  </div>
-                  <div className="form-actions">
-                    <button className="button button-primary" type="submit">Guardar guardrails</button>
-                  </div>
-                </form>
-              </SectionCard>
-
-              <SectionCard title="Recordatorios estrategicos" subtitle="Reglas simples para ejecutar la meta con consistencia." className="card-soft">
-                <form className="record-form objective-subform" onSubmit={handleObjectiveSubmit}>
-                  <label className="field field-full">
-                    <span>Checklist o recordatorios</span>
-                    <textarea
-                      name="strategicReminders"
-                      rows="6"
-                      value={objectiveForm.strategicReminders}
-                      onChange={handleFormChange(setObjectiveForm)}
-                      placeholder="- Priorizar promedio semanal&#10;- Proteger masa muscular"
-                    />
-                  </label>
-                  <div className="form-actions">
-                    <button className="button button-primary" type="submit">Guardar recordatorios</button>
-                  </div>
-                </form>
-              </SectionCard>
-
-              <SectionCard
-                title="Alimentos base de corte"
-                subtitle="Referencia limpia para mayo: simple, visual y alineada con la nota del coach."
-                className="card-soft objective-food-reference-card"
-              >
-                <div className="objective-food-reference-summary">
-                  <strong>Guía rápida de consulta</strong>
-                  <p>Úsala para elegir comidas y compras limpias del corte sin convertir esta pestaña en una tabla nutricional pesada.</p>
-                </div>
-                <div className="objective-food-reference-rule">
-                  <strong>Regla de coach</strong>
-                  <p>{cutMayReferenceRule}</p>
-                </div>
-                <div className="objective-food-reference-grid">
-                  {cutMayReferenceGroups.map((group) => (
-                    <article className="objective-food-group" key={group.title}>
-                      <div className="objective-food-group-head">
-                        <span>{group.title}</span>
-                        {group.description ? <small>{group.description}</small> : null}
-                      </div>
-                      <div className="objective-food-chip-list">
-                        {group.items.map((item) => (
-                          <span className="objective-food-chip" key={`${group.title}-${item}`}>
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </SectionCard>
-            </div>
-
-          </>
+          <ObjectivesTab
+            activeObjective={activeObjective}
+            activeObjectiveProgress={activeObjectiveProgress}
+            objectiveTypeLabels={objectiveTypeLabels}
+            formatMetricText={formatMetricText}
+            objectiveStatusLabels={objectiveStatusLabels}
+            handleObjectiveSubmit={handleObjectiveSubmit}
+            objectiveForm={objectiveForm}
+            handleFormChange={handleFormChange}
+            setObjectiveForm={setObjectiveForm}
+            objectiveFormProgress={objectiveFormProgress}
+            isObjectiveCutGoal={isObjectiveCutGoal}
+            cutReferenceTdee={cutReferenceTdee}
+            cutReferenceCutRangeLabel={cutReferenceCutRangeLabel}
+            cutReferenceMacrosLabel={cutReferenceMacrosLabel}
+            hasCutReferenceLoaded={hasCutReferenceLoaded}
+            cutReferenceCutMin={cutReferenceCutMin}
+            cutReferenceCutMax={cutReferenceCutMax}
+            cutReferenceProteinMin={cutReferenceProteinMin}
+            cutReferenceProteinRangeLabel={cutReferenceProteinRangeLabel}
+            cutMayReferenceRule={cutMayReferenceRule}
+            cutMayReferenceGroups={cutMayReferenceGroups}
+            formatIntegerValue={formatIntegerValue}
+            formatDate={formatDate}
+          />
         ) : null}
 
         {activeTab === 'settings' ? (
@@ -5092,7 +4632,7 @@ function lockPrivateModule(feedbackText = '') {
                 </div>
 
                 <p className="section-helper">
-                  El snapshot remoto excluye <strong>privateVault</strong>, incluido el PIN del modulo privado. La
+                  El snapshot remoto excluye <strong>privateVault</strong>, incluido el PIN del módulo privado. La
                   estrategia de conflicto de esta fase es <strong>last write wins</strong> basada en <strong>updatedAt</strong>.
                 </p>
 
@@ -5300,7 +4840,7 @@ function lockPrivateModule(feedbackText = '') {
         {activeTab === 'foods' ? (
           <>
             <div className="split-layout foods-layout">
-              <SectionCard title="Registro de alimentos" subtitle="Guarda comida, macros y notas del dia.">
+              <SectionCard title="Registro de alimentos" subtitle="Guarda comida, macros y notas del día.">
                 <RecordForm
                   title="Nuevo alimento"
                   fields={[
@@ -5328,7 +4868,7 @@ function lockPrivateModule(feedbackText = '') {
                     { name: 'fat', label: 'Grasa (g)', type: 'number', min: '0', step: '0.1' },
                     { name: 'costMxn', label: 'Costo (MXN)', type: 'number', min: '0', step: '0.01' },
                     { name: 'caffeineMg', label: 'Cafeina (mg)', type: 'number', min: '0', step: '1' },
-                    { name: 'notes', label: 'Notas', type: 'textarea', placeholder: 'Como te sentiste, porcion, contexto...' },
+                    { name: 'notes', label: 'Notas', type: 'textárea', placeholder: 'Cómo te sentiste, porcion, contexto...' },
                   ]}
                   formData={foodForm}
                   onChange={handleFormChange(setFoodForm)}
@@ -5344,12 +4884,12 @@ function lockPrivateModule(feedbackText = '') {
               <SectionCard title="Registros recientes" subtitle="Vista compacta para editar, eliminar o reutilizar alimentos.">
                 <EntryList
                   title="Alimentos"
-                  emptyMessage="No hay alimentos registrados todavia."
+                  emptyMessage="No hay alimentos registrados todavía."
                   className="entry-list-compact foods-recent-list"
                   items={visibleRecentFoods.map((item) => ({
                     ...item,
                     primaryLabel: item.name || 'Sin nombre',
-                    secondaryLabel: `${formatDate(item.date)}${item.time ? ` • ${item.time}` : ''}${item.mealType ? ` • ${mealTypeLabels[item.mealType] || item.mealType}` : ''}`,
+                    secondaryLabel: `${formatDate(item.date)}${item.time ? ` · ${item.time}` : ''}${item.mealType ? ` · ${mealTypeLabels[item.mealType] || item.mealType}` : ''}`,
                   }))}
                   renderDetails={(item) => (
                     <>
@@ -5416,7 +4956,7 @@ function lockPrivateModule(feedbackText = '') {
                         { name: 'fat', label: 'Grasa (g)', type: 'number', min: '0', step: '0.1' },
                         { name: 'costMxn', label: 'Costo (MXN)', type: 'number', min: '0', step: '0.01' },
                         { name: 'caffeineMg', label: 'Cafeina (mg)', type: 'number', min: '0', step: '1' },
-                        { name: 'notes', label: 'Notas opcionales', type: 'textarea', placeholder: 'Preparacion, marca o contexto...' },
+                        { name: 'notes', label: 'Notas opcionales', type: 'textárea', placeholder: 'Preparacion, marca o contexto...' },
                       ]}
                       formData={foodTemplateForm}
                       onChange={handleFormChange(setFoodTemplateForm)}
@@ -5497,7 +5037,7 @@ function lockPrivateModule(feedbackText = '') {
             </div>
 
             <div className="split-layout hydration-layout">
-              <SectionCard title="Hidratacion" subtitle="Registra agua, cafe, te y otras bebidas del dia.">
+              <SectionCard title="Hidratación" subtitle="Registra agua, cafe, te y otras bebidas del día.">
                 <RecordForm
                   title="Nueva bebida"
                   fields={[
@@ -5538,7 +5078,7 @@ function lockPrivateModule(feedbackText = '') {
                         { value: 'si', label: 'Si' },
                       ],
                     },
-                    { name: 'notes', label: 'Notas', type: 'textarea', placeholder: 'Marca, sensacion o contexto...' },
+                    { name: 'notes', label: 'Notas', type: 'textárea', placeholder: 'Marca, sensacion o contexto...' },
                   ]}
                   formData={hydrationForm}
                   onChange={handleFormChange(setHydrationForm)}
@@ -5553,7 +5093,7 @@ function lockPrivateModule(feedbackText = '') {
 
               <SectionCard
                 title="Registros de hidratacion"
-                subtitle={`Meta base ${hydrationBaseGoal || 0} ml${todaysExercises.length > 0 && hydrationHighActivityGoal > 0 ? ` • Alta actividad ${hydrationHighActivityGoal} ml` : ''}`}
+                subtitle={`Meta base ${hydrationBaseGoal || 0} ml${todaysExercises.length > 0 && hydrationHighActivityGoal > 0 ? ` · Alta actividad ${hydrationHighActivityGoal} ml` : ''}`}
               >
                 <div className="mini-stat-grid hydration-mini-grid">
                   <div className="mini-stat">
@@ -5575,7 +5115,7 @@ function lockPrivateModule(feedbackText = '') {
                   items={sortHydrationEntries(diaryData.hydrationEntries || []).map((item) => ({
                     ...item,
                     primaryLabel: item.name || drinkTypeLabels[item.drinkType] || 'Sin nombre',
-                    secondaryLabel: `${formatDate(item.date)}${item.time ? ` • ${item.time}` : ''}${item.drinkType ? ` • ${drinkTypeLabels[item.drinkType] || item.drinkType}` : ''}`,
+                    secondaryLabel: `${formatDate(item.date)}${item.time ? ` · ${item.time}` : ''}${item.drinkType ? ` · ${drinkTypeLabels[item.drinkType] || item.drinkType}` : ''}`,
                   }))}
                   renderDetails={(item) => (
                     <>
@@ -5593,417 +5133,97 @@ function lockPrivateModule(feedbackText = '') {
             </div>
           </>
         ) : null}
-        {activeTab === 'fasting' ? (
-          <div className="fasting-tab-stack">
-            <SectionCard title="Resumen de hoy" subtitle="Vista rapida basada solo en registros reales y días libres." className="card-soft fasting-today-summary-card">
-              <div className="section-inline-actions section-inline-actions-tight fasting-day-toggle">
-                <button
-                  className={`button ${isTodayFastingFree ? 'button-primary' : 'button-secondary'}`}
-                  type="button"
-                  onClick={toggleTodayNoFasting}
-                  disabled={hasActiveRealFastingLog()}
-                >
-                  {isTodayFastingFree ? 'Quitar día libre' : 'Hoy no hay ayuno'}
-                </button>
-                <span className="section-helper">
-                  {hasActiveRealFastingLog()
-                    ? 'Rompe o cierra el ayuno activo antes de marcar día libre.'
-                    : isTodayFastingFree
-                    ? activeFastingLog
-                      ? 'Hay un ayuno real activo; el día libre no sobrescribe ese registro.'
-                      : 'Hoy queda excluido del seguimiento de ayuno.'
-                    : 'Marca el día como libre si no quieres ayuno hoy.'}
-                </span>
-              </div>
-              {fastingFeedback.text ? (
-                <div className="alert-banner">
-                  <strong>{fastingFeedback.type === 'warning' ? 'Atencion:' : 'Ayuno:'}</strong> {fastingFeedback.text}
-                </div>
-              ) : null}
-              <div className="supplement-summary-grid fasting-summary-grid">
-                <div className="supplement-summary-card fasting-summary-primary-card fasting-summary-card-status">
-                  <span>Estado real</span>
-                  <strong>{displayedFastingStatusLabel}</strong>
-                  <small className="fasting-summary-note">{displayedFastingSummaryText}</small>
-                </div>
-                <div className="supplement-summary-card fasting-summary-card-protocol">
-                  <span>Registro de hoy</span>
-                  <strong>{displayedFastingProtocolLabel}</strong>
-                  {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <small className="fasting-summary-note">Hito visual activado desde 16 h de ayuno activo.</small> : null}
-                </div>
-                <div className="supplement-summary-card fasting-summary-card-elapsed">
-                  <span>Horas acumuladas</span>
-                  <strong>{displayedFastingStatus === 'pendiente' ? 'Sin registro' : displayedFastingElapsedLabel}</strong>
-                </div>
-                <div className="supplement-summary-card fasting-summary-card-goal">
-                  <span>Meta del registro</span>
-                  <strong>{shouldTreatTodayAsFastingFree ? 'Día libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta definida'}</strong>
-                </div>
-                <div className="supplement-summary-card fasting-summary-card-progress">
-                  <span>Progreso</span>
-                  <strong>{activeFastingProgressLabel}</strong>
-                </div>
-              </div>
-              <div className="fasting-live-card fasting-today-live-card">
-                <div className="fasting-live-header">
-                  <div>
-                    <strong>{displayedFastingDisplay}</strong>
-                    <span>{displayedFastingSummaryText}</span>
-                    {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <small className="fasting-summary-note">Hito visual activado desde 16 h de ayuno activo.</small> : null}
-                  </div>
-                  <div className="fasting-live-badges">
-                    {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <span className="fasting-autophagy-badge">En autofagia</span> : null}
-                    <span className={`metrics-source-chip ${getFastingStatusClass(shouldTreatTodayAsFastingFree ? 'cumplido' : activeFastingStatus)}`}>
-                      {displayedFastingStatusLabel}
-                    </span>
-                  </div>
-                </div>
-                <div className="progress-track" aria-hidden="true">
-                  <div className="progress-fill" style={{ width: `${displayedFastingStatus === 'pendiente' || shouldTreatTodayAsFastingFree ? 0 : Math.min(displayedFastingProgressPercent, 100)}%` }} />
-                </div>
-                <div className="fasting-live-metrics">
-                  <div className="fasting-live-metric">
-                    <span>Estado</span>
-                    <strong>{displayedFastingStatusLabel}</strong>
-                  </div>
-                  <div className="fasting-live-metric">
-                    <span>Acumulado</span>
-                    <strong>{displayedFastingStatus === 'pendiente' ? 'Sin registro' : displayedFastingElapsedLabel}</strong>
-                  </div>
-                <div className="fasting-live-metric">
-                  <span>Objetivo</span>
-                  <strong>{shouldTreatTodayAsFastingFree ? 'Día libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta'}</strong>
-                </div>
-                <div className="fasting-live-metric">
-                  <span>Progreso</span>
-                  <strong>{activeFastingProgressLabel}</strong>
-                </div>
-                </div>
-                <div className="entry-details">
-                  <span>{activeFastingLog?.actualStartDateTime ? `Inicio real ${formatDateTimeHuman(activeFastingLog.actualStartDateTime)}` : 'Inicio real sin dato'}</span>
-                  <span>{displayedFastingBreakLabel}</span>
-                  {displayedFastingStatus === 'roto' && activeFastingDifferenceHours !== null ? <span>{activeFastingDifferenceText}</span> : null}
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Registro real del día" subtitle="Captura manual. Esto es lo que manda Dashboard, Ayuno y Semanal." className="card-soft fasting-section-card">
-              <div className="fasting-columns">
-                <div className="fasting-column">
-                  <div className="fasting-action-panel">
-                  <div className="entry-actions fasting-quick-actions fasting-primary-actions">
-                    <button className={`button ${hasActiveRealFastingLog() ? 'button-secondary' : 'button-primary'}`} type="button" onClick={startFastingNow}>
-                      Iniciar ahora
-                    </button>
-                    <button className={`button ${hasActiveRealFastingLog() ? 'button-primary' : 'button-secondary'}`} type="button" onClick={breakFastingNow}>
-                      Romper ayuno ahora
-                    </button>
-                    <button className="button button-secondary" type="button" onClick={markFastingAsCompleted}>
-                      Marcar como cumplido
-                    </button>
-                  </div>
-                  <div className="entry-actions fasting-quick-actions fasting-secondary-actions">
-                    <button className="button button-secondary" type="button" onClick={toggleTodayNoFasting} disabled={hasActiveRealFastingLog()}>
-                      Marcar día libre
-                    </button>
-                    <button className="button button-secondary" type="button" onClick={clearFastingTimes}>
-                      Limpiar horas
-                    </button>
-                    <button
-                      className="button button-secondary"
-                      type="button"
-                      onClick={() => {
-                        if (editingFastingLogId) {
-                          resetFastingLogForm();
-                          setEditingFastingLogId(null);
-                          setShowFastingManualForm(false);
-                          return;
-                        }
-                        setShowFastingManualForm((current) => !current);
-                      }}
-                    >
-                      {showFastingManualForm || editingFastingLogId ? 'Ocultar registro manual' : 'Agregar registro manual'}
-                    </button>
-                  </div>
-                  </div>
-                  {showFastingManualForm || editingFastingLogId ? (
-                    <RecordForm
-                      title="Registro manual avanzado"
-                      fields={[
-                        { name: 'date', label: 'Fecha', type: 'date' },
-                        { name: 'expectedProtocol', label: 'Plantilla o tipo de ayuno', type: 'text', placeholder: 'Ej. Ayuno 36 horas, 12 h nocturno, 72 horas...' },
-                        { name: 'targetHours', label: 'Meta manual (horas)', type: 'number', min: '0', step: '0.1' },
-                        { name: 'actualStartDateTime', label: 'Fecha y hora real de inicio', type: 'datetime-local' },
-                        { name: 'actualBreakDateTime', label: 'Fecha y hora real de ruptura (solo si ya terminó)', type: 'datetime-local' },
-                        { name: 'actualDuration', label: 'Duracion real (horas)', type: 'number', min: '0', step: '0.1' },
-                        {
-                          name: 'completed',
-                          label: 'Cumplido',
-                          type: 'select',
-                          options: [
-                            { value: 'si', label: 'Si' },
-                            { value: 'no', label: 'No' },
-                          ],
-                        },
-                        {
-                          name: 'hunger',
-                          label: 'Hambre',
-                          type: 'select',
-                          options: Object.entries(fastingFeelingLabels).map(([value, label]) => ({ value, label })),
-                        },
-                        {
-                          name: 'energy',
-                          label: 'Energia',
-                          type: 'select',
-                          options: Object.entries(fastingFeelingLabels).map(([value, label]) => ({ value, label })),
-                        },
-                        {
-                          name: 'cravings',
-                          label: 'Antojos',
-                          type: 'select',
-                          options: Object.entries(fastingFeelingLabels).map(([value, label]) => ({ value, label })),
-                        },
-                        { name: 'notes', label: 'Notas', type: 'textarea', placeholder: 'Como te sentiste, desviaciones o contexto...' },
-                      ]}
-                      formData={fastingLogForm}
-                      onChange={handleFastingLogChange}
-                      onSubmit={handleFastingLogSubmit}
-                      onCancel={() => {
-                        resetFastingLogForm();
-                        setEditingFastingLogId(null);
-                        setShowFastingManualForm(false);
-                      }}
-                      isEditing={Boolean(editingFastingLogId)}
-                    />
-                  ) : (
-                    <p className="section-helper fasting-manual-helper">Usa el registro manual solo para corregir fechas, meta, duración o sensaciones. Las acciones rápidas cubren el uso diario.</p>
-                  )}
-                </div>
-
-                <div className="fasting-column">
-                  <div className="fasting-live-card fasting-active-summary-card">
-                    <div className="fasting-live-header">
-                  <div>
-                    <strong>{displayedFastingProtocolLabel || 'Sin protocolo esperado'}</strong>
-                    <span>Resumen del ayuno activo: {displayedFastingStatusLabel}</span>
-                  </div>
-                      <span className={`metrics-source-chip ${getFastingStatusClass(shouldTreatTodayAsFastingFree ? 'cumplido' : activeFastingStatus)}`}>
-                        {activeFastingProgressLabel}
-                      </span>
-                    </div>
-                    <div className="fasting-live-metrics">
-                      <div className="fasting-live-metric">
-                        <span>Transcurrido</span>
-                        <strong>{displayedFastingStatus === 'pendiente' ? 'Sin registro' : displayedFastingElapsedLabel}</strong>
-                      </div>
-                      <div className="fasting-live-metric">
-                        <span>Objetivo</span>
-                        <strong>{shouldTreatTodayAsFastingFree ? 'Día libre' : activeFastingGoalHours ? formatHoursLabel(activeFastingGoalHours) : 'Sin meta'}</strong>
-                      </div>
-                      <div className="fasting-live-metric">
-                        <span>Estado</span>
-                        <strong>{displayedFastingStatusLabel}</strong>
-                      </div>
-                      <div className="fasting-live-metric">
-                        <span>Progreso</span>
-                        <strong>{activeFastingProgressLabel}</strong>
-                      </div>
-                    </div>
-                    <div className="entry-details">
-                      <span>{activeFastingLog?.actualStartDateTime ? `Inicio real ${formatDateTimeHuman(activeFastingLog.actualStartDateTime)}` : 'Inicio real sin dato'}</span>
-                      <span>{displayedFastingBreakLabel}</span>
-                      {activeFastingStatus === 'roto' ? <span>{activeFastingDifferenceText}</span> : null}
-                    </div>
-                  </div>
-
-                  <div className="metrics-card-list">
-                    {sortedFastingLogs.length === 0 ? <p className="empty-state">Todavia no has registrado ayunos.</p> : null}
-                    {sortedFastingLogs.map((item) => {
-                      const status = getFastingStatusLabel(item, null, fastingNow);
-                      const durationHours = getFastingElapsedHours(item, fastingNow);
-                      const expected = getEffectiveFastingTargetHours(item, null);
-                      const goalReachedWhileActive = status === 'en curso' && expected > 0 && durationHours >= expected;
-                      const statusLabel = formatFastingStatusCopy(status, { reachedGoal: goalReachedWhileActive });
-                      const estimatedBreakDateTime = getEstimatedFastingBreakDateTime(item.actualStartDateTime, expected);
-
-                      return (
-                        <article className="metrics-card" key={item.id}>
-                          <div className="metrics-card-top">
-                            <div>
-                              <strong>{item.expectedProtocol || 'Sin protocolo esperado'}</strong>
-                              <span>{formatDate(item.date)}</span>
-                            </div>
-                            <span className={`metrics-source-chip ${getFastingStatusClass(status)}`}>
-                              {statusLabel}
-                            </span>
-                          </div>
-                          <div className="entry-details">
-                            <span>{item.actualStartDateTime ? `Inicio ${formatDateTimeHuman(item.actualStartDateTime)}` : 'Inicio real sin dato'}</span>
-                            <span>
-                              {item.actualBreakDateTime && status !== 'en curso'
-                                ? `Ruptura real ${formatDateTimeHuman(item.actualBreakDateTime)}`
-                                : item.actualBreakDateTime && status === 'en curso'
-                                  ? `Ruptura estimada ${formatDateTimeHuman(item.actualBreakDateTime)}`
-                                : status === 'en curso' && estimatedBreakDateTime
-                                  ? `Ruptura estimada ${formatDateTimeHuman(estimatedBreakDateTime)}`
-                                  : status === 'en curso'
-                                    ? 'Ruptura pendiente'
-                                    : 'Ruptura real sin dato'}
-                            </span>
-                            <span>{durationHours > 0 ? `${formatHoursLabel(durationHours)} acumuladas` : 'Sin duracion'}</span>
-                            {goalReachedWhileActive ? <span>Meta alcanzada · ayuno en curso</span> : null}
-                            {expected > 0 && status === 'roto' ? <span>Faltaron {formatHoursLabel(Math.max(expected - durationHours, 0))}</span> : null}
-                            <span>Hambre {fastingFeelingLabels[item.hunger] || item.hunger}</span>
-                            <span>Energia {fastingFeelingLabels[item.energy] || item.energy}</span>
-                          </div>
-                          {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
-                          <div className="entry-actions">
-                            <button
-                              className="button button-secondary"
-                              type="button"
-                              onClick={() => {
-                                setShowFastingManualForm(true);
-                                startEditing('fastingLogs', item.id, setFastingLogForm, setEditingFastingLogId, 'fasting');
-                              }}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              className="button button-danger"
-                              type="button"
-                              onClick={() => deleteRecord('fastingLogs', item.id, setEditingFastingLogId, resetFastingLogForm)}
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Plantillas de apoyo" subtitle="Atajos secundarios para crear registros reales. No deciden el estado del día." className="card-soft fasting-section-card fasting-templates-card">
-              <div className="entry-actions fasting-quick-actions">
-                <button className="button button-secondary" type="button" onClick={startNocturnalFasting}>
-                  Iniciar 12 h nocturno
-                </button>
-                <button className="button button-secondary" type="button" onClick={start36HourFasting}>
-                  Iniciar 36 h
-                </button>
-                <button className="button button-secondary" type="button" onClick={start72HourFasting}>
-                  Iniciar 72 h
-                </button>
-                <button className="button button-secondary" type="button" onClick={toggleTodayNoFasting} disabled={hasActiveRealFastingLog()}>
-                  Marcar día libre
-                </button>
-                <button className="button button-secondary" type="button" onClick={() => setShowFastingProtocolBuilder((current) => !current)}>
-                  {showFastingProtocolBuilder ? 'Ocultar plantillas avanzadas' : 'Mostrar plantillas avanzadas'}
-                </button>
-              </div>
-
-              {showFastingProtocolBuilder ? (
-                <div className="fasting-columns fasting-advanced-templates">
-                  <div className="fasting-column">
-                    <RecordForm
-                      title="Plantilla semanal opcional"
-                      fields={[
-                        {
-                          name: 'dayOfWeek',
-                          label: 'Dia de la semana',
-                          type: 'select',
-                          options: Object.entries(fastingDayLabels).map(([value, label]) => ({ value, label })),
-                        },
-                        {
-                          name: 'fastingType',
-                          label: 'Tipo de ayuno',
-                          type: 'select',
-                          options: Object.entries(fastingTypeLabels).map(([value, label]) => ({ value, label })),
-                        },
-                        { name: 'startTime', label: 'Hora de inicio', type: 'time' },
-                        { name: 'eatingWindow', label: 'Hora de fin o ventana de comida', type: 'text', placeholder: 'Ej. 07:00 a 08:00 o protocolo esperado' },
-                        { name: 'expectedDuration', label: 'Duracion esperada (horas)', type: 'number', min: '0', step: '0.1' },
-                        { name: 'notes', label: 'Notas opcionales', type: 'textarea', placeholder: 'Contexto, flexibilidad o recordatorios...' },
-                      ]}
-                      formData={fastingProtocolForm}
-                      onChange={handleFastingProtocolChange}
-                      onSubmit={handleFastingProtocolSubmit}
-                      onCancel={() => {
-                        resetFastingProtocolForm();
-                        setEditingFastingProtocolId(null);
-                      }}
-                      isEditing={Boolean(editingFastingProtocolId)}
-                    />
-                  </div>
-
-                  <div className="fasting-column">
-                    <div className="fasting-protocol-list">
-                      {sortedFastingProtocols.length === 0 ? <p className="empty-state">Aun no tienes plantillas semanales guardadas.</p> : null}
-                      {sortedFastingProtocols.map((item) => (
-                        <article className="fasting-protocol-item" key={item.id}>
-                          <div className="fasting-protocol-content">
-                            <div className="fasting-protocol-main">
-                              <strong className="fasting-protocol-day">{fastingDayLabels[item.dayOfWeek] || item.dayOfWeek}</strong>
-                              <span className="fasting-protocol-type">{`Plantilla: ${formatProtocolLabel(item)}`}</span>
-                            </div>
-                            <div className="fasting-protocol-meta">
-                              <span className="fasting-protocol-goal">{item.expectedDuration ? `Objetivo ${item.expectedDuration} h` : 'Sin duracion'}</span>
-                              <span className="fasting-protocol-window">{item.eatingWindow || 'Sin ventana definida'}</span>
-                              {item.notes ? <span className="fasting-protocol-window">{item.notes}</span> : null}
-                            </div>
-                          </div>
-                          <div className="entry-actions fasting-protocol-actions">
-                            <button
-                              className="button button-secondary"
-                              type="button"
-                              onClick={() => startEditing('fastingProtocols', item.id, setFastingProtocolForm, setEditingFastingProtocolId, 'fasting')}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              className="button button-danger"
-                              type="button"
-                              onClick={() => deleteRecord('fastingProtocols', item.id, setEditingFastingProtocolId, resetFastingProtocolForm)}
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="section-helper">Las plantillas son apoyo opcional. El estado diario sigue saliendo solo de registros reales o días libres.</p>
-              )}
-            </SectionCard>
-          </div>
+                {activeTab === 'fasting' ? (
+          <FastingTab
+            isTodayFastingFree={isTodayFastingFree}
+            toggleTodayNoFasting={toggleTodayNoFasting}
+            hasActiveRealFastingLog={hasActiveRealFastingLog}
+            activeFastingLog={activeFastingLog}
+            fastingFeedback={fastingFeedback}
+            displayedFastingStatusLabel={displayedFastingStatusLabel}
+            displayedFastingSummaryText={displayedFastingSummaryText}
+            displayedFastingProtocolLabel={displayedFastingProtocolLabel}
+            activeFastingAutophagy={activeFastingAutophagy}
+            shouldTreatTodayAsFastingFree={shouldTreatTodayAsFastingFree}
+            displayedFastingStatus={displayedFastingStatus}
+            displayedFastingElapsedLabel={displayedFastingElapsedLabel}
+            activeFastingGoalHours={activeFastingGoalHours}
+            formatHoursLabel={formatHoursLabel}
+            activeFastingProgressLabel={activeFastingProgressLabel}
+            displayedFastingDisplay={displayedFastingDisplay}
+            getFastingStatusClass={getFastingStatusClass}
+            activeFastingStatus={activeFastingStatus}
+            displayedFastingProgressPercent={displayedFastingProgressPercent}
+            displayedFastingBreakLabel={displayedFastingBreakLabel}
+            activeFastingDifferenceHours={activeFastingDifferenceHours}
+            activeFastingDifferenceText={activeFastingDifferenceText}
+            formatDateTimeHuman={formatDateTimeHuman}
+            startFastingNow={startFastingNow}
+            breakFastingNow={breakFastingNow}
+            markFastingAsCompleted={markFastingAsCompleted}
+            clearFastingTimes={clearFastingTimes}
+            editingFastingLogId={editingFastingLogId}
+            resetFastingLogForm={resetFastingLogForm}
+            setEditingFastingLogId={setEditingFastingLogId}
+            setShowFastingManualForm={setShowFastingManualForm}
+            showFastingManualForm={showFastingManualForm}
+            fastingLogForm={fastingLogForm}
+            handleFastingLogChange={handleFastingLogChange}
+            handleFastingLogSubmit={handleFastingLogSubmit}
+            fastingFeelingLabels={fastingFeelingLabels}
+            sortedFastingLogs={sortedFastingLogs}
+            getFastingStatusLabel={getFastingStatusLabel}
+            fastingNow={fastingNow}
+            getFastingElapsedHours={getFastingElapsedHours}
+            getEffectiveFastingTargetHours={getEffectiveFastingTargetHours}
+            formatFastingStatusCopy={formatFastingStatusCopy}
+            getEstimatedFastingBreakDateTime={getEstimatedFastingBreakDateTime}
+            formatDate={formatDate}
+            startEditing={startEditing}
+            deleteRecord={deleteRecord}
+            startNocturnalFasting={startNocturnalFasting}
+            start36HourFasting={start36HourFasting}
+            start72HourFasting={start72HourFasting}
+            showFastingProtocolBuilder={showFastingProtocolBuilder}
+            setShowFastingProtocolBuilder={setShowFastingProtocolBuilder}
+            fastingProtocolForm={fastingProtocolForm}
+            fastingDayLabels={fastingDayLabels}
+            fastingTypeLabels={fastingTypeLabels}
+            handleFastingProtocolChange={handleFastingProtocolChange}
+            handleFastingProtocolSubmit={handleFastingProtocolSubmit}
+            resetFastingProtocolForm={resetFastingProtocolForm}
+            setEditingFastingProtocolId={setEditingFastingProtocolId}
+            editingFastingProtocolId={editingFastingProtocolId}
+            sortedFastingProtocols={sortedFastingProtocols}
+            formatProtocolLabel={formatProtocolLabel}
+            setFastingLogForm={setFastingLogForm}
+            setFastingProtocolForm={setFastingProtocolForm}
+          />
         ) : null}
-        {activeTab === 'supplements' ? (
+        {activeTab === 'supplements' ? (<SupplementsTab>
           <>
             <div className="supplement-summary-grid">
               <div className="supplement-summary-card">
-                <span>Total visible</span>
+                <span>Total visible hoy</span>
                 <strong>{visibleSupplementSummary.total}</strong>
               </div>
               <div className="supplement-summary-card">
-                <span>Tomados visibles</span>
+                <span>Tomados hoy</span>
                 <strong>{visibleSupplementSummary.taken}</strong>
               </div>
               <div className="supplement-summary-card">
-                <span>Pendientes visibles</span>
+                <span>Pendientes hoy</span>
                 <strong>{visibleSupplementSummary.pending}</strong>
               </div>
               <div className="supplement-summary-card">
-                <span>Medicamentos visibles</span>
+                <span>Medicamentos hoy</span>
                 <strong>{visibleSupplementSummary.medications}</strong>
               </div>
             </div>
 
             <SectionCard
-              title="Checklist base del dia"
-              subtitle="Recordatorio rapido para suplementos recomendados y marcacion ligera del dia."
+              title="Checklist base del día"
+              subtitle="Recordatorio rápido para suplementos recomendados y marcación ligera del día."
               className="card-soft supplement-checklist-card"
             >
               <div className="supplement-checklist-grid">
@@ -6014,14 +5234,17 @@ function lockPrivateModule(feedbackText = '') {
                     type="button"
                     onClick={() => toggleRecommendedSupplement(item)}
                   >
-                    <span className="supplement-checklist-mark" aria-hidden="true">
-                      {item.checked ? '✓' : '○'}
+                    <span
+                      className={`supplement-checklist-mark ${item.checked ? 'supplement-checklist-mark-checked' : ''}`}
+                      aria-hidden="true"
+                    >
+                      {item.checked ? '✓' : ''}
                     </span>
                     <span className="supplement-checklist-copy">
                       <strong>{item.name}</strong>
                       <small>
                         {supplementCategoryLabels[item.category] || item.category}
-                        {item.checked ? ' • marcado hoy' : ' • pendiente'}
+                        {item.checked ? ' · tomado hoy' : ' · pendiente'}
                       </small>
                     </span>
                   </button>
@@ -6031,12 +5254,12 @@ function lockPrivateModule(feedbackText = '') {
 
             {todaySummary.supplementsPendingToday > 0 ? (
               <div className="alert-banner">
-                <strong>Pendientes del dia:</strong> tienes {todaySummary.supplementsPendingToday} suplemento(s) o medicamento(s) aun sin marcar como tomados.
+                <strong>Pendientes del día:</strong> tienes {todaySummary.supplementsPendingToday} suplemento(s) o medicamento(s) aún sin marcar como tomados.
               </div>
             ) : null}
 
             <div className="supplement-routines-grid">
-              <SectionCard title="Rutinas de suplementos" subtitle="Plantillas base para aplicar rapido durante el dia." className="supplement-section-card">
+              <SectionCard title="Rutinas de suplementos" subtitle="Plantillas base para aplicar rapido durante el día." className="supplement-section-card">
                 <div className="section-inline-actions section-inline-actions-tight">
                   <button className="button button-secondary" type="button" onClick={() => setShowRoutineBuilder((current) => !current)}>
                     {showRoutineBuilder ? 'Ocultar constructor' : 'Nueva rutina'}
@@ -6125,7 +5348,7 @@ function lockPrivateModule(feedbackText = '') {
 
                         <label className="field field-full">
                           <span>Notas</span>
-                          <textarea
+                          <textárea
                             name="notes"
                             value={routineItemForm.notes}
                             onChange={handleFormChange(setRoutineItemForm)}
@@ -6148,7 +5371,7 @@ function lockPrivateModule(feedbackText = '') {
                         <article className="routine-preview-item" key={item.id}>
                           <div>
                             <strong>{item.name}</strong>
-                            <span>{`${supplementCategoryLabels[item.category] || item.category} • ${item.dose || '--'} ${item.unit || ''}`.trim()}</span>
+                            <span>{`${supplementCategoryLabels[item.category] || item.category} · ${item.dose || '--'} ${item.unit || ''}`.trim()}</span>
                           </div>
                           <button className="button button-danger" type="button" onClick={() => removeRoutineItem(item.id)}>
                             Quitar
@@ -6267,7 +5490,7 @@ function lockPrivateModule(feedbackText = '') {
                         { value: 'no', label: 'No' },
                       ],
                     },
-                    { name: 'notes', label: 'Notas', type: 'textarea', placeholder: 'Efecto, observaciones o recordatorios...' },
+                    { name: 'notes', label: 'Notas', type: 'textárea', placeholder: 'Efecto, observaciones o recordatorios...' },
                   ]}
                   formData={supplementForm}
                   onChange={handleFormChange(setSupplementForm)}
@@ -6296,7 +5519,7 @@ function lockPrivateModule(feedbackText = '') {
 
                 <div className="supplement-card-list">
                   {visibleSupplements.length === 0 ? (
-                    <p className="empty-state">No hay suplementos o medicamentos registrados todavia.</p>
+                    <p className="empty-state">No hay suplementos o medicamentos registrados todavía.</p>
                   ) : null}
 
                   {pendingSupplements.length > 0 ? (
@@ -6318,7 +5541,7 @@ function lockPrivateModule(feedbackText = '') {
                               <strong>{item.name || 'Sin nombre'}</strong>
                               <span>
                                 {supplementCategoryLabels[item.category] || item.category}
-                                {item.time ? ` • ${item.time}` : ''}
+                                {item.time ? ` · ${item.time}` : ''}
                               </span>
                             </div>
                             <span className="supplement-status supplement-status-wait">Pendiente</span>
@@ -6373,7 +5596,7 @@ function lockPrivateModule(feedbackText = '') {
                               <strong>{item.name || 'Sin nombre'}</strong>
                               <span>
                                 {supplementCategoryLabels[item.category] || item.category}
-                                {item.time ? ` • ${item.time}` : ''}
+                                {item.time ? ` · ${item.time}` : ''}
                               </span>
                             </div>
                             <span className="supplement-status supplement-status-ok">Tomado</span>
@@ -6414,8 +5637,8 @@ function lockPrivateModule(feedbackText = '') {
               </SectionCard>
             </div>
           </>
+          </SupplementsTab>
         ) : null}
-
         {activeTab === 'exercises' ? (
           <>
             <div className="exercise-summary-grid">
@@ -6508,7 +5731,7 @@ function lockPrivateModule(feedbackText = '') {
                         { value: 'no', label: 'No' },
                       ],
                     },
-                    { name: 'notes', label: 'Notas', type: 'textarea', placeholder: 'Sensaciones, serie, ritmo, observaciones...' },
+                    { name: 'notes', label: 'Notas', type: 'textárea', placeholder: 'Sensaciones, serie, ritmo, observaciones...' },
                   ]}
                   formData={exerciseForm}
                   onChange={handleFormChange(setExerciseForm)}
@@ -6536,7 +5759,7 @@ function lockPrivateModule(feedbackText = '') {
                 </div>
 
                 <div className="exercise-card-list">
-                  {visibleExercises.length === 0 ? <p className="empty-state">No hay ejercicios registrados todavia.</p> : null}
+                  {visibleExercises.length === 0 ? <p className="empty-state">No hay ejercicios registrados todavía.</p> : null}
 
                   {pendingExercises.length > 0 ? (
                     <div className="exercise-block">
@@ -6552,7 +5775,7 @@ function lockPrivateModule(feedbackText = '') {
                               <strong>{item.name || 'Sin nombre'}</strong>
                               <span>
                                 {exerciseModalityLabels[item.modality] || item.modality}
-                                {item.time ? ` • ${item.time}` : ''}
+                                {item.time ? ` · ${item.time}` : ''}
                               </span>
                             </div>
                             <span className="exercise-status exercise-status-wait">Pendiente</span>
@@ -6601,7 +5824,7 @@ function lockPrivateModule(feedbackText = '') {
                               <strong>{item.name || 'Sin nombre'}</strong>
                               <span>
                                 {exerciseModalityLabels[item.modality] || item.modality}
-                                {item.time ? ` • ${item.time}` : ''}
+                                {item.time ? ` · ${item.time}` : ''}
                               </span>
                             </div>
                             <span className="exercise-status exercise-status-ok">Completado</span>
@@ -6638,7 +5861,7 @@ function lockPrivateModule(feedbackText = '') {
           </>
         ) : null}
 
-        {activeTab === 'krav' ? (
+        {activeTab === 'krav' ? (<KravMagaTab>
           <div className="krav-board">
             <SectionCard
               title="Tablero de avance"
@@ -6889,7 +6112,7 @@ function lockPrivateModule(feedbackText = '') {
                   </div>
                   <label className="field field-full">
                     <span>Notas técnicas</span>
-                    <textarea
+                    <textárea
                       rows="3"
                       value={kravTechniqueNoteDraft}
                       onChange={(event) => setKravTechniqueNoteDraft(event.target.value)}
@@ -7135,7 +6358,7 @@ function lockPrivateModule(feedbackText = '') {
                     </label>
                     <label className="field field-full">
                       <span>Observaciones</span>
-                      <textarea
+                      <textárea
                         name="observations"
                         rows="3"
                         value={kravPracticeForm.observations}
@@ -7145,7 +6368,7 @@ function lockPrivateModule(feedbackText = '') {
                     </label>
                     <label className="field field-full">
                       <span>Qué salió mal</span>
-                      <textarea
+                      <textárea
                         name="mistakes"
                         rows="2"
                         value={kravPracticeForm.mistakes}
@@ -7155,12 +6378,12 @@ function lockPrivateModule(feedbackText = '') {
                     </label>
                     <label className="field field-full">
                       <span>Qué debo repasar</span>
-                      <textarea
+                      <textárea
                         name="reviewNeeded"
                         rows="2"
                         value={kravPracticeForm.reviewNeeded}
                         onChange={handleKravPracticeFieldChange}
-                        placeholder="Tareas claras para la próxima sesión o para repasar en casa..."
+                        placeholder="Táreas claras para la próxima sesión o para repasar en casa..."
                       />
                     </label>
                   </div>
@@ -7262,664 +6485,86 @@ function lockPrivateModule(feedbackText = '') {
               </div>
             </SectionCard>
           </div>
+          </KravMagaTab>
         ) : null}
-
         {activeTab === 'metrics' ? (
-          <>
-            <div className="metrics-summary-grid">
-              <div className="metrics-summary-card">
-                <span>Peso actual</span>
-                <strong>{formatMetricValue(metricSummary.weight, metricSummary.weight === '--' ? '' : ' kg')}</strong>
-                <small>{metricSummarySourceLabels.weight}</small>
-              </div>
-              <div className="metrics-summary-card">
-                <span>Grasa corporal actual</span>
-                <strong>{formatMetricValue(metricSummary.bodyFat, metricSummary.bodyFat === '--' ? '' : '%')}</strong>
-                <small>{metricSummarySourceLabels.bodyFat}</small>
-              </div>
-              <div className="metrics-summary-card">
-                <span>Musculo esqueletico actual</span>
-                <strong>
-                  {formatMetricValue(
-                    metricSummary.skeletalMuscleMass,
-                    metricSummary.skeletalMuscleMass === '--' ? '' : ' kg'
-                  )}
-                </strong>
-                <small>{metricSummarySourceLabels.skeletalMuscleMass}</small>
-              </div>
-              <div className="metrics-summary-card">
-                <span>Masa grasa actual</span>
-                <strong>
-                  {formatMetricValue(metricSummary.bodyFatMass, metricSummary.bodyFatMass === '--' ? '' : ' kg')}
-                </strong>
-                <small>{metricSummarySourceLabels.bodyFatMass}</small>
-              </div>
-            </div>
-
-            <SectionCard
-              title="Progreso desde InBody base"
-              subtitle="Compara la última medición disponible por campo contra la base del 10 abr 2026."
-              className="card-soft"
-            >
-              <div className="metrics-trend-grid metrics-base-grid">
-                {metricBaseComparisonCards.map((item) => (
-                  <article className="metrics-trend-card metrics-base-card" key={item.label}>
-                    <div className="metrics-base-card-top">
-                      <span>{item.label}</span>
-                      <small>{item.snapshotLabel}</small>
-                    </div>
-                    <strong className="metrics-base-current">{item.currentValue}</strong>
-                    <span className={item.trendClass}>{item.changeLabel}</span>
-                    <p>{item.detail}</p>
-                  </article>
-                ))}
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Tendencia reciente"
-              subtitle="Compara tu ultimo registro contra el inmediatamente anterior."
-              className="card-soft"
-            >
-              <div className="metrics-trend-grid">
-                <div className="metrics-trend-card">
-                  <span>Peso</span>
-                  <strong className={getMetricTrendPresentation(metricTrend.weight).className}>
-                    {getMetricTrendPresentation(metricTrend.weight).label}
-                  </strong>
-                  <p>
-                    {metricTrend.weight === 'sin referencia'
-                      ? 'Dato insuficiente para comparar.'
-                      : `Actual ${formatMetricValue(metricComparisonPairs.weight.current?.rawValue ?? '--', metricComparisonPairs.weight.current?.rawValue ? ' kg' : '')} frente a ${formatMetricValue(
-                          metricComparisonPairs.weight.previous?.rawValue ?? '--',
-                          metricComparisonPairs.weight.previous?.rawValue ? ' kg' : ''
-                        )}`}
-                  </p>
-                </div>
-                <div className="metrics-trend-card">
-                  <span>Grasa corporal</span>
-                  <strong className={getMetricTrendPresentation(metricTrend.bodyFat).className}>
-                    {getMetricTrendPresentation(metricTrend.bodyFat).label}
-                  </strong>
-                  <p>
-                    {metricTrend.bodyFat === 'sin referencia'
-                      ? 'Dato insuficiente para comparar.'
-                      : `Actual ${formatMetricValue(metricComparisonPairs.bodyFat.current?.rawValue ?? '--', metricComparisonPairs.bodyFat.current?.rawValue ? '%' : '')} frente a ${formatMetricValue(
-                          metricComparisonPairs.bodyFat.previous?.rawValue ?? '--',
-                          metricComparisonPairs.bodyFat.previous?.rawValue ? '%' : ''
-                        )}`}
-                  </p>
-                </div>
-                <div className="metrics-trend-card">
-                  <span>Musculo esqueletico</span>
-                  <strong className={getMetricTrendPresentation(metricTrend.skeletalMuscleMass).className}>
-                    {getMetricTrendPresentation(metricTrend.skeletalMuscleMass).label}
-                  </strong>
-                  <p>
-                    {metricTrend.skeletalMuscleMass === 'sin referencia'
-                      ? 'Dato insuficiente para comparar.'
-                      : `Actual ${formatMetricValue(
-                          metricComparisonPairs.skeletalMuscleMass.current?.rawValue ?? '--',
-                          metricComparisonPairs.skeletalMuscleMass.current?.rawValue ? ' kg' : ''
-                        )} frente a ${formatMetricValue(
-                          metricComparisonPairs.skeletalMuscleMass.previous?.rawValue ?? '--',
-                          metricComparisonPairs.skeletalMuscleMass.previous?.rawValue ? ' kg' : ''
-                        )}`}
-                  </p>
-                </div>
-                <div className="metrics-trend-card">
-                  <span>Masa grasa</span>
-                  <strong className={getMetricTrendPresentation(metricTrend.bodyFatMass).className}>
-                    {getMetricTrendPresentation(metricTrend.bodyFatMass).label}
-                  </strong>
-                  <p>
-                    {metricTrend.bodyFatMass === 'sin referencia'
-                      ? 'Dato insuficiente para comparar.'
-                      : `Actual ${formatMetricValue(
-                          metricComparisonPairs.bodyFatMass.current?.rawValue ?? '--',
-                          metricComparisonPairs.bodyFatMass.current?.rawValue ? ' kg' : ''
-                        )} frente a ${formatMetricValue(
-                          metricComparisonPairs.bodyFatMass.previous?.rawValue ?? '--',
-                          metricComparisonPairs.bodyFatMass.previous?.rawValue ? ' kg' : ''
-                        )}`}
-                  </p>
-                </div>
-              </div>
-            </SectionCard>
-
-            <div className="split-layout metrics-layout">
-              <div className="metrics-form-stack">
-                <SectionCard title="Medidas manuales" subtitle="Tu bloque base para registrar peso, medidas y observaciones.">
-                  <RecordForm
-                    title="Nueva medicion"
-                    fields={[
-                      { name: 'date', label: 'Fecha', type: 'date' },
-                      { name: 'weight', label: 'Peso (kg)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'waist', label: 'Cintura (cm)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'chest', label: 'Pecho (cm)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'arm', label: 'Brazo (cm)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'leg', label: 'Pierna (cm)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'calf', label: 'Pantorrilla (cm)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'forearm', label: 'Antebrazo (cm)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'upperBackTorso', label: 'Dorsal / torso superior (cm)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'hips', label: 'Cadera (cm)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'neck', label: 'Cuello (cm)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'bodyFat', label: 'Grasa corporal estimada (%)', type: 'number', min: '0', step: '0.1' },
-                      {
-                        name: 'observations',
-                        label: 'Observaciones',
-                        type: 'textarea',
-                        placeholder: 'Cambios visibles, retencion, sensaciones o contexto...',
-                      },
-                    ]}
-                    formData={metricForm}
-                    onChange={handleFormChange(setMetricForm)}
-                    onSubmit={handleMetricSubmit}
-                    onCancel={() => {
-                      resetMetricForm();
-                      setEditingMetricId(null);
-                    }}
-                    isEditing={Boolean(editingMetricId)}
-                  />
-                </SectionCard>
-
-                <SectionCard
-                  title="Composicion corporal avanzada"
-                  subtitle="Campos tipo InBody para registrar composicion corporal mas detallada."
-                  className="metrics-advanced-card"
-                >
-                  <RecordForm
-                    title="Datos avanzados"
-                    fields={[
-                      { name: 'height', label: 'Altura (cm)', type: 'number', min: '0', step: '0.1' },
-                      {
-                        name: 'skeletalMuscleMass',
-                        label: 'Masa musculo esqueletico (kg)',
-                        type: 'number',
-                        min: '0',
-                        step: '0.1',
-                      },
-                      { name: 'bodyFatMass', label: 'Masa grasa corporal (kg)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'fatFreeMass', label: 'Masa libre de grasa (kg)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'totalBodyWater', label: 'Agua corporal total (L)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'proteinsMass', label: 'Proteinas (kg)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'mineralsMass', label: 'Minerales (kg)', type: 'number', min: '0', step: '0.1' },
-                      { name: 'bmi', label: 'IMC', type: 'number', min: '0', step: '0.1' },
-                      { name: 'basalMetabolicRate', label: 'Tasa metabolica basal (kcal)', type: 'number', min: '0', step: '1' },
-                      { name: 'waistHipRatio', label: 'Relacion cintura-cadera', type: 'number', min: '0', step: '0.01' },
-                      { name: 'visceralFatLevel', label: 'Nivel de grasa visceral', type: 'number', min: '0', step: '1' },
-                      {
-                        name: 'recommendedCalorieIntake',
-                        label: 'Ingesta calorica recomendada (kcal)',
-                        type: 'number',
-                        min: '0',
-                        step: '1',
-                      },
-                      {
-                        name: 'dataSource',
-                        label: 'Origen del dato',
-                        type: 'select',
-                        options: [
-                          { value: 'manual', label: 'Manual' },
-                          { value: 'inbody', label: 'InBody' },
-                        ],
-                      },
-                    ]}
-                    formData={metricForm}
-                    onChange={handleFormChange(setMetricForm)}
-                    onSubmit={handleMetricSubmit}
-                    onCancel={() => {
-                      resetMetricForm();
-                      setEditingMetricId(null);
-                    }}
-                    isEditing={Boolean(editingMetricId)}
-                  />
-                </SectionCard>
-              </div>
-
-              <SectionCard title="Registros recientes" subtitle="Revisa tus ultimas mediciones con una vista mas compacta.">
-                <div className="metrics-card-list">
-                  {sortedMetrics.length === 0 ? <p className="empty-state">No hay metricas corporales registradas todavia.</p> : null}
-
-                  {sortedMetrics.map((item) => (
-                    <article className="metrics-card" key={item.id}>
-                      <div className="metrics-card-top">
-                        <div>
-                          <strong>{formatDate(item.date)}</strong>
-                          <span>
-                            {`Peso ${formatMetricText(item.weight, item.weight ? ' kg' : '')}`}
-                            {` • Grasa ${formatMetricText(item.bodyFat, item.bodyFat ? '%' : '')}`}
-                            {` • Musculo ${formatMetricText(
-                              item.skeletalMuscleMass,
-                              item.skeletalMuscleMass ? ' kg' : ''
-                            )}`}
-                            {` • Masa grasa ${formatMetricText(item.bodyFatMass, item.bodyFatMass ? ' kg' : '')}`}
-                          </span>
-                        </div>
-                        <span className={`metrics-source-chip ${item.dataSource === 'inbody' ? 'metrics-source-chip-inbody' : ''}`}>
-                          {item.dataSource === 'inbody' ? 'InBody' : 'Manual'}
-                        </span>
-                      </div>
-
-                      <div className="entry-details metrics-details">
-                        <span>Cintura: {formatMetricText(item.waist, item.waist ? ' cm' : '')}</span>
-                        {item.calf ? <span>Pantorrilla: {formatMetricText(item.calf, ' cm')}</span> : null}
-                        {item.forearm ? <span>Antebrazo: {formatMetricText(item.forearm, ' cm')}</span> : null}
-                        {item.upperBackTorso ? <span>Dorsal / torso superior: {formatMetricText(item.upperBackTorso, ' cm')}</span> : null}
-                        <span>IMC: {formatMetricText(item.bmi)}</span>
-                        <span>Agua: {formatMetricText(item.totalBodyWater, item.totalBodyWater ? ' L' : '')}</span>
-                        <span>Masa libre: {formatMetricText(item.fatFreeMass, item.fatFreeMass ? ' kg' : '')}</span>
-                      </div>
-
-                      {item.observations ? <p className="metrics-notes">{item.observations}</p> : null}
-
-                      <div className="entry-actions">
-                        <button className="button button-secondary" type="button" onClick={() => duplicateMetric(item.id)}>
-                          Duplicar
-                        </button>
-                        <button
-                          className="button button-secondary"
-                          type="button"
-                          onClick={() => startEditing('bodyMetrics', item.id, setMetricForm, setEditingMetricId, 'metrics')}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          className="button button-danger"
-                          type="button"
-                          onClick={() => deleteRecord('bodyMetrics', item.id, setEditingMetricId, resetMetricForm)}
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </SectionCard>
-            </div>
-          </>
+          <MetricsTab
+            metricSummary={metricSummary}
+            metricSummarySourceLabels={metricSummarySourceLabels}
+            formatMetricValue={formatMetricValue}
+            metricBaseComparisonCards={metricBaseComparisonCards}
+            metricTrend={metricTrend}
+            getMetricTrendPresentation={getMetricTrendPresentation}
+            metricComparisonPairs={metricComparisonPairs}
+            metricForm={metricForm}
+            handleFormChange={handleFormChange}
+            setMetricForm={setMetricForm}
+            handleMetricSubmit={handleMetricSubmit}
+            resetMetricForm={resetMetricForm}
+            setEditingMetricId={setEditingMetricId}
+            editingMetricId={editingMetricId}
+            sortedMetrics={sortedMetrics}
+            formatDate={formatDate}
+            formatMetricText={formatMetricText}
+            duplicateMetric={duplicateMetric}
+            startEditing={startEditing}
+            deleteRecord={deleteRecord}
+          />
         ) : null}
         {activeTab === 'weekly' ? (
-          <>
-            <SectionCard
-              title="Resumen semanal"
-              subtitle="Lectura ejecutiva de la semana seleccionada usando alimentos, suplementos, ejercicio y metricas."
-              actions={
-                <div className="week-controls">
-                  <button className="button button-secondary" type="button" onClick={() => setWeekReferenceDate((current) => shiftDateByDays(current, -7))}>
-                    Semana anterior
-                  </button>
-                  <button className="button button-secondary" type="button" onClick={() => setWeekReferenceDate(currentDate)}>
-                    Ir a semana actual
-                  </button>
-                  <button className="button button-secondary" type="button" onClick={() => setWeekReferenceDate((current) => shiftDateByDays(current, 7))}>
-                    Semana siguiente
-                  </button>
-                  <label className="inline-field">
-                    <span>Semana de referencia</span>
-                    <input type="date" value={weekReferenceDate} onChange={(event) => setWeekReferenceDate(event.target.value)} />
-                  </label>
-                </div>
-              }
-            >
-              <div className="week-range">
-                <span>
-                  Semana: <strong>{formatDate(weeklySummary.start)}</strong> a <strong>{formatDate(weeklySummary.end)}</strong>
-                </span>
-                <p>Estas viendo el resumen completo de la semana seleccionada.</p>
-              </div>
-
-              <div className="weekly-hero-grid">
-                <div className="weekly-hero-card">
-                  <span>Días con registro</span>
-                  <strong>{weeklySummary.trackedDays}</strong>
-                  <small>{weeklyConsistencyLabel}</small>
-                </div>
-                <div className="weekly-hero-card">
-                  <span>Calorías promedio</span>
-                  <strong>{weeklySummary.foodDays > 0 ? `${weeklySummary.averageCaloriesTracked.toFixed(0)} kcal` : 'Sin datos'}</strong>
-                  <small>{weeklySummary.foodDays > 0 ? `${weeklySummary.foodDays} días con comida` : 'Sin alimentos registrados'}</small>
-                </div>
-                <div className="weekly-hero-card">
-                  <span>Proteína semanal</span>
-                  <strong>{weeklySummary.foodDays > 0 ? `${weeklySummary.averageProteinTracked.toFixed(1)} g/día` : 'Sin datos'}</strong>
-                  <small>{weeklyProteinStatusLabel}</small>
-                </div>
-                <div className="weekly-hero-card">
-                  <span>Entrenamientos</span>
-                  <strong>{weeklySummary.trainingSessions}</strong>
-                  <small>{weeklySummary.trainingSessions > 0 ? `${weeklySummary.totalExerciseMinutes} min acumulados` : 'Sin entrenamientos'}</small>
-                </div>
-                <div className="weekly-hero-card">
-                  <span>Ayuno</span>
-                  <strong>{weeklyFastingHasData ? `${weeklySummary.fastingCompleted} cumplidos` : 'Sin datos'}</strong>
-                  <small>{weeklyFastingHasData ? `${weeklySummary.fastingHours.toFixed(1)} h reales · ${weeklySummary.fastingFreeDays} días libres` : 'Sin ayunos registrados'}</small>
-                </div>
-                <div className="weekly-hero-card">
-                  <span>Orden semanal</span>
-                  <strong>{weeklyConsistencyLabel}</strong>
-                  <small>{weeklySummary.trackedDays >= 5 ? 'Buena continuidad de registros.' : weeklySummary.trackedDays > 0 ? 'Aún faltan días para leer patrón.' : 'Sin historial para evaluar.'}</small>
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Lectura rápida" subtitle="Resumen operativo para saber si la semana va ordenada." className="card-soft">
-              <div className="weekly-note-stack">
-                <div className="weekly-note">
-                  <span>Comida</span>
-                  <strong>
-                    {weeklySummary.foodDays > 0
-                      ? `${weeklySummary.foodDays} días registrados · ${weeklySummary.averageCaloriesTracked.toFixed(0)} kcal promedio`
-                      : 'Sin registros esta semana'}
-                  </strong>
-                </div>
-                <div className="weekly-note">
-                  <span>Proteina</span>
-                  <strong>
-                    {weeklySummary.foodDays > 0
-                      ? `${weeklyProteinStatusLabel} · ${weeklySummary.averageProteinTracked.toFixed(1)} g promedio diario`
-                      : 'Sin registros esta semana'}
-                  </strong>
-                </div>
-                <div className="weekly-note">
-                  <span>Consistencia</span>
-                  <strong>
-                    {weeklySummary.trackedDays > 0
-                      ? `${weeklyConsistencyLabel} · ${weeklySummary.trackedDays} días con actividad registrada`
-                      : 'Sin historial esta semana'}
-                  </strong>
-                </div>
-                <div className="weekly-note">
-                  <span>Ejercicio</span>
-                  <strong>
-                    {weeklySummary.trainingSessions > 0
-                      ? `${weeklySummary.trainingSessions} entrenamientos · ${weeklySummary.totalExerciseMinutes} min`
-                      : 'Sin entrenamientos registrados'}
-                  </strong>
-                </div>
-                <div className="weekly-note">
-                  <span>Ayuno</span>
-                  <strong>
-                    {weeklyFastingHasData
-                      ? `${weeklySummary.fastingCompleted} completados • ${weeklySummary.fastingInProgress} en curso • ${weeklySummary.fastingFreeDays} días libres`
-                      : 'Sin ayunos registrados esta semana'}
-                  </strong>
-                </div>
-                <div className="weekly-note">
-                  <span>Ayuno semanal</span>
-                  <strong>
-                    {weeklyFastingHasData
-                      ? `Horas reales: ${weeklySummary.fastingHours.toFixed(1)} h • Cumplimiento simple: ${weeklySummary.fastingAdherence !== null ? `${weeklySummary.fastingAdherence.toFixed(0)}%` : 'sin historial'}`
-                      : 'Sin suficiente historial aún'}
-                  </strong>
-                </div>
-              </div>
-            </SectionCard>
-
-            <div className="weekly-executive-grid">
-              <SectionCard title="Nutricion" subtitle="Promedios calculados solo con dias que si tienen alimentos registrados." className="card-soft weekly-module-card">
-                {weeklySummary.foodDays > 0 ? (
-                  <div className="mini-stat-grid">
-                    <div className="mini-stat">
-                      <span>Calorias totales de la semana</span>
-                      <strong>{weeklySummary.totalCalories} kcal</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Proteina total de la semana</span>
-                      <strong>{weeklySummary.totalProtein.toFixed(1)} g</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Calorias promedio por dia</span>
-                      <strong>{weeklySummary.averageCaloriesTracked.toFixed(0)} kcal</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Proteina promedio por dia</span>
-                      <strong>{weeklySummary.averageProteinTracked.toFixed(1)} g</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Carbohidratos promedio por dia</span>
-                      <strong>{weeklySummary.averageCarbsTracked.toFixed(1)} g</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Grasa promedio por dia</span>
-                      <strong>{weeklySummary.averageFatTracked.toFixed(1)} g</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Dias con alimentos registrados</span>
-                      <strong>{weeklySummary.foodDays}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Mejor dia de proteina</span>
-                      <strong>
-                        {weeklySummary.bestProteinDay
-                          ? `${formatDate(weeklySummary.bestProteinDay.date)} • ${weeklySummary.bestProteinDay.total.toFixed(1)} g`
-                          : 'Sin suficientes datos'}
-                      </strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Mejor dia de calorias</span>
-                      <strong>
-                        {weeklySummary.bestCaloriesDay
-                          ? `${formatDate(weeklySummary.bestCaloriesDay.date)} • ${weeklySummary.bestCaloriesDay.total.toFixed(0)} kcal`
-                          : 'Sin suficientes datos'}
-                      </strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Promedio diario de calorias vs meta</span>
-                      <strong>
-                        {calorieGoal > 0
-                          ? `${weeklySummary.averageCaloriesTracked.toFixed(0)} kcal / ${calorieGoal} kcal`
-                          : 'Sin meta configurada'}
-                      </strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Promedio diario de proteina vs meta</span>
-                      <strong>
-                        {proteinGoal > 0
-                          ? `${weeklySummary.averageProteinTracked.toFixed(1)} g / ${proteinGoal} g`
-                          : 'Sin meta configurada'}
-                      </strong>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="empty-state">Sin registros esta semana</p>
-                )}
-              </SectionCard>
-
-              <SectionCard title="Hidratacion" subtitle="Promedios calculados solo con dias que si tienen bebidas registradas." className="card-soft weekly-module-card">
-                {weeklySummary.hydrationTotal > 0 ? (
-                  <div className="mini-stat-grid">
-                    <div className="mini-stat">
-                      <span>Total semanal</span>
-                      <strong>{weeklySummary.hydrationTotal.toFixed(0)} ml</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Promedio diario</span>
-                      <strong>{weeklySummary.hydrationAverage.toFixed(0)} ml</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Dias cumplidos</span>
-                      <strong>{weeklySummary.hydrationDaysMetGoal}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Mejor dia</span>
-                      <strong>
-                        {weeklySummary.bestHydrationDay
-                          ? `${formatDate(weeklySummary.bestHydrationDay.date)} • ${weeklySummary.bestHydrationDay.total.toFixed(0)} ml`
-                          : 'Sin suficientes datos'}
-                      </strong>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="empty-state">Sin suficientes datos esta semana</p>
-                )}
-              </SectionCard>
-
-              <SectionCard title="Suplementos" subtitle="Seguimiento de tomados, pendientes y adherencia." className="card-soft weekly-module-card">
-                {weeklySummary.supplementsTaken > 0 || weeklySummary.supplementsPending > 0 ? (
-                  <div className="mini-stat-grid">
-                    <div className="mini-stat">
-                      <span>Total tomados en la semana</span>
-                      <strong>{weeklySummary.supplementsTaken}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Total pendientes en la semana</span>
-                      <strong>{weeklySummary.supplementsPending}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Adherencia semanal</span>
-                      <strong>
-                        {weeklySummary.supplementAdherence !== null
-                          ? `${weeklySummary.supplementAdherence.toFixed(0)}%`
-                          : 'Sin suficientes datos'}
-                      </strong>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="empty-state">Sin suficientes datos esta semana</p>
-                )}
-              </SectionCard>
-
-              <SectionCard title="Ayuno" subtitle="Lectura ejecutiva de logs reales, días libres y horas acumuladas." className="card-soft weekly-module-card">
-                {weeklyFastingHasData ? (
-                  <div className="mini-stat-grid">
-                    <div className="mini-stat">
-                      <span>Ayunos completados</span>
-                      <strong>{weeklySummary.fastingCompleted}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Ayunos en curso</span>
-                      <strong>{weeklySummary.fastingInProgress}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Días libres</span>
-                      <strong>{weeklySummary.fastingFreeDays}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Horas reales acumuladas</span>
-                      <strong>{weeklySummary.fastingHours.toFixed(1)} h</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Cumplimiento simple</span>
-                      <strong>
-                        {weeklySummary.fastingAdherence !== null
-                          ? `${weeklySummary.fastingAdherence.toFixed(0)}%`
-                          : 'Sin suficiente historial'}
-                      </strong>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="empty-state">Sin ayunos registrados esta semana</p>
-                )}
-              </SectionCard>
-
-              <SectionCard title="Ejercicio" subtitle="Carga total y distribucion basica del entrenamiento." className="card-soft weekly-module-card">
-                {weeklySummary.trainingSessions > 0 ? (
-                  <div className="mini-stat-grid">
-                    <div className="mini-stat">
-                      <span>Sesiones totales</span>
-                      <strong>{weeklySummary.trainingSessions}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Minutos totales</span>
-                      <strong>{weeklySummary.totalExerciseMinutes} min</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Calorias quemadas</span>
-                      <strong>{weeklySummary.totalBurned} kcal</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Sesiones cardio</span>
-                      <strong>{weeklySummary.exerciseCardioSessions}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Sesiones fuerza</span>
-                      <strong>{weeklySummary.exerciseStrengthSessions}</strong>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="empty-state">Sin suficientes datos esta semana</p>
-                )}
-              </SectionCard>
-
-              <SectionCard title="Metricas" subtitle="Comparacion entre el inicio y el final de la semana." className="card-soft weekly-module-card">
-                {weeklySummary.metricsStart.weight || weeklySummary.metricsEnd.weight ? (
-                  <div className="mini-stat-grid">
-                    <div className="mini-stat">
-                      <span>Peso inicial</span>
-                      <strong>{weeklySummary.metricsStart.weight ? `${weeklySummary.metricsStart.weight} kg` : 'Sin dato'}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Peso final</span>
-                      <strong>{weeklySummary.metricsEnd.weight ? `${weeklySummary.metricsEnd.weight} kg` : 'Sin dato'}</strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Cambio neto de peso</span>
-                      <strong>
-                        {weeklySummary.metricsStart.weight && weeklySummary.metricsEnd.weight
-                          ? `${weeklySummary.weightChange.toFixed(1)} kg`
-                          : 'Sin suficientes datos'}
-                      </strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Grasa corporal inicial / final</span>
-                      <strong>
-                        {weeklySummary.metricsStart.bodyFat || weeklySummary.metricsEnd.bodyFat
-                          ? `${weeklySummary.metricsStart.bodyFat || 'Sin dato'}% / ${weeklySummary.metricsEnd.bodyFat || 'Sin dato'}%`
-                          : 'Sin suficientes datos'}
-                      </strong>
-                    </div>
-                    <div className="mini-stat">
-                      <span>Cintura inicial / final</span>
-                      <strong>
-                        {weeklySummary.metricsStart.waist || weeklySummary.metricsEnd.waist
-                          ? `${weeklySummary.metricsStart.waist || 'Sin dato'} cm / ${weeklySummary.metricsEnd.waist || 'Sin dato'} cm`
-                          : 'Sin suficientes datos'}
-                      </strong>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="empty-state">Sin suficientes datos esta semana</p>
-                )}
-              </SectionCard>
-            </div>
-          </>
+          <WeeklyTab
+            setWeekReferenceDate={setWeekReferenceDate}
+            shiftDateByDays={shiftDateByDays}
+            currentDate={currentDate}
+            weekReferenceDate={weekReferenceDate}
+            weeklySummary={weeklySummary}
+            formatDate={formatDate}
+            weeklyConsistencyLabel={weeklyConsistencyLabel}
+            weeklyProteinStatusLabel={weeklyProteinStatusLabel}
+            weeklyFastingHasData={weeklyFastingHasData}
+            calorieGoal={calorieGoal}
+            proteinGoal={proteinGoal}
+          />
         ) : null}
-
         {activeTab === 'history' ? (
-          <SectionCard title="Historial por dia" subtitle="Todos los registros agrupados por fecha.">
-            <HistoryView
-              days={historyDays}
-              onEditFood={(id) => startEditing('foods', id, setFoodForm, setEditingFoodId, 'foods')}
-              onDeleteFood={(id) => deleteRecord('foods', id, setEditingFoodId, resetFoodForm)}
-              onEditHydration={(id) => startEditing('hydrationEntries', id, setHydrationForm, setEditingHydrationId, 'foods')}
-              onDeleteHydration={(id) => deleteRecord('hydrationEntries', id, setEditingHydrationId, resetHydrationForm)}
-              onEditSupplement={(id) => startEditing('supplements', id, setSupplementForm, setEditingSupplementId, 'supplements')}
-              onDeleteSupplement={(id) => deleteRecord('supplements', id, setEditingSupplementId, resetSupplementForm)}
-              onEditFasting={(id) => startEditing('fastingLogs', id, setFastingLogForm, setEditingFastingLogId, 'fasting')}
-              onDeleteFasting={(id) => deleteRecord('fastingLogs', id, setEditingFastingLogId, resetFastingLogForm)}
-              onEditExercise={(id) => startEditing('exercises', id, setExerciseForm, setEditingExerciseId, 'exercises')}
-              onDeleteExercise={(id) => deleteRecord('exercises', id, setEditingExerciseId, resetExerciseForm)}
-              onEditMetric={(id) => startEditing('bodyMetrics', id, setMetricForm, setEditingMetricId, 'metrics')}
-              onDeleteMetric={(id) => deleteRecord('bodyMetrics', id, setEditingMetricId, resetMetricForm)}
-            />
-          </SectionCard>
+          <HistoryTab
+            historyDays={historyDays}
+            startEditing={startEditing}
+            deleteRecord={deleteRecord}
+            setFoodForm={setFoodForm}
+            setEditingFoodId={setEditingFoodId}
+            resetFoodForm={resetFoodForm}
+            setHydrationForm={setHydrationForm}
+            setEditingHydrationId={setEditingHydrationId}
+            resetHydrationForm={resetHydrationForm}
+            setSupplementForm={setSupplementForm}
+            setEditingSupplementId={setEditingSupplementId}
+            resetSupplementForm={resetSupplementForm}
+            setFastingLogForm={setFastingLogForm}
+            setEditingFastingLogId={setEditingFastingLogId}
+            resetFastingLogForm={resetFastingLogForm}
+            setExerciseForm={setExerciseForm}
+            setEditingExerciseId={setEditingExerciseId}
+            resetExerciseForm={resetExerciseForm}
+            setMetricForm={setMetricForm}
+            setEditingMetricId={setEditingMetricId}
+            resetMetricForm={resetMetricForm}
+          />
         ) : null}
-
-        {activeTab === 'private' ? (
+        {activeTab === 'private' ? (<HormonalTab>
           <>
             {!privateVault.pin ? (
               <SectionCard
                 title="Acceso privado"
-                subtitle="Configura un PIN numerico para habilitar este espacio restringido de salud hormonal."
+                subtitle="Configura un PIN numérico para habilitar este espacio restringido de salud hormonal."
                 className="card-soft"
               >
                 <div className="private-hero-grid">
                   <div className="objective-progress-panel private-lead-panel">
                     <div className="objective-progress-copy">
-                      <strong>PIN inicial de {privatePinLength} digitos</strong>
+                      <strong>PIN inicial de {privatePinLength} dígitos</strong>
                       <span>
-                        Esta fase protege visualmente el modulo privado y su respaldo separado. No equivale todavia a
+                        Esta fase protege visualmente el módulo privado y su respaldo separado. No equivale todavía a
                         cifrado local fuerte.
                       </span>
                     </div>
@@ -7934,7 +6579,7 @@ function lockPrivateModule(feedbackText = '') {
                             maxLength={privatePinLength}
                             value={privateSetupPin}
                             onChange={(event) => setPrivateSetupPin(event.target.value.replace(/\D/g, '').slice(0, privatePinLength))}
-                            placeholder={`PIN de ${privatePinLength} digitos`}
+                            placeholder={`PIN de ${privatePinLength} dígitos`}
                           />
                         </label>
                         <label className="field">
@@ -7960,7 +6605,7 @@ function lockPrivateModule(feedbackText = '') {
                   <div className="backup-meta-grid private-backup-grid">
                     <div className="backup-meta-card private-secondary-card">
                       <span>Respaldo normal</span>
-                      <strong>Excluye esta area sensible</strong>
+                      <strong>Excluye esta área sensible</strong>
                     </div>
                     <div className="backup-meta-card private-secondary-card">
                       <span>Respaldo privado</span>
@@ -7993,7 +6638,7 @@ function lockPrivateModule(feedbackText = '') {
                     <div className="objective-progress-copy">
                       <strong>Privacidad visual basica</strong>
                       <span>
-                        El PIN protege esta seccion dentro de la app, pero todavia no implementa cifrado local fuerte
+                        El PIN protege esta seccion dentro de la app, pero todavía no implementa cifrado local fuerte
                         de los datos.
                       </span>
                     </div>
@@ -8008,7 +6653,7 @@ function lockPrivateModule(feedbackText = '') {
                             maxLength={privatePinLength}
                             value={privateUnlockPin}
                             onChange={(event) => setPrivateUnlockPin(event.target.value.replace(/\D/g, '').slice(0, privatePinLength))}
-                            placeholder={`Ingresa tu PIN de ${privatePinLength} digitos`}
+                            placeholder={`Ingresa tu PIN de ${privatePinLength} dígitos`}
                           />
                         </label>
                       </div>
@@ -8068,7 +6713,7 @@ function lockPrivateModule(feedbackText = '') {
                       <div className="supplement-summary-card">
                         <span>Auto-bloqueo</span>
                         <strong>{Math.max(Number(privateVault.autoLockMinutes || 5), 1)} min</strong>
-                        <small>Se reinicia con actividad dentro del modulo desbloqueado.</small>
+                        <small>Se reinicia con actividad dentro del módulo desbloqueado.</small>
                       </div>
                       <div className="supplement-summary-card">
                         <span>Respaldo privado</span>
@@ -8080,7 +6725,7 @@ function lockPrivateModule(feedbackText = '') {
                         <small>
                           {privateVault.lastPrivateImportAt
                             ? `Importado: ${formatShortDateTimeHuman(privateVault.lastPrivateImportAt)}`
-                            : 'Sin importacion privada todavia'}
+                            : 'Sin importacion privada todavía'}
                         </small>
                       </div>
                     </div>
@@ -8179,7 +6824,7 @@ function lockPrivateModule(feedbackText = '') {
                                   next: event.target.value.replace(/\D/g, '').slice(0, privatePinLength),
                                 }))
                               }
-                              placeholder={`Nuevo PIN de ${privatePinLength} digitos`}
+                              placeholder={`Nuevo PIN de ${privatePinLength} dígitos`}
                             />
                           </label>
                           <label className="field">
@@ -8395,7 +7040,7 @@ function lockPrivateModule(feedbackText = '') {
                                       );
                                       openPrivateForm('medication', {
                                         focusSelector:
-                                          'input[name="remainingInventory"], input[name="name"], textarea[name="notes"]',
+                                          'input[name="remainingInventory"], input[name="name"], textárea[name="notes"]',
                                       });
                                     }}
                                   >
@@ -8454,7 +7099,7 @@ function lockPrivateModule(feedbackText = '') {
                           <span>Estado</span>
                           <strong>{getPrivateCycleStatusPhrase(privateSummary.activeCycle?.status)}</strong>
                           <small>
-                            {`${privateSummary.activeCycle?.startDate ? formatPrivateDate(privateSummary.activeCycle.startDate) : 'Sin inicio'} • ${
+                            {`${privateSummary.activeCycle?.startDate ? formatPrivateDate(privateSummary.activeCycle.startDate) : 'Sin inicio'} · ${
                               privateSummary.activeCycle?.estimatedEndDate ? formatPrivateDate(privateSummary.activeCycle.estimatedEndDate) : 'Sin fin'
                             }`}
                           </small>
@@ -8471,8 +7116,8 @@ function lockPrivateModule(feedbackText = '') {
                               ? `${privateSummary.nextEvent.nextApplication
                                   ? formatPrivateDateTimeHuman(privateSummary.nextEvent.nextApplication)
                                   : privateSummary.nextEvent.date
-                                    ? `${formatPrivateDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` • ${privateSummary.nextEvent.time}` : ''}`
-                                    : 'Sin fecha'}${nextPrivateEventProduct?.name ? ` • ${nextPrivateEventProduct.name}` : ''}`
+                                    ? `${formatPrivateDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` · ${privateSummary.nextEvent.time}` : ''}`
+                                    : 'Sin fecha'}${nextPrivateEventProduct?.name ? ` · ${nextPrivateEventProduct.name}` : ''}`
                               : 'Sin evento proximo.'}
                           </small>
                         </div>
@@ -8482,7 +7127,7 @@ function lockPrivateModule(feedbackText = '') {
                           <small>
                             {latestPrivateTimelineItem
                               ? `${latestPrivateTimelineItem.date ? formatPrivateDate(latestPrivateTimelineItem.date) : 'Sin fecha'}${
-                                  latestPrivateTimelineItem.time ? ` • ${latestPrivateTimelineItem.time}` : ''
+                                  latestPrivateTimelineItem.time ? ` · ${latestPrivateTimelineItem.time}` : ''
                                 }`
                               : 'Registra un evento para comenzar.'}
                           </small>
@@ -8515,7 +7160,7 @@ function lockPrivateModule(feedbackText = '') {
 
                   <SectionCard
                     title="Navegacion interna"
-                    subtitle="Accesos rapidos a las secciones del modulo."
+                    subtitle="Accesos rapidos a las secciones del módulo."
                     className="card-soft private-nav-band"
                   >
                     <div className="section-inline-actions private-nav-actions">
@@ -8562,7 +7207,7 @@ function lockPrivateModule(feedbackText = '') {
                                 </strong>
                                 <small>
                                   {nextUpcomingEvent.scheduledDate ? formatPrivateDate(nextUpcomingEvent.scheduledDate) : 'Sin fecha'}
-                                  {nextUpcomingEvent.scheduledAt ? ` • ${formatAgendaTime(nextUpcomingEvent.scheduledAt)}` : ' • Sin hora'}
+                                  {nextUpcomingEvent.scheduledAt ? ` · ${formatAgendaTime(nextUpcomingEvent.scheduledAt)}` : ' · Sin hora'}
                                 </small>
                                 <div className="private-agenda-inline-meta">
                                   <span className={getPrivateAgendaFlagClass(nextUpcomingEventPrimaryState)}>
@@ -8609,7 +7254,7 @@ function lockPrivateModule(feedbackText = '') {
                                   ? privateAgendaTodayEntries.length === 0
                                     ? 'Sin eventos hoy.'
                                     : privateAgendaTodayNextEntry
-                                      ? `Siguiente hoy: ${privateAgendaTodayNextEntry.name || 'Evento'}${privateAgendaTodayNextEntry.scheduledAt ? ` • ${formatAgendaTime(privateAgendaTodayNextEntry.scheduledAt)}` : ''}`
+                                      ? `Siguiente hoy: ${privateAgendaTodayNextEntry.name || 'Evento'}${privateAgendaTodayNextEntry.scheduledAt ? ` · ${formatAgendaTime(privateAgendaTodayNextEntry.scheduledAt)}` : ''}`
                                       : `${privateAgendaTodayEntries.length} evento(s) programado(s) hoy.`
                                   : `${selectedAgendaEvents.length} evento(s) programado(s).`}
                             </small>
@@ -8721,7 +7366,7 @@ function lockPrivateModule(feedbackText = '') {
 
                   <SectionCard
                     title="Estado diario hormonal"
-                    subtitle={hasActivePrivateCycle ? 'Chequeo rapido para leer energia, animo, sueño y señales del dia.' : 'Disponible cuando exista un ciclo activo.'}
+                    subtitle={hasActivePrivateCycle ? 'Chequeo rapido para leer energia, animo, sueño y señales del día.' : 'Disponible cuando exista un ciclo activo.'}
                     className={`card-soft ${hasActivePrivateCycle ? '' : 'private-empty-compact private-empty-tight'}`.trim()}
                   >
                     {hasActivePrivateCycle ? (
@@ -8804,7 +7449,7 @@ function lockPrivateModule(feedbackText = '') {
                               label: 'Apetito',
                               type: 'select',
                               options: privateDailyScaleFieldOptions,
-                              hint: 'Útil para leer hambre, adherencia y tolerancia del protocolo.',
+                              hint: 'útil para leer hambre, adherencia y tolerancia del protocolo.',
                             },
                             {
                               name: 'retention',
@@ -8829,7 +7474,7 @@ function lockPrivateModule(feedbackText = '') {
                             {
                               name: 'notes',
                               label: 'Observaciones privadas',
-                              type: 'textarea',
+                              type: 'textárea',
                               placeholder: 'Ej. me senti con baja energia en la tarde pero mejoro despues de comer',
                               hint: 'Observaciones libres, señales del día o cualquier detalle importante.',
                               rows: 3,
@@ -8864,7 +7509,7 @@ function lockPrivateModule(feedbackText = '') {
                               </div>
                               <div className="entry-details">
                                 <span>Energía: {formatPrivateScaleValue(item.energy)}</span>
-                                <span>Ánimo: {formatPrivateScaleValue(item.mood)}</span>
+                                <span>ánimo: {formatPrivateScaleValue(item.mood)}</span>
                                 <span>Sueño: {formatPrivateScaleValue(item.sleep)}</span>
                                 <span>Enfoque: {formatPrivateScaleValue(item.focus)}</span>
                                 <span>Libido: {formatPrivateScaleValue(item.libido)}</span>
@@ -8941,7 +7586,7 @@ function lockPrivateModule(feedbackText = '') {
                                 type: 'section',
                                 name: 'medication-overview',
                                 label: 'Registro diario',
-                                hint: 'Úsalo para ajustar inventario, cambiar la dosis esperada o registrar un nuevo protector/oral ligado al ciclo.',
+                                hint: 'úsalo para ajustar inventario, cambiar la dosis esperada o registrar un nuevo protector/oral ligado al ciclo.',
                               },
                               {
                                 name: 'cycleId',
@@ -9014,7 +7659,7 @@ function lockPrivateModule(feedbackText = '') {
                               {
                                 name: 'notes',
                                 label: 'Notas privadas',
-                                type: 'textarea',
+                                type: 'textárea',
                                 placeholder: 'Ej. ajuste manual del inventario despues de comprar una caja nueva',
                                 hint: 'Contexto operativo privado sobre inventario, tolerancia o cambios del producto.',
                                 rows: 3,
@@ -9074,7 +7719,7 @@ function lockPrivateModule(feedbackText = '') {
                             {privateHormonalWeeklySummary.nextApplication
                               ? privateHormonalWeeklySummary.nextApplication.nextApplication
                                 ? formatPrivateDateTimeHuman(privateHormonalWeeklySummary.nextApplication.nextApplication)
-                                : `${privateHormonalWeeklySummary.nextApplication.date ? formatPrivateDate(privateHormonalWeeklySummary.nextApplication.date) : 'Sin fecha'}${privateHormonalWeeklySummary.nextApplication.time ? ` • ${privateHormonalWeeklySummary.nextApplication.time}` : ''}`
+                                : `${privateHormonalWeeklySummary.nextApplication.date ? formatPrivateDate(privateHormonalWeeklySummary.nextApplication.date) : 'Sin fecha'}${privateHormonalWeeklySummary.nextApplication.time ? ` · ${privateHormonalWeeklySummary.nextApplication.time}` : ''}`
                               : 'Aún no hay una aplicación futura registrada.'}
                           </small>
                         </article>
@@ -9092,7 +7737,7 @@ function lockPrivateModule(feedbackText = '') {
                           <strong>{`${privateHormonalWeeklySummary.paidCount} pagado(s)`}</strong>
                           <small>
                             {privateHormonalWeeklySummary.pendingCount > 0
-                              ? `${privateHormonalWeeklySummary.pendingCount} pendiente(s) • ${formatCurrencyMx(privateHormonalWeeklySummary.totalPending)}`
+                              ? `${privateHormonalWeeklySummary.pendingCount} pendiente(s) · ${formatCurrencyMx(privateHormonalWeeklySummary.totalPending)}`
                               : `Pendiente: ${formatCurrencyMx(0)}`}
                           </small>
                         </article>
@@ -9117,7 +7762,7 @@ function lockPrivateModule(feedbackText = '') {
                           <strong>
                             {`E ${formatPrivateAverageValue(privateHormonalWeeklySummary.energyAverage)} · S ${formatPrivateAverageValue(privateHormonalWeeklySummary.sleepAverage)}`}
                           </strong>
-                          <small>{`Ánimo ${formatPrivateAverageValue(privateHormonalWeeklySummary.moodAverage)}`}</small>
+                          <small>{`ánimo ${formatPrivateAverageValue(privateHormonalWeeklySummary.moodAverage)}`}</small>
                         </article>
                         <article className="private-weekly-card">
                           <span>Adherencia básica</span>
@@ -9210,7 +7855,7 @@ function lockPrivateModule(feedbackText = '') {
                                 <strong>{item.title || 'Registro privado'}</strong>
                                 <span>
                                   {item.date ? formatPrivateDate(item.date) : 'Sin fecha'}
-                                  {item.time ? ` • ${item.time}` : ''}
+                                  {item.time ? ` · ${item.time}` : ''}
                                 </span>
                               </div>
                               <span className={getPrivateEventChipClass(item.eventType)}>
@@ -9330,7 +7975,7 @@ function lockPrivateModule(feedbackText = '') {
                           <div className="backup-meta-card">
                             <span>Tipo / estado</span>
                             <strong>
-                              {`${privateCycleTypeLabels[activePrivateCycle.type] || activePrivateCycle.type} • ${
+                              {`${privateCycleTypeLabels[activePrivateCycle.type] || activePrivateCycle.type} · ${
                                 privateCycleStatusLabels[activePrivateCycle.status] || activePrivateCycle.status
                               }`}
                             </strong>
@@ -9341,7 +7986,7 @@ function lockPrivateModule(feedbackText = '') {
                           <div className="backup-meta-card">
                             <span>Inicio / fin estimado</span>
                             <strong>
-                              {`${activePrivateCycle.startDate ? formatPrivateDate(activePrivateCycle.startDate) : 'Sin inicio'} • ${
+                              {`${activePrivateCycle.startDate ? formatPrivateDate(activePrivateCycle.startDate) : 'Sin inicio'} · ${
                                 activePrivateCycle.estimatedEndDate ? formatPrivateDate(activePrivateCycle.estimatedEndDate) : 'Sin fin'
                               }`}
                             </strong>
@@ -9386,8 +8031,8 @@ function lockPrivateModule(feedbackText = '') {
                                 ? `${privateSummary.nextEvent.nextApplication
                                     ? formatPrivateDateTimeHuman(privateSummary.nextEvent.nextApplication)
                                     : privateSummary.nextEvent.date
-                                      ? `${formatPrivateDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` • ${privateSummary.nextEvent.time}` : ''}`
-                                      : 'Sin fecha'}${nextPrivateEventProduct?.name ? ` • ${nextPrivateEventProduct.name}` : ''}`
+                                      ? `${formatPrivateDate(privateSummary.nextEvent.date)}${privateSummary.nextEvent.time ? ` · ${privateSummary.nextEvent.time}` : ''}`
+                                      : 'Sin fecha'}${nextPrivateEventProduct?.name ? ` · ${nextPrivateEventProduct.name}` : ''}`
                                 : 'Sin evento proximo'}
                             </small>
                           </div>
@@ -9410,7 +8055,7 @@ function lockPrivateModule(feedbackText = '') {
                             <div className="metrics-card-top">
                               <div>
                                 <strong>{item.name || 'Ciclo sin nombre'}</strong>
-                                <span>{privateCycleTypeLabels[item.type] || item.type} • {privateCycleStatusLabels[item.status] || item.status}</span>
+                                <span>{privateCycleTypeLabels[item.type] || item.type} · {privateCycleStatusLabels[item.status] || item.status}</span>
                               </div>
                               <span className="metrics-source-chip">{privateCycleStatusLabels[item.status] || item.status}</span>
                             </div>
@@ -9419,10 +8064,10 @@ function lockPrivateModule(feedbackText = '') {
                               <span>{item.estimatedEndDate ? `Fin ${formatPrivateDate(item.estimatedEndDate)}` : 'Fin sin dato'}</span>
                               <span>{item.objective || 'Objetivo sin dato'}</span>
                               {cycleFinancials?.hasOperationalBreakdown ? (
-                                <span>{`Protectores ${formatCurrencyMx(cycleFinancials.protectorsSubtotal)} • TRT ${formatCurrencyMx(cycleFinancials.trtConfirmedSubtotal)}`}</span>
+                                <span>{`Protectores ${formatCurrencyMx(cycleFinancials.protectorsSubtotal)} · TRT ${formatCurrencyMx(cycleFinancials.trtConfirmedSubtotal)}`}</span>
                               ) : null}
                               {cycleFinancials ? (
-                                <span>{`Confirmado ${formatCurrencyMx(cycleFinancials.confirmedTotal || cycleFinancials.totalInvested)} • Pagado ${formatCurrencyMx(cycleFinancials.totalPaid)} • Pendiente ${formatCurrencyMx(cycleFinancials.confirmedPendingBalance || cycleFinancials.pendingBalance)}`}</span>
+                                <span>{`Confirmado ${formatCurrencyMx(cycleFinancials.confirmedTotal || cycleFinancials.totalInvested)} · Pagado ${formatCurrencyMx(cycleFinancials.totalPaid)} · Pendiente ${formatCurrencyMx(cycleFinancials.confirmedPendingBalance || cycleFinancials.pendingBalance)}`}</span>
                               ) : null}
                             </div>
                             {item.notes ? <p className="metrics-notes">{item.notes}</p> : null}
@@ -9437,7 +8082,7 @@ function lockPrivateModule(feedbackText = '') {
                                   bumpPrivateActivity();
                                   startEditing('privateCycles', item.id, setPrivateCycleForm, setEditingPrivateCycleId, 'private');
                                   openPrivateForm('cycle', {
-                                    focusSelector: 'input[name="name"], select[name="type"], input[name="startDate"], textarea[name="notes"]',
+                                    focusSelector: 'input[name="name"], select[name="type"], input[name="startDate"], textárea[name="notes"]',
                                   });
                                 }}
                               >
@@ -9520,13 +8165,13 @@ function lockPrivateModule(feedbackText = '') {
                               type: 'section',
                               name: 'cycle-parameters',
                               label: 'Parámetros hormonales / físicos',
-                              hint: 'Aquí defines el propósito general del ciclo y el resultado esperado, sin entrar todavía al detalle de productos o eventos.',
+                              hint: 'Aqué defines el propósito general del ciclo y el resultado esperado, sin entrar todavía al detalle de productos o eventos.',
                             },
                             {
                               name: 'objective',
                               label: 'Objetivo breve',
                               type: 'text',
-                              placeholder: 'Ej. Definir músculo',
+                              placeholder: 'Ej. Definir másculo',
                               hint: 'Resume el propósito principal. Ayuda a leer el ciclo sin tener que abrir notas largas.',
                             },
                             {
@@ -9538,7 +8183,7 @@ function lockPrivateModule(feedbackText = '') {
                             {
                               name: 'notes',
                               label: 'Notas privadas',
-                              type: 'textarea',
+                              type: 'textárea',
                               placeholder: 'Ej. seguimiento privado de compuestos, aplicaciones, pagos y observaciones relevantes...',
                               hint: 'Cualquier criterio privado, ajuste o comentario importante del ciclo.',
                               rows: 4,
@@ -9661,7 +8306,7 @@ function lockPrivateModule(feedbackText = '') {
                                 label: 'Estatus',
                                 type: 'select',
                                 options: Object.entries(privateProductStatusLabels).map(([value, label]) => ({ value, label })),
-                                hint: 'Útil para saber si está pendiente, comprado, en uso, terminado o descartado.',
+                                hint: 'útil para saber si está pendiente, comprado, en uso, terminado o descartado.',
                               },
                               {
                                 type: 'section',
@@ -9672,7 +8317,7 @@ function lockPrivateModule(feedbackText = '') {
                               {
                                 name: 'notes',
                                 label: 'Notas privadas',
-                                type: 'textarea',
+                                type: 'textárea',
                                 placeholder: 'Ej. compra inicial, calidad observada, costo pendiente de confirmar...',
                                 hint: 'Cualquier comentario relevante del producto o compra.',
                                 rows: 4,
@@ -9717,7 +8362,7 @@ function lockPrivateModule(feedbackText = '') {
                                 <div className="metrics-card-top">
                                   <div>
                                     <strong>{item.name || 'Componente sin nombre'}</strong>
-                                    <span>{linkedCycle?.name || 'Sin ciclo'} • {privateProductStatusLabels[item.status] || item.status}</span>
+                                    <span>{linkedCycle?.name || 'Sin ciclo'} · {privateProductStatusLabels[item.status] || item.status}</span>
                                   </div>
                                   <span className="metrics-source-chip">{privateCategoryLabels[item.category] || item.category}</span>
                                 </div>
@@ -9747,7 +8392,7 @@ function lockPrivateModule(feedbackText = '') {
                                       bumpPrivateActivity();
                                       startEditing('privateProducts', item.id, setPrivateProductForm, setEditingPrivateProductId, 'private');
                                       openPrivateForm('product', {
-                                        focusSelector: 'input[name="name"], select[name="category"], input[name="purchaseDate"], textarea[name="notes"]',
+                                        focusSelector: 'input[name="name"], select[name="category"], input[name="purchaseDate"], textárea[name="notes"]',
                                       });
                                     }}
                                   >
@@ -9848,12 +8493,12 @@ function lockPrivateModule(feedbackText = '') {
                                 type: 'section',
                                 name: 'payment-notes-section',
                                 label: 'Notas / observaciones',
-                                hint: 'Úsalo para saldo restante, referencia bancaria, acuerdo de pago o cualquier aclaración.',
+                                hint: 'úsalo para saldo restante, referencia bancaria, acuerdo de pago o cualquier aclaración.',
                               },
                               {
                                 name: 'notes',
                                 label: 'Notas',
-                                type: 'textarea',
+                                type: 'textárea',
                                 placeholder: 'Ej. pago parcial, saldo pendiente o referencia de transferencia...',
                                 hint: 'Cualquier detalle útil para conciliar después.',
                                 rows: 4,
@@ -9950,7 +8595,7 @@ function lockPrivateModule(feedbackText = '') {
                                 <div className="metrics-card-top">
                                   <div>
                                     <strong>{item.concept || 'Pago sin concepto'}</strong>
-                                    <span>{linkedCycle?.name || 'Sin ciclo'} • {item.date ? formatPrivateDate(item.date) : 'Sin fecha'}</span>
+                                    <span>{linkedCycle?.name || 'Sin ciclo'} · {item.date ? formatPrivateDate(item.date) : 'Sin fecha'}</span>
                                   </div>
                                   <span className="metrics-source-chip">{privatePaymentStatusLabels[item.status] || item.status}</span>
                                 </div>
@@ -9978,7 +8623,7 @@ function lockPrivateModule(feedbackText = '') {
                                       bumpPrivateActivity();
                                       startEditing('privatePayments', item.id, setPrivatePaymentForm, setEditingPrivatePaymentId, 'private');
                                       openPrivateForm('payment', {
-                                        focusSelector: 'input[name="concept"], input[name="date"], input[name="amount"], textarea[name="notes"]',
+                                        focusSelector: 'input[name="concept"], input[name="date"], input[name="amount"], textárea[name="notes"]',
                                       });
                                     }}
                                   >
@@ -10129,7 +8774,7 @@ function lockPrivateModule(feedbackText = '') {
                               {
                                 name: 'notes',
                                 label: 'Notas privadas',
-                                type: 'textarea',
+                                type: 'textárea',
                                 placeholder: 'Ej. me sentí con baja energía en la tarde, leve molestia local o respuesta estable...',
                                 hint: 'Cualquier síntoma, efecto secundario o cambio relevante del día.',
                                 rows: 4,
@@ -10169,6 +8814,7 @@ function lockPrivateModule(feedbackText = '') {
               </>
             )}
           </>
+          </HormonalTab>
         ) : null}
       </main>
     </div>
@@ -10176,3 +8822,7 @@ function lockPrivateModule(feedbackText = '') {
 }
 
 export default App;
+
+
+
+

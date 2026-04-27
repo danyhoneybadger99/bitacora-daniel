@@ -138,7 +138,7 @@ export default function HistoryView({
   }
 
   if (days.length === 0) {
-    return <p className="empty-state">Todavia no hay registros en el historial.</p>;
+    return <p className="empty-state">Todavía no hay registros en el historial.</p>;
   }
 
   return (
@@ -149,7 +149,7 @@ export default function HistoryView({
             <div>
               <h2>{formatDate(day.date)}</h2>
               <p>
-                {day.totalItems} registro{day.totalItems === 1 ? '' : 's'} en este dia
+                {day.totalItems} registro{day.totalItems === 1 ? '' : 's'} en este día
               </p>
             </div>
             <button
@@ -168,8 +168,8 @@ export default function HistoryView({
 
           <div className="history-day-summary">
             {day.summary.calories > 0 ? <span>{day.summary.calories} kcal</span> : null}
-            {day.summary.protein > 0 ? <span>{day.summary.protein.toFixed(1)} g proteina</span> : null}
-            {day.summary.hydrationMl > 0 ? <span>{day.summary.hydrationMl.toFixed(0)} ml hidratacion</span> : null}
+            {day.summary.protein > 0 ? <span>{day.summary.protein.toFixed(1)} g proteína</span> : null}
+            {day.summary.hydrationMl > 0 ? <span>{day.summary.hydrationMl.toFixed(0)} ml hidratación</span> : null}
             {day.summary.supplementsTaken > 0 ? <span>{day.summary.supplementsTaken} suplemento(s) tomados</span> : null}
             {day.summary.fastingCompleted > 0 ? <span>{day.summary.fastingCompleted} ayuno(s) cumplidos</span> : null}
             {day.summary.exerciseMinutes > 0 ? <span>{day.summary.exerciseMinutes} min de ejercicio</span> : null}
@@ -224,7 +224,7 @@ export default function HistoryView({
                 renderSummary={(item) =>
                   truncateText([
                     item.expectedProtocol || 'sin protocolo esperado',
-                    item.actualDuration ? `${item.actualDuration} h` : 'sin duracion',
+                    item.actualDuration ? `${item.actualDuration} h` : 'sin duración',
                     getFastingHistoryStatus(item),
                     item.actualStartDateTime ? `inicio ${formatDateTimeHuman(item.actualStartDateTime)}` : null,
                     item.actualBreakDateTime ? `ruptura ${formatDateTimeHuman(item.actualBreakDateTime)}` : null,
@@ -251,16 +251,16 @@ export default function HistoryView({
               />
 
               <HistoryGroup
-                title="Metricas corporales"
+                title="Métricas corporales"
                 items={day.bodyMetrics}
-                typeLabel="Metricas"
+                typeLabel="Métricas"
                 onEdit={onEditMetric}
                 onDelete={onDeleteMetric}
                 renderSummary={(item) =>
                   truncateText([
                     `Peso ${item.weight || 0} kg`,
                     item.bodyFat ? `grasa corporal ${item.bodyFat}%` : null,
-                    item.skeletalMuscleMass ? `musculo esqueletico ${item.skeletalMuscleMass} kg` : null,
+                    item.skeletalMuscleMass ? `músculo esquelético ${item.skeletalMuscleMass} kg` : null,
                     item.bodyFatMass ? `masa grasa ${item.bodyFatMass} kg` : null,
                     `cintura ${item.waist || 0} cm`,
                     item.chest ? `pecho ${item.chest} cm` : null,

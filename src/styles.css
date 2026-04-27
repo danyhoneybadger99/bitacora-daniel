@@ -1350,9 +1350,25 @@ button {
 
 .supplement-checklist-mark {
   flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
   margin-top: 1px;
-  color: #8b3f47;
+  border-radius: 999px;
+  border: 1.5px solid #b9c7bb;
+  background: #ffffff;
+  color: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
   font-weight: 700;
+  line-height: 1;
+}
+
+.supplement-checklist-mark-checked {
+  border-color: #8b3f47;
+  background: rgba(139, 63, 71, 0.12);
+  color: #8b3f47;
 }
 
 .supplement-checklist-copy {
@@ -1490,6 +1506,37 @@ button {
 
 .metric-base-trend-muted {
   color: #7a8792;
+}
+
+.metric-change-up {
+  color: #2f7b57;
+}
+
+.metric-change-down {
+  color: #a24246;
+}
+
+.metric-change-neutral {
+  color: #55636f;
+}
+
+.metrics-base-card .metric-change-up {
+  color: #2f7d4f;
+}
+
+.metrics-base-card .metric-change-down {
+  color: #a33d44;
+}
+
+.metrics-base-card .metric-change-neutral {
+  color: #6b7280;
+}
+
+.metrics-base-card .metric-base-trend {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 
 .supplement-layout {
@@ -4054,8 +4101,13 @@ button {
     margin-inline: -2px;
     scroll-padding-inline: 14px;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
     position: relative;
     mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent 100%);
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .tab-button {
@@ -4099,6 +4151,67 @@ button {
   .progress-card {
     min-height: 0;
     padding: 14px 14px 13px;
+  }
+
+  .dashboard-krav-progress-card {
+    gap: 5px;
+    min-height: 0;
+    padding: 12px 12px 11px;
+  }
+
+  .dashboard-krav-title-group {
+    gap: 4px;
+  }
+
+  .dashboard-krav-meta {
+    gap: 5px;
+  }
+
+  .dashboard-krav-belt,
+  .dashboard-krav-meta span {
+    font-size: 0.72rem;
+    padding: 3px 8px;
+  }
+
+  .dashboard-krav-next {
+    font-size: 0.74rem;
+    line-height: 1.25;
+  }
+
+  .dashboard-krav-actions .button {
+    min-height: 38px;
+    padding: 8px 11px;
+  }
+
+  .metrics-base-card,
+  .metrics-trend-card,
+  .metrics-card {
+    padding: 12px 13px;
+    border-radius: 18px;
+  }
+
+  .metrics-base-card-top {
+    gap: 4px;
+  }
+
+  .metrics-base-card-top small {
+    font-size: 0.72rem;
+  }
+
+  .metrics-base-current {
+    line-height: 1.1;
+  }
+
+  .metrics-base-card .metric-base-trend {
+    margin-top: 6px;
+    gap: 5px;
+    font-size: 0.88rem;
+  }
+
+  .metrics-base-card p {
+    margin-top: 6px;
+    font-size: 0.88rem;
+    line-height: 1.34;
   }
 
   .progress-card-top strong {
@@ -4207,6 +4320,65 @@ button {
 
   .fasting-live-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .fasting-day-toggle .section-helper,
+  .fasting-manual-helper {
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .fasting-primary-actions,
+  .fasting-secondary-actions {
+    gap: 7px;
+  }
+
+  .fasting-primary-actions .button,
+  .fasting-secondary-actions .button {
+    min-height: 40px;
+  }
+
+  .fasting-active-summary-card {
+    display: none;
+  }
+
+  .fasting-today-live-card {
+    display: none;
+  }
+
+  .metrics-base-card-top small {
+    white-space: normal;
+  }
+
+  .supplement-checklist-item {
+    padding: 11px 12px;
+    border-radius: 16px;
+  }
+
+  .supplement-checklist-copy strong {
+    font-size: 0.94rem;
+  }
+
+  .supplement-checklist-copy small {
+    font-size: 0.84rem;
+  }
+
+  .private-medication-grid {
+    gap: 10px;
+  }
+
+  .private-medication-head {
+    gap: 10px;
+  }
+
+  .private-medication-title-group strong {
+    font-size: 0.98rem;
+  }
+
+  .private-medication-slot-button,
+  .private-medication-card .entry-actions .button {
+    min-height: 40px;
+    padding: 8px 10px;
   }
 
   .krav-board {
