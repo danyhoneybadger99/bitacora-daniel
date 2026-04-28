@@ -71,6 +71,55 @@ const defaultFastingProtocols = [
 
 export const STORAGE_KEY = 'mi-diario-data';
 
+export const USER_PROFILE_TAB_PRESETS = {
+  'daniel-full': [
+    'dashboard',
+    'objectives',
+    'foods',
+    'supplements',
+    'fasting',
+    'exercises',
+    'krav',
+    'metrics',
+    'weekly',
+    'history',
+    'private',
+    'settings',
+  ],
+  'krav-student': ['dashboard', 'exercises', 'krav', 'metrics', 'weekly', 'history', 'settings'],
+  'fitness-basic': [
+    'dashboard',
+    'objectives',
+    'foods',
+    'supplements',
+    'fasting',
+    'exercises',
+    'metrics',
+    'weekly',
+    'history',
+    'settings',
+  ],
+  custom: [],
+};
+
+export const USER_PROFILE_LABELS = {
+  'daniel-full': 'Daniel full',
+  'krav-student': 'Krav student',
+  'fitness-basic': 'Fitness basic',
+  custom: 'Personalizado',
+};
+
+export function createUserSettings(profileType = 'fitness-basic', enabledTabs = null) {
+  const normalizedProfileType = USER_PROFILE_TAB_PRESETS[profileType] ? profileType : 'fitness-basic';
+  const presetTabs = USER_PROFILE_TAB_PRESETS[normalizedProfileType] || USER_PROFILE_TAB_PRESETS['fitness-basic'];
+  const safeEnabledTabs = Array.isArray(enabledTabs) && enabledTabs.length > 0 ? enabledTabs : presetTabs;
+
+  return {
+    profileType: normalizedProfileType,
+    enabledTabs: [...new Set(safeEnabledTabs.filter((tabId) => typeof tabId === 'string' && tabId.trim()))],
+  };
+}
+
 function createDefaultObjective() {
   return {
     id: 'objective-active-default',
@@ -118,32 +167,37 @@ export function createPrivateSeedData() {
   return repairPrivateCycle2026Data();
 }
 
-const privateSeedData = createPrivateSeedData();
+function createEmptyGoals() {
+  return {
+    calories: '',
+    protein: '',
+    weight: '',
+    hydrationBase: '',
+    hydrationHighActivity: '',
+    cutReferenceCurrentWeight: '',
+    cutReferenceTargetWeight10: '',
+    cutReferenceFatToLose: '',
+    cutReferenceEstimatedDeficit: '',
+    cutReferenceBmr: '',
+    cutReferenceTdee: '',
+    cutReferenceMaintenanceMin: '',
+    cutReferenceMaintenanceMax: '',
+    cutReferenceCutMin: '',
+    cutReferenceCutMax: '',
+    cutReferenceConservativeMin: '',
+    cutReferenceConservativeMax: '',
+    cutReferenceEffectiveMin: '',
+    cutReferenceEffectiveMax: '',
+    cutReferenceAggressiveBelow: '',
+    cutReferenceProteinMin: '',
+    cutReferenceProteinMax: '',
+    cutReferenceFatMin: '',
+    cutReferenceFatMax: '',
+  };
+}
 
-export const defaultState = {
-  foods: [],
-  foodTemplates: [],
-  hydrationEntries: [],
-  supplements: [],
-  routines: [],
-  exercises: [],
-  bodyMetrics: [createRecentManualMetricSeed(), createInitialMetricSeed()],
-  fastingProtocols: defaultFastingProtocols,
-  fastingLogs: [],
-  fastingFreeDays: [],
-  privateCycles: privateSeedData.privateCycles,
-  privateProducts: privateSeedData.privateProducts,
-  privatePayments: privateSeedData.privatePayments,
-  privateHormonalEntries: privateSeedData.privateHormonalEntries,
-  privateDailyChecks: privateSeedData.privateDailyChecks,
-  privateCycleMedications: privateSeedData.privateCycleMedications,
-  kravCurriculum: createOrangeKravCurriculum(),
-  kravPracticeLogs: [],
-  kravSettings: createEmptyKravSettings(),
-  privateVault: createDefaultPrivateVault(),
-  privateSeedVersion: privateSeedData.privateSeedVersion,
-  objectives: [createDefaultObjective()],
-  goals: {
+function createDanielGoals() {
+  return {
     calories: '2200',
     protein: '160',
     weight: '75',
@@ -168,10 +222,85 @@ export const defaultState = {
     cutReferenceProteinMax: '190',
     cutReferenceFatMin: '60',
     cutReferenceFatMax: '70',
-  },
-  syncMeta: createDefaultSyncMeta(),
-  backupMeta: {
+  };
+}
+
+function createBackupMeta() {
+  return {
     lastExportAt: '',
     lastImportAt: '',
-  },
-};
+  };
+}
+
+export function createCleanDefaultState() {
+  return {
+    profileId: 'clean',
+    foods: [],
+    foodTemplates: [],
+    hydrationEntries: [],
+    supplements: [],
+    routines: [],
+    exercises: [],
+    bodyMetrics: [],
+    fastingProtocols: [],
+    fastingLogs: [],
+    fastingFreeDays: [],
+    privateCycles: [],
+    privateProducts: [],
+    privatePayments: [],
+    privateHormonalEntries: [],
+    privateDailyChecks: [],
+    privateCycleMedications: [],
+    kravCurriculum: [],
+    kravPracticeLogs: [],
+    kravSettings: {
+      currentBelt: '',
+      targetBelt: '',
+      examDate: '',
+      forgottenThresholdDays: '5',
+    },
+    privateVault: createDefaultPrivateVault(),
+    privateSeedVersion: 0,
+    objectives: [],
+    goals: createEmptyGoals(),
+    userSettings: createUserSettings('fitness-basic'),
+    syncMeta: createDefaultSyncMeta(),
+    backupMeta: createBackupMeta(),
+  };
+}
+
+export function createDanielDefaultState() {
+  const privateSeedData = createPrivateSeedData();
+
+  return {
+    profileId: 'daniel-full',
+    foods: [],
+    foodTemplates: [],
+    hydrationEntries: [],
+    supplements: [],
+    routines: [],
+    exercises: [],
+    bodyMetrics: [createRecentManualMetricSeed(), createInitialMetricSeed()],
+    fastingProtocols: defaultFastingProtocols.map((item) => ({ ...item })),
+    fastingLogs: [],
+    fastingFreeDays: [],
+    privateCycles: privateSeedData.privateCycles,
+    privateProducts: privateSeedData.privateProducts,
+    privatePayments: privateSeedData.privatePayments,
+    privateHormonalEntries: privateSeedData.privateHormonalEntries,
+    privateDailyChecks: privateSeedData.privateDailyChecks,
+    privateCycleMedications: privateSeedData.privateCycleMedications,
+    kravCurriculum: createOrangeKravCurriculum(),
+    kravPracticeLogs: [],
+    kravSettings: createEmptyKravSettings(),
+    privateVault: createDefaultPrivateVault(),
+    privateSeedVersion: privateSeedData.privateSeedVersion,
+    objectives: [createDefaultObjective()],
+    goals: createDanielGoals(),
+    userSettings: createUserSettings('daniel-full'),
+    syncMeta: createDefaultSyncMeta(),
+    backupMeta: createBackupMeta(),
+  };
+}
+
+export const defaultState = createDanielDefaultState();

@@ -1,4 +1,4 @@
-import { defaultState, STORAGE_KEY } from '../data/defaultState';
+import { createCleanDefaultState, createUserSettings, defaultState, STORAGE_KEY } from '../data/defaultState';
 import { createEmptyKravSettings, mergeOrangeKravCurriculum } from './domain/krav';
 import { mergeInitialMetricSeed } from './domain/metrics';
 import { repairPrivateCycle2026Data } from './domain/private';
@@ -6,6 +6,10 @@ import { normalizeDateString } from './date';
 
 export const APP_STORAGE_KEYS = [STORAGE_KEY];
 const isDevStorageLogEnabled = typeof import.meta !== 'undefined' ? Boolean(import.meta.env?.DEV) : false;
+
+export function getUserStorageKey(userId) {
+  return userId ? `${STORAGE_KEY}:user:${userId}` : STORAGE_KEY;
+}
 
 function canUseLocalStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -82,7 +86,7 @@ function normalizeHydrationEntries(items) {
     : [];
 }
 
-function normalizeFastingProtocols(items) {
+function normalizeFastingProtocols(items, fallbackState = defaultState) {
   return Array.isArray(items) && items.length > 0
     ? items.map((item) => ({
         ...item,
@@ -93,7 +97,7 @@ function normalizeFastingProtocols(items) {
         expectedDuration: item.expectedDuration ?? '',
         notes: item.notes ?? '',
       }))
-    : defaultState.fastingProtocols;
+    : fallbackState.fastingProtocols;
 }
 
 function normalizeFastingLogs(items) {
@@ -128,7 +132,7 @@ function normalizeFastingFreeDays(items) {
   return [...new Set(items.map((item) => normalizeDateString(item)).filter(Boolean))];
 }
 
-function normalizeObjectives(items) {
+function normalizeObjectives(items, fallbackState = defaultState) {
   return Array.isArray(items) && items.length > 0
     ? items.map((item) => ({
         ...item,
@@ -150,7 +154,7 @@ function normalizeObjectives(items) {
         hydrationHighActivity: item.hydrationHighActivity ?? '',
         strategicReminders: item.strategicReminders ?? '',
       }))
-    : defaultState.objectives;
+    : fallbackState.objectives;
 }
 
 function normalizePrivateHormonalEntries(items) {
@@ -219,8 +223,14 @@ function normalizePrivateCycleMedications(items) {
     : [];
 }
 
-function normalizeKravCurriculum(items) {
-  return mergeOrangeKravCurriculum(items).map((item) => ({
+function normalizeKravCurriculum(items, { applySeed = true } = {}) {
+  const sourceItems = applySeed
+    ? mergeOrangeKravCurriculum(items)
+    : Array.isArray(items)
+      ? items
+      : [];
+
+  return sourceItems.map((item) => ({
     ...item,
     name: item.name ?? '',
     category: item.category ?? 'striking',
@@ -419,75 +429,93 @@ function normalizeBodyMetrics(items) {
     : [];
 }
 
-function normalizeGoals(goals) {
+function normalizeGoals(goals, fallbackState = defaultState) {
   return {
-    calories: goals?.calories ?? defaultState.goals.calories,
-    protein: goals?.protein ?? defaultState.goals.protein,
-    weight: goals?.weight ?? defaultState.goals.weight,
-    hydrationBase: goals?.hydrationBase ?? defaultState.goals.hydrationBase,
-    hydrationHighActivity: goals?.hydrationHighActivity ?? defaultState.goals.hydrationHighActivity,
+    calories: goals?.calories ?? fallbackState.goals.calories,
+    protein: goals?.protein ?? fallbackState.goals.protein,
+    weight: goals?.weight ?? fallbackState.goals.weight,
+    hydrationBase: goals?.hydrationBase ?? fallbackState.goals.hydrationBase,
+    hydrationHighActivity: goals?.hydrationHighActivity ?? fallbackState.goals.hydrationHighActivity,
     cutReferenceCurrentWeight:
-      goals?.cutReferenceCurrentWeight ?? defaultState.goals.cutReferenceCurrentWeight,
+      goals?.cutReferenceCurrentWeight ?? fallbackState.goals.cutReferenceCurrentWeight,
     cutReferenceTargetWeight10:
-      goals?.cutReferenceTargetWeight10 ?? defaultState.goals.cutReferenceTargetWeight10,
+      goals?.cutReferenceTargetWeight10 ?? fallbackState.goals.cutReferenceTargetWeight10,
     cutReferenceFatToLose:
-      goals?.cutReferenceFatToLose ?? defaultState.goals.cutReferenceFatToLose,
+      goals?.cutReferenceFatToLose ?? fallbackState.goals.cutReferenceFatToLose,
     cutReferenceEstimatedDeficit:
-      goals?.cutReferenceEstimatedDeficit ?? defaultState.goals.cutReferenceEstimatedDeficit,
-    cutReferenceBmr: goals?.cutReferenceBmr ?? defaultState.goals.cutReferenceBmr,
-    cutReferenceTdee: goals?.cutReferenceTdee ?? defaultState.goals.cutReferenceTdee,
+      goals?.cutReferenceEstimatedDeficit ?? fallbackState.goals.cutReferenceEstimatedDeficit,
+    cutReferenceBmr: goals?.cutReferenceBmr ?? fallbackState.goals.cutReferenceBmr,
+    cutReferenceTdee: goals?.cutReferenceTdee ?? fallbackState.goals.cutReferenceTdee,
     cutReferenceMaintenanceMin:
-      goals?.cutReferenceMaintenanceMin ?? defaultState.goals.cutReferenceMaintenanceMin,
+      goals?.cutReferenceMaintenanceMin ?? fallbackState.goals.cutReferenceMaintenanceMin,
     cutReferenceMaintenanceMax:
-      goals?.cutReferenceMaintenanceMax ?? defaultState.goals.cutReferenceMaintenanceMax,
-    cutReferenceCutMin: goals?.cutReferenceCutMin ?? defaultState.goals.cutReferenceCutMin,
-    cutReferenceCutMax: goals?.cutReferenceCutMax ?? defaultState.goals.cutReferenceCutMax,
+      goals?.cutReferenceMaintenanceMax ?? fallbackState.goals.cutReferenceMaintenanceMax,
+    cutReferenceCutMin: goals?.cutReferenceCutMin ?? fallbackState.goals.cutReferenceCutMin,
+    cutReferenceCutMax: goals?.cutReferenceCutMax ?? fallbackState.goals.cutReferenceCutMax,
     cutReferenceConservativeMin:
-      goals?.cutReferenceConservativeMin ?? defaultState.goals.cutReferenceConservativeMin,
+      goals?.cutReferenceConservativeMin ?? fallbackState.goals.cutReferenceConservativeMin,
     cutReferenceConservativeMax:
-      goals?.cutReferenceConservativeMax ?? defaultState.goals.cutReferenceConservativeMax,
+      goals?.cutReferenceConservativeMax ?? fallbackState.goals.cutReferenceConservativeMax,
     cutReferenceEffectiveMin:
-      goals?.cutReferenceEffectiveMin ?? defaultState.goals.cutReferenceEffectiveMin,
+      goals?.cutReferenceEffectiveMin ?? fallbackState.goals.cutReferenceEffectiveMin,
     cutReferenceEffectiveMax:
-      goals?.cutReferenceEffectiveMax ?? defaultState.goals.cutReferenceEffectiveMax,
+      goals?.cutReferenceEffectiveMax ?? fallbackState.goals.cutReferenceEffectiveMax,
     cutReferenceAggressiveBelow:
-      goals?.cutReferenceAggressiveBelow ?? defaultState.goals.cutReferenceAggressiveBelow,
+      goals?.cutReferenceAggressiveBelow ?? fallbackState.goals.cutReferenceAggressiveBelow,
     cutReferenceProteinMin:
-      goals?.cutReferenceProteinMin ?? defaultState.goals.cutReferenceProteinMin,
+      goals?.cutReferenceProteinMin ?? fallbackState.goals.cutReferenceProteinMin,
     cutReferenceProteinMax:
-      goals?.cutReferenceProteinMax ?? defaultState.goals.cutReferenceProteinMax,
-    cutReferenceFatMin: goals?.cutReferenceFatMin ?? defaultState.goals.cutReferenceFatMin,
-    cutReferenceFatMax: goals?.cutReferenceFatMax ?? defaultState.goals.cutReferenceFatMax,
+      goals?.cutReferenceProteinMax ?? fallbackState.goals.cutReferenceProteinMax,
+    cutReferenceFatMin: goals?.cutReferenceFatMin ?? fallbackState.goals.cutReferenceFatMin,
+    cutReferenceFatMax: goals?.cutReferenceFatMax ?? fallbackState.goals.cutReferenceFatMax,
   };
 }
 
-function normalizeSyncMeta(syncMeta) {
+function normalizeSyncMeta(syncMeta, fallbackState = defaultState) {
   return {
-    updatedAt: syncMeta?.updatedAt ?? defaultState.syncMeta.updatedAt,
-    lastSyncedAt: syncMeta?.lastSyncedAt ?? defaultState.syncMeta.lastSyncedAt,
-    deviceId: syncMeta?.deviceId ?? defaultState.syncMeta.deviceId,
-    schemaVersion: syncMeta?.schemaVersion ?? defaultState.syncMeta.schemaVersion,
+    updatedAt: syncMeta?.updatedAt ?? fallbackState.syncMeta.updatedAt,
+    lastSyncedAt: syncMeta?.lastSyncedAt ?? fallbackState.syncMeta.lastSyncedAt,
+    deviceId: syncMeta?.deviceId ?? fallbackState.syncMeta.deviceId,
+    schemaVersion: syncMeta?.schemaVersion ?? fallbackState.syncMeta.schemaVersion,
   };
 }
 
-function normalizeBackupMeta(backupMeta) {
+function normalizeBackupMeta(backupMeta, fallbackState = defaultState) {
   return {
-    lastExportAt: backupMeta?.lastExportAt ?? defaultState.backupMeta.lastExportAt,
-    lastImportAt: backupMeta?.lastImportAt ?? defaultState.backupMeta.lastImportAt,
+    lastExportAt: backupMeta?.lastExportAt ?? fallbackState.backupMeta.lastExportAt,
+    lastImportAt: backupMeta?.lastImportAt ?? fallbackState.backupMeta.lastImportAt,
   };
 }
 
-function normalizePrivateVault(privateVault) {
+function normalizePrivateVault(privateVault, fallbackState = defaultState) {
   return {
-    pin: privateVault?.pin ?? defaultState.privateVault.pin,
-    pinMode: privateVault?.pinMode ?? defaultState.privateVault.pinMode,
-    autoLockMinutes: privateVault?.autoLockMinutes ?? defaultState.privateVault.autoLockMinutes,
-    lastPrivateExportAt: privateVault?.lastPrivateExportAt ?? defaultState.privateVault.lastPrivateExportAt,
-    lastPrivateImportAt: privateVault?.lastPrivateImportAt ?? defaultState.privateVault.lastPrivateImportAt,
+    pin: privateVault?.pin ?? fallbackState.privateVault.pin,
+    pinMode: privateVault?.pinMode ?? fallbackState.privateVault.pinMode,
+    autoLockMinutes: privateVault?.autoLockMinutes ?? fallbackState.privateVault.autoLockMinutes,
+    lastPrivateExportAt: privateVault?.lastPrivateExportAt ?? fallbackState.privateVault.lastPrivateExportAt,
+    lastPrivateImportAt: privateVault?.lastPrivateImportAt ?? fallbackState.privateVault.lastPrivateImportAt,
   };
 }
 
-export function migrateAppData(parsed = {}) {
+function normalizeUserSettings(userSettings, fallbackState = defaultState) {
+  const fallbackUserSettings = fallbackState.userSettings || createUserSettings('fitness-basic');
+  if (!userSettings || typeof userSettings !== 'object' || Array.isArray(userSettings)) {
+    return createUserSettings(fallbackUserSettings.profileType, fallbackUserSettings.enabledTabs);
+  }
+
+  const profileType = userSettings.profileType || fallbackUserSettings.profileType;
+  const enabledTabs = userSettings.profileType === 'custom'
+    ? userSettings.enabledTabs || fallbackUserSettings.enabledTabs
+    : userSettings.enabledTabs;
+
+  return createUserSettings(profileType, enabledTabs);
+}
+
+export function migrateAppData(parsed = {}, options = {}) {
+  const inferredProfileId = parsed.profileId || options.profileId || 'daniel-full';
+  const isCleanProfile = inferredProfileId === 'clean';
+  const fallbackState = options.fallbackState || (isCleanProfile ? createCleanDefaultState() : defaultState);
+  const shouldApplyDanielSeeds = inferredProfileId === 'daniel-full';
   const hydrationSource = parsed.hydrationEntries ?? parsed.hydration;
   const routinesSource = parsed.routines ?? parsed.supplementRoutines;
   const privateSeedVersion = Number(parsed.privateSeedVersion) || 0;
@@ -497,19 +525,34 @@ export function migrateAppData(parsed = {}) {
   const normalizedPrivateEntries = normalizePrivateHormonalEntries(parsed.privateHormonalEntries);
   const normalizedPrivateDailyChecks = normalizePrivateDailyChecks(parsed.privateDailyChecks);
   const normalizedPrivateCycleMedications = normalizePrivateCycleMedications(parsed.privateCycleMedications);
-  const normalizedKravCurriculum = normalizeKravCurriculum(parsed.kravCurriculum);
-  const normalizedKravPracticeLogs = normalizeKravPracticeLogs(parsed.kravPracticeLogs);
-  const seededPrivate = repairPrivateCycle2026Data({
-    privateCycles: normalizedPrivateCycles,
-    privateProducts: normalizedPrivateProducts,
-    privatePayments: normalizedPrivatePayments,
-    privateHormonalEntries: normalizedPrivateEntries,
-    privateDailyChecks: normalizedPrivateDailyChecks,
-    privateCycleMedications: normalizedPrivateCycleMedications,
-    privateSeedVersion,
+  const normalizedKravCurriculum = normalizeKravCurriculum(parsed.kravCurriculum, {
+    applySeed: shouldApplyDanielSeeds,
   });
-  const normalizedMetricEntries = mergeInitialMetricSeed(normalizeBodyMetrics(parsed.bodyMetrics));
+  const normalizedKravPracticeLogs = normalizeKravPracticeLogs(parsed.kravPracticeLogs);
+  const seededPrivate = shouldApplyDanielSeeds
+    ? repairPrivateCycle2026Data({
+        privateCycles: normalizedPrivateCycles,
+        privateProducts: normalizedPrivateProducts,
+        privatePayments: normalizedPrivatePayments,
+        privateHormonalEntries: normalizedPrivateEntries,
+        privateDailyChecks: normalizedPrivateDailyChecks,
+        privateCycleMedications: normalizedPrivateCycleMedications,
+        privateSeedVersion,
+      })
+    : {
+        privateCycles: normalizedPrivateCycles,
+        privateProducts: normalizedPrivateProducts,
+        privatePayments: normalizedPrivatePayments,
+        privateHormonalEntries: normalizedPrivateEntries,
+        privateDailyChecks: normalizedPrivateDailyChecks,
+        privateCycleMedications: normalizedPrivateCycleMedications,
+        privateSeedVersion,
+      };
+  const normalizedMetricEntries = shouldApplyDanielSeeds
+    ? mergeInitialMetricSeed(normalizeBodyMetrics(parsed.bodyMetrics))
+    : normalizeBodyMetrics(parsed.bodyMetrics);
   const migrated = {
+    profileId: inferredProfileId,
     foods: normalizeFoods(parsed.foods),
     foodTemplates: normalizeFoodTemplates(parsed.foodTemplates),
     hydrationEntries: normalizeHydrationEntries(hydrationSource),
@@ -517,7 +560,7 @@ export function migrateAppData(parsed = {}) {
     routines: normalizeRoutines(routinesSource),
     exercises: normalizeExercises(parsed.exercises),
     bodyMetrics: normalizedMetricEntries,
-    fastingProtocols: normalizeFastingProtocols(parsed.fastingProtocols),
+    fastingProtocols: normalizeFastingProtocols(parsed.fastingProtocols, fallbackState),
     fastingLogs: normalizeFastingLogs(parsed.fastingLogs),
     fastingFreeDays: normalizeFastingFreeDays(parsed.fastingFreeDays),
     privateCycles: seededPrivate.privateCycles,
@@ -529,12 +572,13 @@ export function migrateAppData(parsed = {}) {
     kravCurriculum: normalizedKravCurriculum,
     kravPracticeLogs: normalizedKravPracticeLogs,
     kravSettings: normalizeKravSettings(parsed.kravSettings),
-    privateVault: normalizePrivateVault(parsed.privateVault),
+    privateVault: normalizePrivateVault(parsed.privateVault, fallbackState),
     privateSeedVersion: seededPrivate.privateSeedVersion,
-    objectives: normalizeObjectives(parsed.objectives),
-    goals: normalizeGoals(parsed.goals),
-    syncMeta: normalizeSyncMeta(parsed.syncMeta),
-    backupMeta: normalizeBackupMeta(parsed.backupMeta),
+    objectives: normalizeObjectives(parsed.objectives, fallbackState),
+    goals: normalizeGoals(parsed.goals, fallbackState),
+    userSettings: normalizeUserSettings(parsed.userSettings, fallbackState),
+    syncMeta: normalizeSyncMeta(parsed.syncMeta, fallbackState),
+    backupMeta: normalizeBackupMeta(parsed.backupMeta, fallbackState),
   };
 
   logStorage('migrate', {
@@ -546,25 +590,27 @@ export function migrateAppData(parsed = {}) {
   return migrated;
 }
 
-export function loadAppData() {
+export function loadAppData(storageKey = STORAGE_KEY, options = {}) {
+  const fallbackState = options.fallbackState || defaultState;
+
   try {
-    logStorage('load:start');
+    logStorage('load:start', { storageKey });
     if (!canUseLocalStorage()) {
-      logStorage('load:unavailable', { storageKey: STORAGE_KEY });
-      return defaultState;
+      logStorage('load:unavailable', { storageKey });
+      return fallbackState;
     }
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
 
     if (!raw) {
-      logStorage('load:empty', { storageKey: STORAGE_KEY });
-      return defaultState;
+      logStorage('load:empty', { storageKey });
+      return fallbackState;
     }
 
     const parsed = JSON.parse(raw);
     const migrated = migrateAppData(parsed);
 
     logStorage('load:success', {
-      storageKey: STORAGE_KEY,
+      storageKey,
       topLevelKeys: Object.keys(parsed || {}),
       collectionCounts: getCollectionCounts(migrated),
     });
@@ -572,35 +618,35 @@ export function loadAppData() {
     return migrated;
   } catch (error) {
     console.error('[Mi Diario][storage] load:error', error);
-    return defaultState;
+    return fallbackState;
   }
 }
 
-export function saveAppData(data) {
+export function saveAppData(data, storageKey = STORAGE_KEY) {
   if (!canUseLocalStorage()) {
-    logStorage('save:skipped', { storageKey: STORAGE_KEY, reason: 'localStorage unavailable' });
+    logStorage('save:skipped', { storageKey, reason: 'localStorage unavailable' });
     return;
   }
   logStorage('save:start', {
-    storageKey: STORAGE_KEY,
+    storageKey,
     topLevelKeys: Object.keys(data || {}),
     collectionCounts: getCollectionCounts(data),
   });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(storageKey, JSON.stringify(data));
   logStorage('save:success', {
-    storageKey: STORAGE_KEY,
+    storageKey,
     collectionCounts: getCollectionCounts(data),
   });
 }
 
-export function clearAppData() {
+export function clearAppData(storageKey = STORAGE_KEY) {
   if (!canUseLocalStorage()) {
-    logStorage('clear:skipped', { storageKey: STORAGE_KEY, reason: 'localStorage unavailable' });
+    logStorage('clear:skipped', { storageKey, reason: 'localStorage unavailable' });
     return;
   }
-  logStorage('clear:start', { storageKey: STORAGE_KEY });
-  localStorage.removeItem(STORAGE_KEY);
-  logStorage('clear:success', { storageKey: STORAGE_KEY });
+  logStorage('clear:start', { storageKey });
+  localStorage.removeItem(storageKey);
+  logStorage('clear:success', { storageKey });
 }
 
 export function loadDiaryData() {

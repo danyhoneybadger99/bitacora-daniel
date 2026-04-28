@@ -1123,6 +1123,20 @@ button {
   gap: 16px;
 }
 
+.settings-profile-card {
+  gap: 14px;
+}
+
+.settings-profile-field {
+  max-width: 360px;
+}
+
+.settings-enabled-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .settings-cut-reference-card .card-header {
   margin-bottom: 2px;
 }
@@ -5196,5 +5210,148 @@ button {
 
   .dashboard-krav-actions .button {
     width: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .private-daily-control-panel .card-header {
+    margin-bottom: 8px;
+  }
+
+  .private-daily-control-panel .private-medication-stack {
+    gap: 9px;
+  }
+
+  .private-daily-control-panel .private-medication-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .private-daily-control-panel .private-medication-summary-grid .private-weekly-card {
+    padding: 8px;
+    border-radius: 13px;
+    gap: 3px;
+  }
+
+  .private-daily-control-panel .private-medication-summary-grid .private-weekly-card span,
+  .private-daily-control-panel .private-medication-summary-grid .private-weekly-card small {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  .private-daily-control-panel .private-medication-summary-grid .private-weekly-card strong {
+    font-size: 0.88rem;
+    line-height: 1.15;
+  }
+
+  .private-daily-control-panel .private-medication-summary-grid .private-weekly-card small {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .private-daily-control-panel .private-medication-grid {
+    gap: 8px;
+  }
+
+  .private-daily-control-panel .private-medication-card {
+    gap: 7px;
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .private-daily-control-panel .private-medication-head {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .private-daily-control-panel .private-medication-title-group {
+    min-width: 0;
+  }
+
+  .private-daily-control-panel .private-medication-title-group strong {
+    font-size: 0.96rem;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .private-daily-control-panel .private-medication-title-group span,
+  .private-daily-control-panel .private-medication-title-group small {
+    font-size: 0.76rem;
+    line-height: 1.25;
+  }
+
+  .private-daily-control-panel .private-medication-badges {
+    flex: 0 1 auto;
+    justify-content: flex-end;
+    gap: 5px;
+  }
+
+  .private-daily-control-panel .metrics-source-chip,
+  .private-daily-control-panel .private-medication-badge {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+  }
+
+  .private-daily-control-panel .private-medication-body,
+  .private-daily-control-panel .private-medication-slot-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .private-daily-control-panel .private-medication-count,
+  .private-daily-control-panel .private-medication-meta {
+    padding: 8px;
+    border-radius: 13px;
+  }
+
+  .private-daily-control-panel .private-medication-count strong {
+    font-size: 1.32rem;
+  }
+
+  .private-daily-control-panel .private-medication-meta strong {
+    font-size: 1rem;
+  }
+
+  .private-daily-control-panel .private-medication-count span,
+  .private-daily-control-panel .private-medication-meta span,
+  .private-daily-control-panel .private-medication-count small,
+  .private-daily-control-panel .private-medication-meta small {
+    font-size: 0.74rem;
+    line-height: 1.25;
+  }
+
+  .private-daily-control-panel .private-medication-actions {
+    gap: 7px;
+  }
+
+  .private-daily-control-panel .private-medication-actions .button {
+    min-height: 38px;
+    padding: 8px 9px;
+    font-size: 0.82rem;
+  }
+
+  .private-medication-management-card.private-secondary-card {
+    opacity: 0.88;
+  }
+
+  .private-medication-management-card.private-secondary-card .card-header {
+    margin-bottom: 8px;
+  }
+}
+
+@media (max-width: 380px) {
+  .private-daily-control-panel .private-medication-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .private-daily-control-panel .private-medication-head {
+    flex-direction: column;
+  }
+
+  .private-daily-control-panel .private-medication-badges {
+    justify-content: flex-start;
   }
 }

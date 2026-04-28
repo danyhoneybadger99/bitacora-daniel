@@ -15,7 +15,13 @@ import ObjectivesTab from './components/tabs/ObjectivesTab';
 import SupplementsTab from './components/tabs/SupplementsTab';
 import WeeklyTab from './components/tabs/WeeklyTab';
 import { cutMayReferenceGroups, cutMayReferenceRule } from './data/cutMayReference';
-import { defaultState } from './data/defaultState';
+import {
+  createCleanDefaultState,
+  createUserSettings,
+  defaultState,
+  USER_PROFILE_LABELS,
+  USER_PROFILE_TAB_PRESETS,
+} from './data/defaultState';
 import { isSupabaseConfigured } from './lib/supabase';
 import { buildTodaySummary } from './utils/domain/dashboardSummary';
 import {
@@ -171,7 +177,7 @@ import {
   normalizeDateString,
   sortByDateDesc,
 } from './utils/date';
-import { clearAppData, loadAppData, migrateAppData, saveAppData } from './utils/storage';
+import { clearAppData, getUserStorageKey, loadAppData, migrateAppData, saveAppData } from './utils/storage';
 
 const tabs = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -187,6 +193,9 @@ const tabs = [
   { id: 'private', label: 'Salud hormonal' },
   { id: 'settings', label: 'Ajustes' },
 ];
+
+const tabLabelById = Object.fromEntries(tabs.map((tab) => [tab.id, tab.label]));
+const selectableUserProfiles = ['fitness-basic', 'krav-student', 'daniel-full'];
 
 const goalSettingFields = ['calories', 'protein', 'weight', 'hydrationBase', 'hydrationHighActivity'];
 const cutReferenceFieldGroups = [
@@ -714,6 +723,7 @@ function App() {
   const persistReasonRef = useRef('inicio');
   const syncDeviceIdRef = useRef('');
   const latestPersistedDataRef = useRef(defaultState);
+  const activeStorageKeyRef = useRef(getUserStorageKey());
   const syncDebounceTimeoutRef = useRef(null);
   const skipNextRemoteSyncRef = useRef(false);
   const syncRefreshInFlightRef = useRef(false);
@@ -918,20 +928,29 @@ function App() {
     }
   }
 
+  function getFallbackStateForSnapshot(snapshot = latestPersistedDataRef.current) {
+    return snapshot?.profileId === 'clean' ? createCleanDefaultState() : defaultState;
+  }
+
+  function applyFormStateFromSnapshot(snapshot) {
+    const fallbackState = getFallbackStateForSnapshot(snapshot);
+    setGoalForm(pickGoalFormValues(snapshot.goals || fallbackState.goals));
+    setCutReferenceForm(pickCutReferenceFormValues(snapshot.goals || fallbackState.goals));
+    setObjectiveForm(
+      (snapshot.objectives && snapshot.objectives[0]) ||
+        fallbackState.objectives?.[0] ||
+        createEmptyObjective()
+    );
+  }
+
   function applyHydratedSnapshot(snapshot, options = {}) {
     if (!snapshot) return;
 
     latestPersistedDataRef.current = snapshot;
-    saveAppData(snapshot);
+    saveAppData(snapshot, options.storageKey || activeStorageKeyRef.current);
     skipNextRemoteSyncRef.current = true;
     setDiaryData(snapshot);
-    setGoalForm(pickGoalFormValues(snapshot.goals || defaultState.goals));
-    setCutReferenceForm(pickCutReferenceFormValues(snapshot.goals || defaultState.goals));
-    setObjectiveForm(
-      (snapshot.objectives && snapshot.objectives[0]) ||
-        defaultState.objectives?.[0] ||
-        createEmptyObjective()
-    );
+    applyFormStateFromSnapshot(snapshot);
     setSyncLastSyncedAt(snapshot.syncMeta?.lastSyncedAt || '');
 
     if (options.feedbackText) {
@@ -1003,7 +1022,9 @@ function App() {
   }
 
   useEffect(() => {
-    const loadedData = loadAppData();
+    const initialStorageKey = getUserStorageKey();
+    activeStorageKeyRef.current = initialStorageKey;
+    const loadedData = loadAppData(initialStorageKey);
     const preparedData = ensureSyncMeta(
       loadedData,
       loadedData?.syncMeta?.deviceId || createDeviceId()
@@ -1011,9 +1032,7 @@ function App() {
     syncDeviceIdRef.current = preparedData.syncMeta.deviceId;
     latestPersistedDataRef.current = preparedData;
     setDiaryData(preparedData);
-    setGoalForm(pickGoalFormValues(preparedData.goals || defaultState.goals));
-    setCutReferenceForm(pickCutReferenceFormValues(preparedData.goals || defaultState.goals));
-    setObjectiveForm((preparedData.objectives && preparedData.objectives[0]) || defaultState.objectives?.[0] || createEmptyObjective());
+    applyFormStateFromSnapshot(preparedData);
     setSyncLastSyncedAt(preparedData.syncMeta?.lastSyncedAt || '');
     const loadTimestamp = getCurrentDateTimeValue();
     setDebugLastLoadAt(loadTimestamp);
@@ -1042,7 +1061,7 @@ function App() {
       deviceId: syncDeviceIdRef.current || diaryData.syncMeta?.deviceId || createDeviceId(),
     });
     latestPersistedDataRef.current = dataToPersist;
-    saveAppData(dataToPersist);
+    saveAppData(dataToPersist, activeStorageKeyRef.current);
     setDebugLastSaveAt(saveTimestamp);
     if (isDevMode) {
       console.info('[Mi Diario][debug] save:applied', {
@@ -1052,6 +1071,35 @@ function App() {
       });
     }
   }, [diaryData, hasLoadedData, isDevMode]);
+
+  useEffect(() => {
+    if (!hasLoadedData || !hasResolvedSyncSession || !remoteSyncEnabled) return;
+
+    const nextStorageKey = getUserStorageKey(syncUser?.id);
+    if (activeStorageKeyRef.current === nextStorageKey) return;
+
+    const fallbackState = syncUser?.id ? createCleanDefaultState() : defaultState;
+    activeStorageKeyRef.current = nextStorageKey;
+    const loadedData = loadAppData(nextStorageKey, { fallbackState });
+    const preparedData = ensureSyncMeta(
+      loadedData,
+      loadedData?.syncMeta?.deviceId || syncDeviceIdRef.current || createDeviceId()
+    );
+    syncDeviceIdRef.current = preparedData.syncMeta.deviceId;
+    latestPersistedDataRef.current = preparedData;
+    setDiaryData(preparedData);
+    applyFormStateFromSnapshot(preparedData);
+    setSyncLastSyncedAt(preparedData.syncMeta?.lastSyncedAt || '');
+    const loadTimestamp = getCurrentDateTimeValue();
+    setDebugLastLoadAt(loadTimestamp);
+    if (isDevMode) {
+      console.info('[Mi Diario][debug] user-cache:switched', {
+        at: loadTimestamp,
+        userId: syncUser?.id || 'local',
+        collectionCounts: getPersistenceCollectionCounts(preparedData),
+      });
+    }
+  }, [hasLoadedData, hasResolvedSyncSession, isDevMode, remoteSyncEnabled, syncUser?.id]);
 
   useEffect(() => {
     if (!hasLoadedData || !hasResolvedSyncSession) return;
@@ -1478,6 +1526,27 @@ function App() {
   const isObjectiveCutGoal = objectiveForm.goalType === 'corte';
   const backupMeta = diaryData.backupMeta || defaultState.backupMeta;
   const syncMeta = diaryData.syncMeta || defaultState.syncMeta;
+  const userSettings = useMemo(
+    () => {
+      const fallbackProfile = diaryData.profileId === 'clean' ? 'fitness-basic' : 'daniel-full';
+      return createUserSettings(
+        diaryData.userSettings?.profileType || fallbackProfile,
+        diaryData.userSettings?.enabledTabs
+      );
+    },
+    [diaryData.profileId, diaryData.userSettings]
+  );
+  const enabledTabIds = userSettings.enabledTabs;
+  const enabledTabsKey = enabledTabIds.join('|');
+  const visibleTabs = useMemo(
+    () => tabs.filter((tab) => enabledTabIds.includes(tab.id)),
+    [enabledTabsKey]
+  );
+  const safeActiveTab = enabledTabIds.includes(activeTab) ? activeTab : 'dashboard';
+  useEffect(() => {
+    if (enabledTabIds.includes(activeTab)) return;
+    setActiveTab('dashboard');
+  }, [activeTab, enabledTabsKey, enabledTabIds]);
   const privateVault = diaryData.privateVault || defaultState.privateVault;
   const privatePinLength = getPrivatePinLength(privateVault);
   const syncStatusLabel = syncStatusLabels[syncStatus] || syncStatusLabels.local;
@@ -2804,6 +2873,17 @@ function lockPrivateModule(feedbackText = '') {
     }));
   }
 
+  function handleUserProfileChange(event) {
+    const nextProfileType = event.target.value;
+    const nextUserSettings = createUserSettings(nextProfileType, USER_PROFILE_TAB_PRESETS[nextProfileType]);
+
+    markPersistenceReason('settings:update-user-profile');
+    setDiaryData((current) => ({
+      ...current,
+      userSettings: nextUserSettings,
+    }));
+  }
+
   function handleObjectiveSubmit(event) {
     event.preventDefault();
     markPersistenceReason('guardar:objectives');
@@ -2954,11 +3034,12 @@ function lockPrivateModule(feedbackText = '') {
     if (!confirmed) return;
 
     markPersistenceReason('reset:app');
-    clearAppData();
-    setDiaryData(defaultState);
-    setGoalForm(pickGoalFormValues(defaultState.goals));
-    setCutReferenceForm(pickCutReferenceFormValues(defaultState.goals));
-    setObjectiveForm(defaultState.objectives?.[0] || createEmptyObjective());
+    const resetState = syncUser?.id ? createCleanDefaultState() : defaultState;
+    clearAppData(activeStorageKeyRef.current);
+    setDiaryData(resetState);
+    setGoalForm(pickGoalFormValues(resetState.goals));
+    setCutReferenceForm(pickCutReferenceFormValues(resetState.goals));
+    setObjectiveForm(resetState.objectives?.[0] || createEmptyObjective());
     resetFoodForm();
     resetHydrationForm();
     resetFoodTemplateForm();
@@ -4455,10 +4536,10 @@ function toggleRecommendedSupplement(itemConfig) {
       </header>
 
       <nav className="tabs">
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
-            className={`tab-button ${activeTab === tab.id ? 'tab-button-active' : ''}`}
+            className={`tab-button ${safeActiveTab === tab.id ? 'tab-button-active' : ''}`}
             type="button"
             onClick={() => setActiveTab(tab.id)}
           >
@@ -4468,7 +4549,7 @@ function toggleRecommendedSupplement(itemConfig) {
       </nav>
 
       <main className="content">
-        {activeTab === 'dashboard' ? (
+        {safeActiveTab === 'dashboard' ? (
           <DashboardTab
             todaySummary={todaySummary}
             calorieGoal={calorieGoal}
@@ -4525,7 +4606,7 @@ function toggleRecommendedSupplement(itemConfig) {
           />
         ) : null}
 
-        {activeTab === 'objectives' ? (
+        {safeActiveTab === 'objectives' ? (
           <ObjectivesTab
             activeObjective={activeObjective}
             activeObjectiveProgress={activeObjectiveProgress}
@@ -4553,8 +4634,50 @@ function toggleRecommendedSupplement(itemConfig) {
           />
         ) : null}
 
-        {activeTab === 'settings' ? (
+        {safeActiveTab === 'settings' ? (
           <>
+            <SectionCard
+              title="Perfil de uso"
+              subtitle="Controla qué módulos aparecen en la navegación sin borrar datos guardados."
+              className="card-soft settings-profile-card"
+            >
+              <div className="backup-panel">
+                <div className="backup-meta-grid">
+                  <div className="backup-meta-card">
+                    <span>Perfil actual</span>
+                    <strong>{USER_PROFILE_LABELS[userSettings.profileType] || userSettings.profileType}</strong>
+                  </div>
+                  <div className="backup-meta-card">
+                    <span>Tabs visibles</span>
+                    <strong>{enabledTabIds.length}</strong>
+                  </div>
+                </div>
+
+                <label className="field settings-profile-field">
+                  <span>Cambiar perfil</span>
+                  <select value={userSettings.profileType} onChange={handleUserProfileChange}>
+                    {selectableUserProfiles.map((profileType) => (
+                      <option key={profileType} value={profileType}>
+                        {USER_PROFILE_LABELS[profileType]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="settings-enabled-tabs">
+                  {enabledTabIds.map((tabId) => (
+                    <span className="metrics-source-chip" key={tabId}>
+                      {tabLabelById[tabId] || tabId}
+                    </span>
+                  ))}
+                </div>
+
+                <p className="section-helper">
+                  Cambiar perfil solo oculta o muestra tabs. Los datos existentes de los módulos ocultos se conservan.
+                </p>
+              </div>
+            </SectionCard>
+
             <SectionCard
               title="Parámetros de corte"
               subtitle="Referencia fija, editable y persistente para consultar rápido tu corte rumbo a 10% de grasa."
@@ -4837,7 +4960,7 @@ function toggleRecommendedSupplement(itemConfig) {
           </>
         ) : null}
 
-        {activeTab === 'foods' ? (
+        {safeActiveTab === 'foods' ? (
           <>
             <div className="split-layout foods-layout">
               <SectionCard title="Registro de alimentos" subtitle="Guarda comida, macros y notas del día.">
@@ -5133,7 +5256,7 @@ function toggleRecommendedSupplement(itemConfig) {
             </div>
           </>
         ) : null}
-                {activeTab === 'fasting' ? (
+                {safeActiveTab === 'fasting' ? (
           <FastingTab
             isTodayFastingFree={isTodayFastingFree}
             toggleTodayNoFasting={toggleTodayNoFasting}
@@ -5200,7 +5323,7 @@ function toggleRecommendedSupplement(itemConfig) {
             setFastingProtocolForm={setFastingProtocolForm}
           />
         ) : null}
-        {activeTab === 'supplements' ? (<SupplementsTab>
+        {safeActiveTab === 'supplements' ? (<SupplementsTab>
           <>
             <div className="supplement-summary-grid">
               <div className="supplement-summary-card">
@@ -5639,7 +5762,7 @@ function toggleRecommendedSupplement(itemConfig) {
           </>
           </SupplementsTab>
         ) : null}
-        {activeTab === 'exercises' ? (
+        {safeActiveTab === 'exercises' ? (
           <>
             <div className="exercise-summary-grid">
               <div className="exercise-summary-card">
@@ -5861,7 +5984,7 @@ function toggleRecommendedSupplement(itemConfig) {
           </>
         ) : null}
 
-        {activeTab === 'krav' ? (<KravMagaTab>
+        {safeActiveTab === 'krav' ? (<KravMagaTab>
           <div className="krav-board">
             <SectionCard
               title="Tablero de avance"
@@ -6487,7 +6610,7 @@ function toggleRecommendedSupplement(itemConfig) {
           </div>
           </KravMagaTab>
         ) : null}
-        {activeTab === 'metrics' ? (
+        {safeActiveTab === 'metrics' ? (
           <MetricsTab
             metricSummary={metricSummary}
             metricSummarySourceLabels={metricSummarySourceLabels}
@@ -6511,7 +6634,7 @@ function toggleRecommendedSupplement(itemConfig) {
             deleteRecord={deleteRecord}
           />
         ) : null}
-        {activeTab === 'weekly' ? (
+        {safeActiveTab === 'weekly' ? (
           <WeeklyTab
             setWeekReferenceDate={setWeekReferenceDate}
             shiftDateByDays={shiftDateByDays}
@@ -6526,7 +6649,7 @@ function toggleRecommendedSupplement(itemConfig) {
             proteinGoal={proteinGoal}
           />
         ) : null}
-        {activeTab === 'history' ? (
+        {safeActiveTab === 'history' ? (
           <HistoryTab
             historyDays={historyDays}
             startEditing={startEditing}
@@ -6551,7 +6674,7 @@ function toggleRecommendedSupplement(itemConfig) {
             resetMetricForm={resetMetricForm}
           />
         ) : null}
-        {activeTab === 'private' ? (<HormonalTab>
+        {safeActiveTab === 'private' ? (<HormonalTab>
           <>
             {!privateVault.pin ? (
               <SectionCard
