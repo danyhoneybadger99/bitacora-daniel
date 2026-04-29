@@ -86,7 +86,7 @@ export const USER_PROFILE_TAB_PRESETS = {
     'private',
     'settings',
   ],
-  'krav-student': ['dashboard', 'exercises', 'krav', 'metrics', 'weekly', 'history', 'settings'],
+  'krav-360': ['dashboard', 'exercises', 'krav', 'foods', 'metrics', 'weekly', 'history', 'settings'],
   'fitness-basic': [
     'dashboard',
     'objectives',
@@ -104,15 +104,24 @@ export const USER_PROFILE_TAB_PRESETS = {
 
 export const USER_PROFILE_LABELS = {
   'daniel-full': 'Daniel full',
-  'krav-student': 'Krav student',
+  'krav-360': 'Krav 360',
   'fitness-basic': 'Fitness basic',
   custom: 'Personalizado',
 };
 
+const USER_PROFILE_ALIASES = {
+  'krav-student': 'krav-360',
+};
+
 export function createUserSettings(profileType = 'fitness-basic', enabledTabs = null) {
-  const normalizedProfileType = USER_PROFILE_TAB_PRESETS[profileType] ? profileType : 'fitness-basic';
+  const migratedProfileType = USER_PROFILE_ALIASES[profileType] || profileType;
+  const normalizedProfileType = USER_PROFILE_TAB_PRESETS[migratedProfileType] ? migratedProfileType : 'fitness-basic';
   const presetTabs = USER_PROFILE_TAB_PRESETS[normalizedProfileType] || USER_PROFILE_TAB_PRESETS['fitness-basic'];
-  const safeEnabledTabs = Array.isArray(enabledTabs) && enabledTabs.length > 0 ? enabledTabs : presetTabs;
+  const safeEnabledTabs = normalizedProfileType === 'custom'
+    ? Array.isArray(enabledTabs) && enabledTabs.length > 0
+      ? enabledTabs
+      : presetTabs
+    : presetTabs;
 
   return {
     profileType: normalizedProfileType,

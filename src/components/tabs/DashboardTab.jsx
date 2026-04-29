@@ -36,6 +36,10 @@ export default function DashboardTab(props) {
     hydrationHighActivityGoal,
     kravDashboardSnapshot,
     formatKravPercent,
+    isKravEnabled,
+    isFastingEnabled,
+    isSupplementsEnabled,
+    isObjectivesEnabled,
     setActiveTab,
     fatAlert,
     isSundayReminderVisible,
@@ -103,11 +107,12 @@ export default function DashboardTab(props) {
           helper={dailyFatStatus}
         />
 
-        <ProgressCard
-          title="Ayuno"
-          className="dashboard-mobile-card-fasting"
-          value={displayedFastingProtocolLabel}
-          subtitle={
+        {isFastingEnabled ? (
+          <ProgressCard
+            title="Ayuno"
+            className="dashboard-mobile-card-fasting"
+            value={displayedFastingProtocolLabel}
+            subtitle={
             todaySummary.fastingStatus === 'día libre'
               ? 'Día libre'
               : todaySummary.fastingStatus === 'sin registro'
@@ -116,7 +121,7 @@ export default function DashboardTab(props) {
                   ? 'Sin registro de ayuno'
                   : displayedFastingStatusLabel
           }
-          progress={
+            progress={
             todaySummary.fastingStatus === 'cumplido'
               ? 100
               : todaySummary.fastingStatus === 'en curso'
@@ -125,8 +130,8 @@ export default function DashboardTab(props) {
                   ? Math.min(displayedFastingProgressPercent, 100)
                   : 0
           }
-          tone={todaySummary.fastingStatus === 'roto' ? 'alert' : todaySummary.fastingStatus === 'en curso' ? 'energy' : 'success'}
-          helper={`${
+            tone={todaySummary.fastingStatus === 'roto' ? 'alert' : todaySummary.fastingStatus === 'en curso' ? 'energy' : 'success'}
+            helper={`${
             todaySummary.fastingStatus === 'día libre'
               ? 'Día libre guardado'
               : todaySummary.fastingStatus === 'sin registro'
@@ -141,7 +146,8 @@ export default function DashboardTab(props) {
                 ? ' • Meta alcanzada'
                 : ''
           }`}
-        />
+          />
+        ) : null}
 
         <ProgressCard
           title="Peso actual"
@@ -184,7 +190,8 @@ export default function DashboardTab(props) {
           helper={`${todaySummary.exerciseEntries} sesiones registradas`}
         />
 
-        <article className="progress-card progress-card-krav dashboard-krav-progress-card dashboard-mobile-card-krav">
+        {isKravEnabled ? (
+          <article className="progress-card progress-card-krav dashboard-krav-progress-card dashboard-mobile-card-krav">
           <div className="progress-card-top dashboard-krav-head">
             <div className="dashboard-krav-title-group">
               <span>Krav Maga</span>
@@ -207,7 +214,8 @@ export default function DashboardTab(props) {
               Abrir Krav Maga
             </button>
           </div>
-        </article>
+          </article>
+        ) : null}
       </div>
 
       {proteinAlert || fatAlert || isSundayReminderVisible ? (
@@ -257,14 +265,18 @@ export default function DashboardTab(props) {
                 {formatUnitValue(todaySummary.carbs, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} carbos • {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} grasa
               </strong>
             </div>
-            <div className="mini-stat">
-              <span>Suplementos</span>
-              <strong>{todaySummary.supplementsTakenToday} tomados / {todaySummary.supplementsPendingToday} pendientes</strong>
-            </div>
-            <div className="mini-stat">
-              <span>Ayuno</span>
-              <strong>{displayedFastingStatusLabel}</strong>
-            </div>
+            {isSupplementsEnabled ? (
+              <div className="mini-stat">
+                <span>Suplementos</span>
+                <strong>{todaySummary.supplementsTakenToday} tomados / {todaySummary.supplementsPendingToday} pendientes</strong>
+              </div>
+            ) : null}
+            {isFastingEnabled ? (
+              <div className="mini-stat">
+                <span>Ayuno</span>
+                <strong>{displayedFastingStatusLabel}</strong>
+              </div>
+            ) : null}
             <div className="mini-stat">
               <span>Metricas de hoy / ultimo dato</span>
               <strong>
@@ -299,12 +311,15 @@ export default function DashboardTab(props) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Suplementos" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
+        {isSupplementsEnabled ? (
+          <SectionCard title="Suplementos" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
             <strong>{todaysSupplements.length === 0 ? 'Sin registros' : `${todaySummary.supplementsTakenToday} tomados`}</strong>
             <p>{todaysSupplements.length === 0 ? 'Sin suplementos registrados hoy.' : `${todaySummary.supplementsPendingToday} pendientes • ${todaySummary.medicationsToday} medicamentos`}</p>
           </div>
         </SectionCard>
+
+        ) : null}
 
         <SectionCard title="Ejercicio" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
@@ -313,7 +328,8 @@ export default function DashboardTab(props) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Ayuno" subtitle={displayedFastingProtocolLabel} className="card-soft dashboard-compact-card">
+        {isFastingEnabled ? (
+          <SectionCard title="Ayuno" subtitle={displayedFastingProtocolLabel} className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
             <strong>{displayedFastingStatusLabel}</strong>
             {activeFastingAutophagy && !shouldTreatTodayAsFastingFree ? <span className="fasting-autophagy-badge fasting-autophagy-badge-compact">En autofagia</span> : null}
@@ -334,7 +350,10 @@ export default function DashboardTab(props) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Objetivo actual" subtitle={activeObjective ? activeObjective.title : 'Sin objetivo activo'} className="card-soft dashboard-compact-card">
+        ) : null}
+
+        {isObjectivesEnabled ? (
+          <SectionCard title="Objetivo actual" subtitle={activeObjective ? activeObjective.title : 'Sin objetivo activo'} className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
             <strong>
               {activeObjective?.targetWeight ? `${formatWeightValue(activeObjective.targetWeight, 'kg', '--')} meta` : 'Sin dato'}
@@ -349,6 +368,8 @@ export default function DashboardTab(props) {
             ) : null}
           </div>
         </SectionCard>
+
+        ) : null}
 
         <SectionCard title="Metricas" subtitle={latestMetric ? 'Ultimo dato disponible' : 'Sin metricas'} className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">

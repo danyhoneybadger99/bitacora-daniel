@@ -195,7 +195,7 @@ const tabs = [
 ];
 
 const tabLabelById = Object.fromEntries(tabs.map((tab) => [tab.id, tab.label]));
-const selectableUserProfiles = ['fitness-basic', 'krav-student', 'daniel-full'];
+const selectableUserProfiles = ['fitness-basic', 'krav-360', 'daniel-full'];
 
 const goalSettingFields = ['calories', 'protein', 'weight', 'hydrationBase', 'hydrationHighActivity'];
 const cutReferenceFieldGroups = [
@@ -4583,6 +4583,10 @@ function toggleRecommendedSupplement(itemConfig) {
             hydrationHighActivityGoal={hydrationHighActivityGoal}
             kravDashboardSnapshot={kravDashboardSnapshot}
             formatKravPercent={formatKravPercent}
+            isKravEnabled={enabledTabIds.includes('krav')}
+            isFastingEnabled={enabledTabIds.includes('fasting')}
+            isSupplementsEnabled={enabledTabIds.includes('supplements')}
+            isObjectivesEnabled={enabledTabIds.includes('objectives')}
             setActiveTab={setActiveTab}
             fatAlert={fatAlert}
             isSundayReminderVisible={isSundayReminderVisible}
