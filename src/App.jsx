@@ -6,6 +6,7 @@ import ProgressCard from './components/ProgressCard';
 import RecordForm from './components/RecordForm';
 import SectionCard from './components/SectionCard';
 import DashboardTab from './components/tabs/DashboardTab';
+import DailyCheckInTab from './components/tabs/DailyCheckInTab';
 import FastingTab from './components/tabs/FastingTab';
 import HistoryTab from './components/tabs/HistoryTab';
 import HormonalTab from './components/tabs/HormonalTab';
@@ -165,6 +166,7 @@ import {
   shiftDateByDays,
   sumBy,
 } from './utils/domain/shared';
+import { checkInEmotionOptions, createEmptyDailyCheckIn, normalizeDailyCheckIn } from './utils/domain/checkIn';
 import { buildWeeklySummary } from './utils/domain/weeklySummary';
 import {
   formatDate,
@@ -181,6 +183,7 @@ import { clearAppData, getUserStorageKey, loadAppData, migrateAppData, saveAppDa
 
 const tabs = [
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'checkin', label: 'Check-in diario' },
   { id: 'objectives', label: 'Objetivos' },
   { id: 'foods', label: 'Alimentos' },
   { id: 'supplements', label: 'Suplementos' },
@@ -639,6 +642,7 @@ function App() {
   const [goalForm, setGoalForm] = useState(() => pickGoalFormValues(defaultState.goals));
   const [cutReferenceForm, setCutReferenceForm] = useState(() => pickCutReferenceFormValues(defaultState.goals));
   const [objectiveForm, setObjectiveForm] = useState(defaultState.objectives?.[0] || createEmptyObjective());
+  const [dailyCheckInForm, setDailyCheckInForm] = useState(() => createEmptyDailyCheckIn(currentDate));
   const [foodForm, setFoodForm] = useState(createEmptyFood);
   const [hydrationForm, setHydrationForm] = useState(createEmptyHydration);
   const [foodTemplateForm, setFoodTemplateForm] = useState(createEmptyFoodTemplate);
@@ -941,6 +945,8 @@ function App() {
         fallbackState.objectives?.[0] ||
         createEmptyObjective()
     );
+    const snapshotCheckIn = (snapshot.dailyCheckIns || []).find((item) => isSameDate(item.date, currentDate));
+    setDailyCheckInForm(snapshotCheckIn ? normalizeDailyCheckIn(snapshotCheckIn) : createEmptyDailyCheckIn(currentDate));
   }
 
   function applyHydratedSnapshot(snapshot, options = {}) {
@@ -1214,6 +1220,11 @@ function App() {
   const todaysFoods = useMemo(
     () => sortFoods(diaryData.foods).filter((item) => item.date && isSameDate(item.date, currentDate)),
     [currentDate, diaryData.foods]
+  );
+
+  const todayDailyCheckIn = useMemo(
+    () => (diaryData.dailyCheckIns || []).find((item) => isSameDate(item.date, currentDate)) || null,
+    [currentDate, diaryData.dailyCheckIns]
   );
 
   const todaysSupplements = useMemo(
@@ -1547,6 +1558,11 @@ function App() {
     if (enabledTabIds.includes(activeTab)) return;
     setActiveTab('dashboard');
   }, [activeTab, enabledTabsKey, enabledTabIds]);
+
+  useEffect(() => {
+    setDailyCheckInForm(todayDailyCheckIn ? normalizeDailyCheckIn(todayDailyCheckIn) : createEmptyDailyCheckIn(currentDate));
+  }, [currentDate, todayDailyCheckIn]);
+
   const privateVault = diaryData.privateVault || defaultState.privateVault;
   const privatePinLength = getPrivatePinLength(privateVault);
   const syncStatusLabel = syncStatusLabels[syncStatus] || syncStatusLabels.local;
@@ -2695,6 +2711,41 @@ function lockPrivateModule(feedbackText = '') {
     setter((current) => ({ ...current, [name]: value }));
   }
 
+  function handleDailyCheckInFieldChange(event) {
+    const { name, value } = event.target;
+    setDailyCheckInForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleDailyCheckInEmotionToggle(emotionValue) {
+    setDailyCheckInForm((current) => {
+      const currentEmotions = Array.isArray(current.emotions) ? current.emotions : [];
+      const emotions = currentEmotions.includes(emotionValue)
+        ? currentEmotions.filter((item) => item !== emotionValue)
+        : [...currentEmotions, emotionValue];
+      return { ...current, emotions };
+    });
+  }
+
+  function handleDailyCheckInSubmit(event) {
+    event.preventDefault();
+    const existingRecord = (diaryData.dailyCheckIns || []).find((item) => isSameDate(item.date, currentDate));
+    const record = normalizeDailyCheckIn({
+      ...dailyCheckInForm,
+      id: existingRecord?.id || dailyCheckInForm.id || createId(),
+      date: currentDate,
+    });
+
+    markPersistenceReason('guardar:dailyCheckIns');
+    setDiaryData((current) => ({
+      ...current,
+      dailyCheckIns: [
+        record,
+        ...(current.dailyCheckIns || []).filter((item) => !isSameDate(item.date, currentDate)),
+      ],
+    }));
+    setDailyCheckInForm(record);
+  }
+
   function handleFastingProtocolChange(event) {
     const { name, value } = event.target;
 
@@ -2992,6 +3043,8 @@ function lockPrivateModule(feedbackText = '') {
             defaultState.objectives?.[0] ||
             createEmptyObjective()
         );
+        const importedCheckIn = (importedData.dailyCheckIns || []).find((item) => isSameDate(item.date, currentDate));
+        setDailyCheckInForm(importedCheckIn ? normalizeDailyCheckIn(importedCheckIn) : createEmptyDailyCheckIn(currentDate));
         setEditingFoodId(null);
         setEditingHydrationId(null);
         setEditingFoodTemplateId(null);
@@ -3040,6 +3093,7 @@ function lockPrivateModule(feedbackText = '') {
     setGoalForm(pickGoalFormValues(resetState.goals));
     setCutReferenceForm(pickCutReferenceFormValues(resetState.goals));
     setObjectiveForm(resetState.objectives?.[0] || createEmptyObjective());
+    setDailyCheckInForm(createEmptyDailyCheckIn(currentDate));
     resetFoodForm();
     resetHydrationForm();
     resetFoodTemplateForm();
@@ -4607,6 +4661,18 @@ function toggleRecommendedSupplement(itemConfig) {
             activeObjective={activeObjective}
             metricFieldSnapshots={metricFieldSnapshots}
             formatMetricText={formatMetricText}
+          />
+        ) : null}
+
+        {safeActiveTab === 'checkin' ? (
+          <DailyCheckInTab
+            checkInForm={dailyCheckInForm}
+            todayCheckIn={todayDailyCheckIn}
+            checkInEmotionOptions={checkInEmotionOptions}
+            formatDate={formatDate}
+            onFieldChange={handleDailyCheckInFieldChange}
+            onEmotionToggle={handleDailyCheckInEmotionToggle}
+            onSubmit={handleDailyCheckInSubmit}
           />
         ) : null}
 

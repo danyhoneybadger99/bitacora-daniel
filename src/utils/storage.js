@@ -1,4 +1,5 @@
 import { createCleanDefaultState, createUserSettings, defaultState, STORAGE_KEY } from '../data/defaultState';
+import { normalizeDailyCheckIn } from './domain/checkIn';
 import { createEmptyKravSettings, mergeOrangeKravCurriculum } from './domain/krav';
 import { mergeInitialMetricSeed } from './domain/metrics';
 import { repairPrivateCycle2026Data } from './domain/private';
@@ -26,6 +27,7 @@ function logStorage(action, details = {}) {
 function getCollectionCounts(data = {}) {
   return {
     foods: Array.isArray(data.foods) ? data.foods.length : 0,
+    dailyCheckIns: Array.isArray(data.dailyCheckIns) ? data.dailyCheckIns.length : 0,
     foodTemplates: Array.isArray(data.foodTemplates) ? data.foodTemplates.length : 0,
     hydrationEntries: Array.isArray(data.hydrationEntries) ? data.hydrationEntries.length : 0,
     supplements: Array.isArray(data.supplements) ? data.supplements.length : 0,
@@ -45,6 +47,12 @@ function getCollectionCounts(data = {}) {
     objectives: Array.isArray(data.objectives) ? data.objectives.length : 0,
     kravSettings: data.kravSettings ? 1 : 0,
   };
+}
+
+function normalizeDailyCheckIns(items) {
+  return Array.isArray(items)
+    ? items.map((item) => normalizeDailyCheckIn(item)).filter((item) => item.date)
+    : [];
 }
 
 function normalizeFoods(items) {
@@ -553,6 +561,7 @@ export function migrateAppData(parsed = {}, options = {}) {
     : normalizeBodyMetrics(parsed.bodyMetrics);
   const migrated = {
     profileId: inferredProfileId,
+    dailyCheckIns: normalizeDailyCheckIns(parsed.dailyCheckIns),
     foods: normalizeFoods(parsed.foods),
     foodTemplates: normalizeFoodTemplates(parsed.foodTemplates),
     hydrationEntries: normalizeHydrationEntries(hydrationSource),

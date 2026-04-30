@@ -110,6 +110,7 @@ export function getSnapshotSummary(data = {}) {
     lastSyncedAt: data?.syncMeta?.lastSyncedAt || '',
     deviceId: data?.syncMeta?.deviceId || '',
     foods: Array.isArray(data?.foods) ? data.foods.length : 0,
+    dailyCheckIns: Array.isArray(data?.dailyCheckIns) ? data.dailyCheckIns.length : 0,
     supplements: Array.isArray(data?.supplements) ? data.supplements.length : 0,
     fastingLogs: Array.isArray(data?.fastingLogs) ? data.fastingLogs.length : 0,
     exercises: Array.isArray(data?.exercises) ? data.exercises.length : 0,

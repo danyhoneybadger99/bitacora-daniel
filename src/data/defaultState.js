@@ -74,6 +74,7 @@ export const STORAGE_KEY = 'mi-diario-data';
 export const USER_PROFILE_TAB_PRESETS = {
   'daniel-full': [
     'dashboard',
+    'checkin',
     'objectives',
     'foods',
     'supplements',
@@ -86,9 +87,10 @@ export const USER_PROFILE_TAB_PRESETS = {
     'private',
     'settings',
   ],
-  'krav-360': ['dashboard', 'exercises', 'krav', 'foods', 'metrics', 'weekly', 'history', 'settings'],
+  'krav-360': ['dashboard', 'checkin', 'exercises', 'krav', 'foods', 'metrics', 'weekly', 'history', 'settings'],
   'fitness-basic': [
     'dashboard',
+    'checkin',
     'objectives',
     'foods',
     'supplements',
@@ -244,6 +246,7 @@ function createBackupMeta() {
 export function createCleanDefaultState() {
   return {
     profileId: 'clean',
+    dailyCheckIns: [],
     foods: [],
     foodTemplates: [],
     hydrationEntries: [],
@@ -283,6 +286,7 @@ export function createDanielDefaultState() {
 
   return {
     profileId: 'daniel-full',
+    dailyCheckIns: [],
     foods: [],
     foodTemplates: [],
     hydrationEntries: [],

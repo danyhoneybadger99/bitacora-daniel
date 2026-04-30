@@ -1,5 +1,6 @@
 export const appDataValidationKeys = [
   'foods',
+  'dailyCheckIns',
   'foodTemplates',
   'hydrationEntries',
   'supplements',
@@ -31,6 +32,7 @@ export function isValidAppDataPayload(payload) {
 export function getPersistenceCollectionCounts(data = {}) {
   return {
     foods: Array.isArray(data.foods) ? data.foods.length : 0,
+    dailyCheckIns: Array.isArray(data.dailyCheckIns) ? data.dailyCheckIns.length : 0,
     hydrationEntries: Array.isArray(data.hydrationEntries) ? data.hydrationEntries.length : 0,
     supplements: Array.isArray(data.supplements) ? data.supplements.length : 0,
     routines: Array.isArray(data.routines) ? data.routines.length : 0,
