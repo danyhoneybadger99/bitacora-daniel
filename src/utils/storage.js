@@ -508,7 +508,9 @@ function normalizePrivateVault(privateVault, fallbackState = defaultState) {
 function normalizeUserSettings(userSettings, fallbackState = defaultState) {
   const fallbackUserSettings = fallbackState.userSettings || createUserSettings('fitness-basic');
   if (!userSettings || typeof userSettings !== 'object' || Array.isArray(userSettings)) {
-    return createUserSettings(fallbackUserSettings.profileType, fallbackUserSettings.enabledTabs);
+    return createUserSettings(fallbackUserSettings.profileType, fallbackUserSettings.enabledTabs, {
+      onboardingCompleted: Boolean(fallbackUserSettings.onboardingCompleted),
+    });
   }
 
   const profileType = userSettings.profileType || fallbackUserSettings.profileType;
@@ -516,7 +518,9 @@ function normalizeUserSettings(userSettings, fallbackState = defaultState) {
     ? userSettings.enabledTabs || fallbackUserSettings.enabledTabs
     : userSettings.enabledTabs;
 
-  return createUserSettings(profileType, enabledTabs);
+  return createUserSettings(profileType, enabledTabs, {
+    onboardingCompleted: Boolean(userSettings.onboardingCompleted || fallbackUserSettings.onboardingCompleted),
+  });
 }
 
 export function migrateAppData(parsed = {}, options = {}) {

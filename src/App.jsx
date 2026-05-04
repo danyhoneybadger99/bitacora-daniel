@@ -125,10 +125,14 @@ import {
   mergeRemoteSnapshot,
   onSupabaseAuthChange,
   pushRemoteSnapshot,
+  getSupabaseAuthErrorMessage,
+  isSupabaseEmailNotConfirmedError,
+  resendSupabaseSignupConfirmation,
   signInWithSupabasePassword,
   signOutFromSupabase,
   signUpWithSupabasePassword,
   syncStatusLabels,
+  validateSupabaseCredentials,
 } from './services/syncService';
 import {
   createEmptyExercise,
@@ -678,6 +682,7 @@ function App() {
   const [editingPrivateMedicationId, setEditingPrivateMedicationId] = useState(null);
   const [weekReferenceDate, setWeekReferenceDate] = useState(currentDate);
   const [showAllRecentFoods, setShowAllRecentFoods] = useState(false);
+  const [showHydrationHistory, setShowHydrationHistory] = useState(false);
   const [showFoodTemplateBuilder, setShowFoodTemplateBuilder] = useState(true);
   const [showRoutineBuilder, setShowRoutineBuilder] = useState(true);
   const [showFastingProtocolBuilder, setShowFastingProtocolBuilder] = useState(false);
@@ -699,6 +704,7 @@ function App() {
   const [syncStatus, setSyncStatus] = useState(remoteSyncEnabled ? 'auth' : 'local');
   const [syncCredentials, setSyncCredentials] = useState({ email: '', password: '' });
   const [syncUser, setSyncUser] = useState(null);
+  const [canResendConfirmationEmail, setCanResendConfirmationEmail] = useState(false);
   const [isOnline, setIsOnline] = useState(
     typeof navigator === 'undefined' ? true : navigator.onLine
   );
@@ -1237,6 +1243,25 @@ function App() {
     [currentDate, diaryData.hydrationEntries]
   );
 
+  const todaysHydrationTimeline = useMemo(
+    () =>
+      [...todaysHydrationEntries].sort((a, b) => {
+        const timeA = a.time || '99:99';
+        const timeB = b.time || '99:99';
+        if (timeA !== timeB) return timeA.localeCompare(timeB);
+        return String(a.id || '').localeCompare(String(b.id || ''));
+      }),
+    [todaysHydrationEntries]
+  );
+
+  const latestHydrationEntry = todaysHydrationTimeline.length
+    ? todaysHydrationTimeline[todaysHydrationTimeline.length - 1]
+    : null;
+
+  const previousHydrationEntries = latestHydrationEntry
+    ? sortHydrationEntries(todaysHydrationTimeline.filter((item) => item.id !== latestHydrationEntry.id))
+    : [];
+
   const sortedFastingLogs = useMemo(() => {
     return [...(diaryData.fastingLogs || [])].sort((a, b) => {
       const refA = a.actualStartDateTime || a.actualBreakDateTime || `${a.date}T00:00`;
@@ -1542,10 +1567,14 @@ function App() {
       const fallbackProfile = diaryData.profileId === 'clean' ? 'fitness-basic' : 'daniel-full';
       return createUserSettings(
         diaryData.userSettings?.profileType || fallbackProfile,
-        diaryData.userSettings?.enabledTabs
+        diaryData.userSettings?.enabledTabs,
+        { onboardingCompleted: Boolean(diaryData.userSettings?.onboardingCompleted) }
       );
     },
     [diaryData.profileId, diaryData.userSettings]
+  );
+  const shouldShowUserOnboarding = Boolean(
+    syncUser?.id && diaryData.profileId === 'clean' && !userSettings.onboardingCompleted
   );
   const enabledTabIds = userSettings.enabledTabs;
   const enabledTabsKey = enabledTabIds.join('|');
@@ -2926,13 +2955,35 @@ function lockPrivateModule(feedbackText = '') {
 
   function handleUserProfileChange(event) {
     const nextProfileType = event.target.value;
-    const nextUserSettings = createUserSettings(nextProfileType, USER_PROFILE_TAB_PRESETS[nextProfileType]);
+    const nextUserSettings = createUserSettings(nextProfileType, USER_PROFILE_TAB_PRESETS[nextProfileType], {
+      onboardingCompleted: Boolean(userSettings.onboardingCompleted),
+    });
 
     markPersistenceReason('settings:update-user-profile');
     setDiaryData((current) => ({
       ...current,
       userSettings: nextUserSettings,
     }));
+  }
+
+  function handleUserOnboardingProfileSelect(profileType = 'fitness-basic') {
+    const normalizedProfileType = USER_PROFILE_TAB_PRESETS[profileType] ? profileType : 'fitness-basic';
+    const nextUserSettings = createUserSettings(
+      normalizedProfileType,
+      USER_PROFILE_TAB_PRESETS[normalizedProfileType],
+      { onboardingCompleted: true }
+    );
+
+    markPersistenceReason('settings:onboarding-profile');
+    setDiaryData((current) => ({
+      ...current,
+      userSettings: nextUserSettings,
+    }));
+    setActiveTab('dashboard');
+  }
+
+  function handleUserOnboardingDismiss() {
+    handleUserOnboardingProfileSelect('fitness-basic');
   }
 
   function handleObjectiveSubmit(event) {
@@ -3145,6 +3196,9 @@ function lockPrivateModule(feedbackText = '') {
   function handleSyncCredentialsChange(event) {
     const { name, value } = event.target;
     setSyncCredentials((current) => ({ ...current, [name]: value }));
+    if (name === 'email') {
+      setCanResendConfirmationEmail(false);
+    }
   }
 
   async function handleSyncSignIn(event) {
@@ -3155,16 +3209,24 @@ function lockPrivateModule(feedbackText = '') {
       return;
     }
 
+    const validationMessage = validateSupabaseCredentials(syncCredentials);
+    if (validationMessage) {
+      setSyncFeedback({ type: 'error', text: validationMessage });
+      return;
+    }
+
     try {
       setSyncStatus(isOnline ? 'syncing' : 'offline');
       await signInWithSupabasePassword(syncCredentials);
       setSyncCredentials((current) => ({ ...current, password: '' }));
+      setCanResendConfirmationEmail(false);
       setSyncFeedback({ type: 'success', text: 'Sesion conectada. Se iniciara la sincronizacion.' });
     } catch (error) {
       setSyncStatus(isOnline ? 'error' : 'offline');
+      setCanResendConfirmationEmail(isSupabaseEmailNotConfirmedError(error));
       setSyncFeedback({
         type: 'error',
-        text: error instanceof Error ? error.message : 'No se pudo iniciar sesion.',
+        text: getSupabaseAuthErrorMessage(error, 'sign-in'),
       });
     }
   }
@@ -3175,21 +3237,50 @@ function lockPrivateModule(feedbackText = '') {
       return;
     }
 
+    const validationMessage = validateSupabaseCredentials(syncCredentials);
+    if (validationMessage) {
+      setSyncFeedback({ type: 'error', text: validationMessage });
+      return;
+    }
+
     try {
       setSyncStatus(isOnline ? 'syncing' : 'offline');
       const result = await signUpWithSupabasePassword(syncCredentials);
       setSyncCredentials((current) => ({ ...current, password: '' }));
+      setCanResendConfirmationEmail(!result?.session);
       setSyncFeedback({
         type: 'success',
         text: result?.session
           ? 'Cuenta creada y sesion iniciada.'
-          : 'Cuenta creada. Revisa tu correo si Supabase requiere confirmacion.',
+          : 'Cuenta creada. Revisa tu correo para confirmar la cuenta antes de iniciar sesion.',
       });
     } catch (error) {
       setSyncStatus(isOnline ? 'error' : 'offline');
+      setCanResendConfirmationEmail(isSupabaseEmailNotConfirmedError(error));
       setSyncFeedback({
         type: 'error',
-        text: error instanceof Error ? error.message : 'No se pudo crear la cuenta.',
+        text: getSupabaseAuthErrorMessage(error, 'sign-up'),
+      });
+    }
+  }
+
+  async function handleResendConfirmationEmail() {
+    if (!remoteSyncEnabled) {
+      setSyncFeedback({ type: 'error', text: 'Faltan las variables de entorno de Supabase.' });
+      return;
+    }
+
+    try {
+      await resendSupabaseSignupConfirmation({ email: syncCredentials.email });
+      setCanResendConfirmationEmail(true);
+      setSyncFeedback({
+        type: 'success',
+        text: 'Correo de confirmacion reenviado. Revisa tu bandeja de entrada y spam.',
+      });
+    } catch (error) {
+      setSyncFeedback({
+        type: 'error',
+        text: getSupabaseAuthErrorMessage(error, 'sign-up'),
       });
     }
   }
@@ -3790,6 +3881,7 @@ function lockPrivateModule(feedbackText = '') {
   function handleHydrationSubmit(event) {
     event.preventDefault();
     upsertRecord('hydrationEntries', hydrationForm, editingHydrationId, resetHydrationForm, setEditingHydrationId);
+    setShowHydrationHistory(false);
   }
 
   function handleFastingProtocolSubmit(event) {
@@ -4602,6 +4694,49 @@ function toggleRecommendedSupplement(itemConfig) {
         ))}
       </nav>
 
+      {shouldShowUserOnboarding ? (
+        <div className="profile-onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="profile-onboarding-title">
+          <section className="profile-onboarding-card">
+            <button
+              className="profile-onboarding-close"
+              type="button"
+              onClick={handleUserOnboardingDismiss}
+              aria-label="Cerrar onboarding"
+            >
+              ×
+            </button>
+            <p className="eyebrow">Primer acceso</p>
+            <h2 id="profile-onboarding-title">Elige tu perfil</h2>
+            <p className="profile-onboarding-copy">
+              Elige cómo quieres usar la app. Puedes cambiarlo después en Ajustes.
+            </p>
+
+            <div className="profile-onboarding-options">
+              <button
+                className="profile-onboarding-option"
+                type="button"
+                onClick={() => handleUserOnboardingProfileSelect('fitness-basic')}
+              >
+                <span>Fitness basic</span>
+                <small>Nutrición, ayuno, ejercicio, métricas y check-in diario.</small>
+              </button>
+              <button
+                className="profile-onboarding-option"
+                type="button"
+                onClick={() => handleUserOnboardingProfileSelect('krav-360')}
+              >
+                <span>Krav 360</span>
+                <small>Krav Maga, entrenamiento, alimentos, métricas y revisión semanal.</small>
+              </button>
+            </div>
+
+            <button className="button button-secondary profile-onboarding-skip" type="button" onClick={handleUserOnboardingDismiss}>
+              Omitir por ahora
+            </button>
+          </section>
+        </div>
+      ) : null}
+
       <main className="content">
         {safeActiveTab === 'dashboard' ? (
           <DashboardTab
@@ -4638,6 +4773,7 @@ function toggleRecommendedSupplement(itemConfig) {
             kravDashboardSnapshot={kravDashboardSnapshot}
             formatKravPercent={formatKravPercent}
             isKravEnabled={enabledTabIds.includes('krav')}
+            isCheckInEnabled={enabledTabIds.includes('checkin')}
             isFastingEnabled={enabledTabIds.includes('fasting')}
             isSupplementsEnabled={enabledTabIds.includes('supplements')}
             isObjectivesEnabled={enabledTabIds.includes('objectives')}
@@ -4661,6 +4797,9 @@ function toggleRecommendedSupplement(itemConfig) {
             activeObjective={activeObjective}
             metricFieldSnapshots={metricFieldSnapshots}
             formatMetricText={formatMetricText}
+            todayDailyCheckIn={todayDailyCheckIn}
+            checkInEmotionOptions={checkInEmotionOptions}
+            profileType={userSettings.profileType}
           />
         ) : null}
 
@@ -4842,6 +4981,10 @@ function toggleRecommendedSupplement(itemConfig) {
                       </div>
                     ) : (
                       <form className="record-form objective-subform" onSubmit={handleSyncSignIn}>
+                        <div className="settings-auth-intro">
+                          <strong>Acceso para nuevos usuarios</strong>
+                          <span>¿Nuevo usuario? Crea tu cuenta, confirma tu correo y después inicia sesión.</span>
+                        </div>
                         <div className="form-grid">
                           <label className="field">
                             <span>Correo</span>
@@ -4849,6 +4992,7 @@ function toggleRecommendedSupplement(itemConfig) {
                               type="email"
                               name="email"
                               autoComplete="email"
+                              required
                               value={syncCredentials.email}
                               onChange={handleSyncCredentialsChange}
                               placeholder="tu-correo@ejemplo.com"
@@ -4860,18 +5004,31 @@ function toggleRecommendedSupplement(itemConfig) {
                               type="password"
                               name="password"
                               autoComplete="current-password"
+                              minLength={6}
+                              required
                               value={syncCredentials.password}
                               onChange={handleSyncCredentialsChange}
                               placeholder="Minimo 6 caracteres"
                             />
                           </label>
                         </div>
+                        <p className="helper-text">
+                          Una cuenta nueva inicia limpia como Fitness basic. Después puedes cambiar a Krav 360 desde Ajustes.
+                        </p>
                         <div className="form-actions">
                           <button className="button button-primary" type="submit">
                             Entrar y sincronizar
                           </button>
                           <button className="button button-secondary" type="button" onClick={handleSyncSignUp}>
                             Crear cuenta
+                          </button>
+                          <button
+                            className="button button-secondary"
+                            type="button"
+                            onClick={handleResendConfirmationEmail}
+                            disabled={!syncCredentials.email.trim() || (!canResendConfirmationEmail && !syncCredentials.email.includes('@'))}
+                          >
+                            Reenviar correo de confirmacion
                           </button>
                         </div>
                       </form>
@@ -5302,10 +5459,59 @@ function toggleRecommendedSupplement(itemConfig) {
                     <strong>{hydrationHighActivityGoal || 0} ml</strong>
                   </div>
                 </div>
+                {latestHydrationEntry ? (
+                  <article className="hydration-latest-card">
+                    <div className="hydration-latest-main">
+                      <span className="eyebrow">Ultima entrada de hoy</span>
+                      <strong>{latestHydrationEntry.name || drinkTypeLabels[latestHydrationEntry.drinkType] || 'Sin nombre'}</strong>
+                      <span>
+                        {latestHydrationEntry.time ? `Hoy · ${latestHydrationEntry.time}` : 'Hoy · sin hora'}
+                        {latestHydrationEntry.drinkType ? ` · ${drinkTypeLabels[latestHydrationEntry.drinkType] || latestHydrationEntry.drinkType}` : ''}
+                      </span>
+                      {latestHydrationEntry.notes ? <p>{latestHydrationEntry.notes}</p> : null}
+                    </div>
+                    <div className="hydration-latest-side">
+                      <strong>{getHydrationMl(latestHydrationEntry).toFixed(0)} ml</strong>
+                      <span>{`${latestHydrationEntry.quantity || '--'} ${latestHydrationEntry.unit || ''}`.trim()}</span>
+                    </div>
+                    <div className="entry-actions hydration-latest-actions">
+                      <button
+                        className="button button-secondary"
+                        type="button"
+                        onClick={() => startEditing('hydrationEntries', latestHydrationEntry.id, setHydrationForm, setEditingHydrationId, 'foods')}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        className="button button-danger"
+                        type="button"
+                        onClick={() => deleteRecord('hydrationEntries', latestHydrationEntry.id, setEditingHydrationId, resetHydrationForm)}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </article>
+                ) : (
+                  <p className="empty-state">Aun no registras bebidas en hidratacion.</p>
+                )}
+
+                {previousHydrationEntries.length > 0 ? (
+                  <div className="hydration-history-block">
+                    <button
+                      className="button button-secondary hydration-history-toggle"
+                      type="button"
+                      onClick={() => setShowHydrationHistory((current) => !current)}
+                      aria-expanded={showHydrationHistory}
+                    >
+                      {showHydrationHistory ? 'Ocultar historial de hidratacion' : `Ver historial de hidratacion (${previousHydrationEntries.length})`}
+                    </button>
+
+                    {showHydrationHistory ? (
                 <EntryList
-                  title="Bebidas"
-                  emptyMessage="Aun no registras bebidas en hidratacion."
-                  items={sortHydrationEntries(diaryData.hydrationEntries || []).map((item) => ({
+                  title="Entradas anteriores de hoy"
+                  emptyMessage="No hay entradas anteriores de hidratacion."
+                  className="entry-list-compact hydration-history-list"
+                  items={previousHydrationEntries.map((item) => ({
                     ...item,
                     primaryLabel: item.name || drinkTypeLabels[item.drinkType] || 'Sin nombre',
                     secondaryLabel: `${formatDate(item.date)}${item.time ? ` · ${item.time}` : ''}${item.drinkType ? ` · ${drinkTypeLabels[item.drinkType] || item.drinkType}` : ''}`,
@@ -5322,6 +5528,9 @@ function toggleRecommendedSupplement(itemConfig) {
                   onEdit={(id) => startEditing('hydrationEntries', id, setHydrationForm, setEditingHydrationId, 'foods')}
                   onDelete={(id) => deleteRecord('hydrationEntries', id, setEditingHydrationId, resetHydrationForm)}
                 />
+                    ) : null}
+                  </div>
+                ) : null}
               </SectionCard>
             </div>
           </>

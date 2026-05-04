@@ -1,7 +1,69 @@
-import ProgressCard from '../ProgressCard';
+﻿import ProgressCard from '../ProgressCard';
 import GoalForm from '../GoalForm';
 import SectionCard from '../SectionCard';
 
+const checkInInsightCopyByProfile = {
+  'krav-360': {
+    lowEnergy: ['Energía baja. Prioriza técnica y recuperación.', 'Repasa suave + movilidad ligera'],
+    lowSleep: ['Sueño bajo. Baja intensidad y cuida reacción.', 'Técnica limpia, sin forzar sparring'],
+    stress: ['Tensión alta. Control emocional antes de entrenar.', 'Respira, camina y entrena básico'],
+    highState: ['Buen estado. Día para progresar con intención.', 'Practica la técnica prioritaria'],
+    stable: ['Día estable. Suma constancia sin exceso.', 'Haz una sesión técnica corta'],
+  },
+  'fitness-basic': {
+    lowEnergy: ['Energía baja. Cuida hidratación y comida.', 'Camina ligero + agua suficiente'],
+    lowSleep: ['Sueño bajo. Recupera antes de exigir más.', 'Come simple y duerme temprano'],
+    stress: ['Estrés alto. Mantén el día simple.', 'Respira, hidrátate y muévete suave'],
+    highState: ['Buen estado. Día para cumplir básicos.', 'Proteína, agua y movimiento primero'],
+    stable: ['Día estable. Mantén adherencia.', 'Completa comida, agua y movimiento'],
+  },
+  'daniel-full': {
+    lowEnergy: ['Energía baja. Disciplina con recuperación.', 'Ora/reflexiona y baja intensidad'],
+    lowSleep: ['Dormiste mal. Protege enfoque y sobriedad.', 'Haz lo esencial y duerme temprano'],
+    stress: ['Estrés alto. Vuelve al centro.', 'Respira, ora y trabaja una cosa profunda'],
+    highState: ['Buen estado. Día para trabajo profundo.', 'Entrena, ora y ejecuta lo importante'],
+    stable: ['Día estable. Sostén disciplina.', 'Cumple básicos y reflexión breve'],
+  },
+  default: {
+    lowEnergy: ['Energía baja. Hoy enfócate en recuperación.', 'Camina ligero + hidrátate bien'],
+    lowSleep: ['Dormiste mal. Reduce intensidad hoy.', 'Evita estrés y duerme temprano'],
+    stress: ['Alto estrés detectado.', 'Respira y baja el ritmo'],
+    highState: ['Buen estado. Día para avanzar.', 'Haz lo más importante primero'],
+    stable: ['Día estable.', 'Mantén disciplina'],
+  },
+};
+
+function buildCheckInInsight(copy, key) {
+  return {
+    insight: copy[key][0],
+    action: copy[key][1],
+  };
+}
+
+function getCheckInInsight(checkIn, profileType = 'default') {
+  if (!checkIn) return null;
+
+  const { energy, sleepQuality, emotions = [], generalState } = checkIn;
+  const copy = checkInInsightCopyByProfile[profileType] || checkInInsightCopyByProfile.default;
+
+  if (energy <= 4) {
+    return buildCheckInInsight(copy, 'lowEnergy');
+  }
+
+  if (sleepQuality <= 4) {
+    return buildCheckInInsight(copy, 'lowSleep');
+  }
+
+  if (emotions.includes("Estresado") || emotions.includes("Ansioso")) {
+    return buildCheckInInsight(copy, 'stress');
+  }
+
+  if (energy >= 7 && generalState >= 7) {
+    return buildCheckInInsight(copy, 'highState');
+  }
+
+  return buildCheckInInsight(copy, 'stable');
+}
 export default function DashboardTab(props) {
   const {
     todaySummary,
@@ -37,6 +99,7 @@ export default function DashboardTab(props) {
     kravDashboardSnapshot,
     formatKravPercent,
     isKravEnabled,
+    isCheckInEnabled,
     isFastingEnabled,
     isSupplementsEnabled,
     isObjectivesEnabled,
@@ -60,7 +123,15 @@ export default function DashboardTab(props) {
     activeObjective,
     metricFieldSnapshots,
     formatMetricText,
+    todayDailyCheckIn,
+    checkInEmotionOptions,
+    profileType,
   } = props;
+  const checkInInsight = getCheckInInsight(todayDailyCheckIn, profileType);
+  const primaryCheckInEmotionValue = Array.isArray(todayDailyCheckIn?.emotions)
+    ? todayDailyCheckIn.emotions[0]
+    : '';
+  const primaryCheckInEmotion = checkInEmotionOptions?.find((item) => item.value === primaryCheckInEmotionValue)?.label || primaryCheckInEmotionValue;
 
   return (
     <>
@@ -141,9 +212,9 @@ export default function DashboardTab(props) {
                   : `${formatHoursLabel(activeFastingElapsedHours)} acumuladas`
           }${
             displayedFastingRemainingHours !== null && todaySummary.fastingStatus === 'en curso'
-              ? ` • ${formatHoursLabel(displayedFastingRemainingHours)} restantes`
+              ? ` · ${formatHoursLabel(displayedFastingRemainingHours)} restantes`
               : todaySummary.fastingStatus === 'cumplido'
-                ? ' • Meta alcanzada'
+                ? ' · Meta alcanzada'
                 : ''
           }`}
           />
@@ -158,7 +229,7 @@ export default function DashboardTab(props) {
           tone="weight"
           helper={
             todaySummary.bodyFat !== '--' || todaySummary.skeletalMuscleMass !== '--'
-              ? `Grasa: ${formatMetricText(todaySummary.bodyFat, todaySummary.bodyFat === '--' ? '' : '%')} • Musculo: ${formatMetricText(
+              ? `Grasa: ${formatMetricText(todaySummary.bodyFat, todaySummary.bodyFat === '--' ? '' : '%')} · Músculo: ${formatMetricText(
                   todaySummary.skeletalMuscleMass,
                   todaySummary.skeletalMuscleMass === '--' ? '' : ' kg'
                 )}`
@@ -216,6 +287,54 @@ export default function DashboardTab(props) {
           </div>
           </article>
         ) : null}
+
+        {isCheckInEnabled ? (
+          <article className="progress-card dashboard-checkin-progress-card dashboard-mobile-card-checkin">
+            <div className="dashboard-checkin-left">
+              <div className="progress-card-top dashboard-checkin-head">
+                <div>
+                  <span>Check-in diario</span>
+                  <small>Estado personal de hoy</small>
+                </div>
+                <strong className="dashboard-checkin-score">{todayDailyCheckIn ? `${todayDailyCheckIn.generalState}/10` : '--'}</strong>
+              </div>
+              {todayDailyCheckIn ? (
+                <div className="dashboard-checkin-mini-grid">
+                  <span>Energía {todayDailyCheckIn.energy}/10</span>
+                  <span>Sueño {todayDailyCheckIn.sleepQuality}/10</span>
+                  <span>{primaryCheckInEmotion || 'Sin emoción'}</span>
+                  <span className="dashboard-checkin-gratitude-chip">
+                    {todayDailyCheckIn.gratitudeDone ? 'Gratitud registrada' : 'Sin gratitud'}
+                  </span>
+                </div>
+              ) : (
+                <div className="dashboard-checkin-empty">
+                  <strong>Sin check-in hoy</strong>
+                  <p>Registra estado, energía, sueño y gratitud en menos de un minuto.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="dashboard-checkin-right">
+              {checkInInsight ? (
+                <div className="dashboard-checkin-guide">
+                  <span>Guía de hoy</span>
+                  <strong>{checkInInsight.insight}</strong>
+                  <p>{checkInInsight.action}</p>
+                </div>
+              ) : (
+                <div className="dashboard-checkin-guide dashboard-checkin-guide-empty">
+                  <span>Guía de hoy</span>
+                  <strong>Haz tu check-in para orientar el día.</strong>
+                  <p>Un minuto basta para registrar estado, sueño y enfoque.</p>
+                </div>
+              )}
+              <button className="button button-secondary dashboard-checkin-button" type="button" onClick={() => setActiveTab('checkin')}>
+                Abrir check-in
+              </button>
+            </div>
+          </article>
+        ) : null}
       </div>
 
       {proteinAlert || fatAlert || isSundayReminderVisible ? (
@@ -228,13 +347,13 @@ export default function DashboardTab(props) {
 
           {fatAlert ? (
             <div className="alert-banner">
-              <strong>Alerta de grasa:</strong> hoy llevas {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}; limite operativo {formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })}.
+              <strong>Alerta de grasa:</strong> hoy llevas {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })}; límite operativo {formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })}.
             </div>
           ) : null}
 
           {isSundayReminderVisible ? (
             <div className="alert-banner alert-banner-sunday">
-              <strong>Domingo con control:</strong> evita azucar, harina y exceso de calorias. No tires a la basura el esfuerzo de la semana.
+              <strong>Domingo con control:</strong> evita azúcar, harina y exceso de calorías. No tires a la basura el esfuerzo de la semana.
             </div>
           ) : null}
         </div>
@@ -262,7 +381,7 @@ export default function DashboardTab(props) {
             <div className="mini-stat">
               <span>Macros extra</span>
               <strong>
-                {formatUnitValue(todaySummary.carbs, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} carbos • {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} grasa
+                {formatUnitValue(todaySummary.carbs, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} carbos · {formatUnitValue(todaySummary.fat, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} grasa
               </strong>
             </div>
             {isSupplementsEnabled ? (
@@ -278,13 +397,13 @@ export default function DashboardTab(props) {
               </div>
             ) : null}
             <div className="mini-stat">
-              <span>Metricas de hoy / ultimo dato</span>
+              <span>Métricas de hoy / último dato</span>
               <strong>
                 {todaySummary.metricEntries} hoy
-                {latestMetric ? ` • peso ${formatMetricText(latestMetric.weight, ' kg')}` : ' • sin dato'}
+                {latestMetric ? ` · peso ${formatMetricText(latestMetric.weight, ' kg')}` : ' · sin dato'}
               </strong>
               <small className="helper-text">
-                El dashboard resume comida, suplementos y ejercicio de hoy, pero usa la ultima metrica disponible aunque no sea de hoy.
+                El dashboard resume comida, suplementos y ejercicio de hoy, pero usa la última métrica disponible aunque no sea de hoy.
               </small>
             </div>
             <div className="mini-stat">
@@ -300,22 +419,23 @@ export default function DashboardTab(props) {
         <SectionCard title="Alimentos" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
             <strong>{todaysFoods.length === 0 ? 'Sin registros' : formatIntegerValue(todaySummary.calories, 'kcal', '0 kcal')}</strong>
-            <p>{todaysFoods.length === 0 ? 'Sin alimentos registrados hoy.' : `${todaySummary.foodEntries} registros • ${formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} proteína`}</p>
+            <p>{todaysFoods.length === 0 ? 'Sin alimentos registrados hoy.' : `${todaySummary.foodEntries} registros · ${formatUnitValue(todaySummary.protein, 'g', { maximumFractionDigits: 1, fallback: '0 g' })} proteína`}</p>
           </div>
         </SectionCard>
 
-        <SectionCard title="Hidratacion" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
+        <SectionCard title="Hidratación" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
             <strong>{formatUnitValue(todaySummary.hydrationMl, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}</strong>
-            <p>{`Meta ${formatUnitValue(hydrationBaseGoal || 0, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}${todaysExercises.length > 0 && hydrationHighActivityGoal > 0 ? ` • alta ${formatUnitValue(hydrationHighActivityGoal, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}` : ''}`}</p>
+            <p>{`Meta ${formatUnitValue(hydrationBaseGoal || 0, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}${todaysExercises.length > 0 && hydrationHighActivityGoal > 0 ? ` · alta ${formatUnitValue(hydrationHighActivityGoal, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}` : ''}`}</p>
           </div>
         </SectionCard>
+
 
         {isSupplementsEnabled ? (
           <SectionCard title="Suplementos" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
             <strong>{todaysSupplements.length === 0 ? 'Sin registros' : `${todaySummary.supplementsTakenToday} tomados`}</strong>
-            <p>{todaysSupplements.length === 0 ? 'Sin suplementos registrados hoy.' : `${todaySummary.supplementsPendingToday} pendientes • ${todaySummary.medicationsToday} medicamentos`}</p>
+            <p>{todaysSupplements.length === 0 ? 'Sin suplementos registrados hoy.' : `${todaySummary.supplementsPendingToday} pendientes · ${todaySummary.medicationsToday} medicamentos`}</p>
           </div>
         </SectionCard>
 
@@ -324,7 +444,7 @@ export default function DashboardTab(props) {
         <SectionCard title="Ejercicio" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
             <strong>{todaysExercises.length === 0 ? 'Sin registros' : formatIntegerValue(todaySummary.exerciseMinutes, 'min', '0 min')}</strong>
-            <p>{todaysExercises.length === 0 ? 'Sin ejercicio registrado hoy.' : `${formatIntegerValue(todaySummary.exerciseCalories, 'kcal', '0 kcal')} • ${todaySummary.exerciseEntries} sesiones`}</p>
+            <p>{todaysExercises.length === 0 ? 'Sin ejercicio registrado hoy.' : `${formatIntegerValue(todaySummary.exerciseCalories, 'kcal', '0 kcal')} · ${todaySummary.exerciseEntries} sesiones`}</p>
           </div>
         </SectionCard>
 
@@ -342,9 +462,9 @@ export default function DashboardTab(props) {
                   : todaySummary.fastingStatus === 'pendiente'
                     ? 'Sin registro de ayuno hoy.'
                     : activeFastingStatus === 'en curso' && activeFastingReachedGoal
-                      ? `${formatHoursLabel(activeFastingElapsedHours)} acumuladas • Meta alcanzada y ayuno en curso`
+                      ? `${formatHoursLabel(activeFastingElapsedHours)} acumuladas · Meta alcanzada y ayuno en curso`
                       : `${formatHoursLabel(activeFastingElapsedHours)} acumuladas${
-                          displayedFastingRemainingHours !== null ? ` • ${formatHoursLabel(displayedFastingRemainingHours)} restantes` : ' • Meta alcanzada'
+                          displayedFastingRemainingHours !== null ? ` · ${formatHoursLabel(displayedFastingRemainingHours)} restantes` : ' · Meta alcanzada'
                         }`}
             </p>
           </div>
@@ -360,24 +480,24 @@ export default function DashboardTab(props) {
             </strong>
             <p>
               {activeObjective
-                ? `${formatIntegerValue(activeObjective.averageCaloriesTarget, 'kcal', '--')} prom • tope ${formatIntegerValue(activeObjective.averageUpperLimit, 'kcal', '--')}`
+                ? `${formatIntegerValue(activeObjective.averageCaloriesTarget, 'kcal', '--')} prom · tope ${formatIntegerValue(activeObjective.averageUpperLimit, 'kcal', '--')}`
                 : 'Todavía no has definido una meta activa.'}
             </p>
             {activeObjective ? (
-              <small>{`Min habitual ${formatIntegerValue(activeObjective.minimumUsual, 'kcal', '--')} • Prot minima ${formatUnitValue(activeObjective.proteinMinimum, 'g', { maximumFractionDigits: 1, fallback: '--' })}`}</small>
+              <small>{`Min habitual ${formatIntegerValue(activeObjective.minimumUsual, 'kcal', '--')} · Prot mínima ${formatUnitValue(activeObjective.proteinMinimum, 'g', { maximumFractionDigits: 1, fallback: '--' })}`}</small>
             ) : null}
           </div>
         </SectionCard>
 
         ) : null}
 
-        <SectionCard title="Metricas" subtitle={latestMetric ? 'Ultimo dato disponible' : 'Sin metricas'} className="card-soft dashboard-compact-card">
+        <SectionCard title="Métricas" subtitle={latestMetric ? 'Último dato disponible' : 'Sin métricas'} className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
             <strong>{metricFieldSnapshots.weight.date ? formatMetricText(metricFieldSnapshots.weight.rawValue, ' kg') : 'Sin dato'}</strong>
             <p>
               {metricFieldSnapshots.weight.date
-                ? `${formatMetricText(metricFieldSnapshots.bodyFat.rawValue, '%')} grasa • ${formatMetricText(metricFieldSnapshots.skeletalMuscleMass.rawValue, ' kg')} musculo`
-                : 'Aun no has registrado metricas.'}
+                ? `${formatMetricText(metricFieldSnapshots.bodyFat.rawValue, '%')} grasa · ${formatMetricText(metricFieldSnapshots.skeletalMuscleMass.rawValue, ' kg')} músculo`
+                : 'Aún no has registrado métricas.'}
             </p>
           </div>
         </SectionCard>

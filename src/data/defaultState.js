@@ -115,7 +115,7 @@ const USER_PROFILE_ALIASES = {
   'krav-student': 'krav-360',
 };
 
-export function createUserSettings(profileType = 'fitness-basic', enabledTabs = null) {
+export function createUserSettings(profileType = 'fitness-basic', enabledTabs = null, options = {}) {
   const migratedProfileType = USER_PROFILE_ALIASES[profileType] || profileType;
   const normalizedProfileType = USER_PROFILE_TAB_PRESETS[migratedProfileType] ? migratedProfileType : 'fitness-basic';
   const presetTabs = USER_PROFILE_TAB_PRESETS[normalizedProfileType] || USER_PROFILE_TAB_PRESETS['fitness-basic'];
@@ -128,6 +128,7 @@ export function createUserSettings(profileType = 'fitness-basic', enabledTabs = 
   return {
     profileType: normalizedProfileType,
     enabledTabs: [...new Set(safeEnabledTabs.filter((tabId) => typeof tabId === 'string' && tabId.trim()))],
+    onboardingCompleted: Boolean(options.onboardingCompleted),
   };
 }
 
@@ -275,7 +276,7 @@ export function createCleanDefaultState() {
     privateSeedVersion: 0,
     objectives: [],
     goals: createEmptyGoals(),
-    userSettings: createUserSettings('fitness-basic'),
+    userSettings: createUserSettings('fitness-basic', null, { onboardingCompleted: false }),
     syncMeta: createDefaultSyncMeta(),
     backupMeta: createBackupMeta(),
   };
@@ -310,7 +311,7 @@ export function createDanielDefaultState() {
     privateSeedVersion: privateSeedData.privateSeedVersion,
     objectives: [createDefaultObjective()],
     goals: createDanielGoals(),
-    userSettings: createUserSettings('daniel-full'),
+    userSettings: createUserSettings('daniel-full', null, { onboardingCompleted: true }),
     syncMeta: createDefaultSyncMeta(),
     backupMeta: createBackupMeta(),
   };

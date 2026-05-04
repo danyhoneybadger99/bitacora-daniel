@@ -207,12 +207,87 @@ export function onSupabaseAuthChange(callback) {
   return data.subscription;
 }
 
+export const supabasePasswordMinLength = 6;
+
+export function validateSupabaseEmail(email) {
+  const normalizedEmail = String(email || '').trim();
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!normalizedEmail) return 'Escribe un correo para continuar.';
+  if (!emailPattern.test(normalizedEmail)) return 'Escribe un correo valido.';
+
+  return '';
+}
+
+export function validateSupabaseCredentials({ email, password }) {
+  const normalizedEmail = String(email || '').trim();
+  const normalizedPassword = String(password || '');
+  const emailValidationMessage = validateSupabaseEmail(normalizedEmail);
+
+  if (emailValidationMessage) return emailValidationMessage;
+  if (!normalizedPassword) return 'Escribe tu contrasena.';
+  if (normalizedPassword.length < supabasePasswordMinLength) {
+    return `La contrasena debe tener minimo ${supabasePasswordMinLength} caracteres.`;
+  }
+
+  return '';
+}
+
+export function isSupabaseEmailNotConfirmedError(error) {
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const message = rawMessage.toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
+  return message.includes('email not confirmed') || code.includes('email_not_confirmed');
+}
+
+export function getSupabaseAuthErrorMessage(error, action = 'sign-in') {
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const message = rawMessage.toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
+  const status = Number(error?.status || 0);
+
+  if (isSupabaseEmailNotConfirmedError(error)) {
+    return 'Tu cuenta existe, pero falta confirmar el correo.';
+  }
+
+  if (message.includes('invalid login credentials') || code.includes('invalid_credentials')) {
+    return 'Correo o contrasena incorrectos. Si acabas de crear la cuenta, revisa primero si falta confirmar el correo.';
+  }
+
+  if (message.includes('already registered') || message.includes('user already exists') || code.includes('user_already_exists')) {
+    return 'Ese correo ya tiene cuenta. Usa "Entrar y sincronizar" o recupera el acceso desde Supabase si olvidaste la contrasena.';
+  }
+
+  if (message.includes('password') && (message.includes('6') || message.includes('weak') || code.includes('weak_password'))) {
+    return `La contrasena debe tener minimo ${supabasePasswordMinLength} caracteres.`;
+  }
+
+  if (message.includes('signup') && (message.includes('disabled') || message.includes('not allowed'))) {
+    return 'El registro de nuevas cuentas esta desactivado en Supabase. Activalo temporalmente para crear usuarios nuevos.';
+  }
+
+  if (status === 429 || message.includes('rate limit') || message.includes('too many')) {
+    return 'Supabase limito los intentos por seguridad. Espera unos minutos y vuelve a intentar.';
+  }
+
+  if (message.includes('failed to fetch') || message.includes('network') || message.includes('fetch')) {
+    return 'No se pudo conectar con Supabase. Revisa internet o la configuracion del proyecto.';
+  }
+
+  return action === 'sign-up'
+    ? rawMessage || 'No se pudo crear la cuenta.'
+    : rawMessage || 'No se pudo iniciar sesion.';
+}
+
 export async function signInWithSupabasePassword({ email, password }) {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error('Supabase no esta configurado.');
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: String(email || '').trim(),
+    password,
+  });
   if (error) throw error;
   return data.session || null;
 }
@@ -222,7 +297,27 @@ export async function signUpWithSupabasePassword({ email, password }) {
     throw new Error('Supabase no esta configurado.');
   }
 
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp({
+    email: String(email || '').trim(),
+    password,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function resendSupabaseSignupConfirmation({ email }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase no esta configurado.');
+  }
+
+  const normalizedEmail = String(email || '').trim();
+  const validationMessage = validateSupabaseEmail(normalizedEmail);
+  if (validationMessage) throw new Error(validationMessage);
+
+  const { data, error } = await supabase.auth.resend({
+    type: 'signup',
+    email: normalizedEmail,
+  });
   if (error) throw error;
   return data;
 }
