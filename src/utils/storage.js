@@ -513,7 +513,11 @@ function normalizeUserSettings(userSettings, fallbackState = defaultState) {
     });
   }
 
-  const profileType = userSettings.profileType || fallbackUserSettings.profileType;
+  const requestedProfileType = userSettings.profileType || fallbackUserSettings.profileType;
+  const profileType =
+    fallbackState.profileId === 'daniel-full' || requestedProfileType !== 'daniel-full'
+      ? requestedProfileType
+      : fallbackUserSettings.profileType;
   const enabledTabs = userSettings.profileType === 'custom'
     ? userSettings.enabledTabs || fallbackUserSettings.enabledTabs
     : userSettings.enabledTabs;

@@ -202,6 +202,7 @@ const tabs = [
 ];
 
 const tabLabelById = Object.fromEntries(tabs.map((tab) => [tab.id, tab.label]));
+const LOCAL_MODE_CHOICE_KEY = 'mi-diario-local-mode-enabled';
 const selectableUserProfiles = ['fitness-basic', 'krav-360', 'daniel-full'];
 
 const goalSettingFields = ['calories', 'protein', 'weight', 'hydrationBase', 'hydrationHighActivity'];
@@ -704,6 +705,16 @@ function App() {
   const [syncStatus, setSyncStatus] = useState(remoteSyncEnabled ? 'auth' : 'local');
   const [syncCredentials, setSyncCredentials] = useState({ email: '', password: '' });
   const [syncUser, setSyncUser] = useState(null);
+  const [hasChosenLocalMode, setHasChosenLocalMode] = useState(() => {
+    if (!remoteSyncEnabled) return true;
+    if (typeof window === 'undefined') return false;
+
+    try {
+      return window.localStorage.getItem(LOCAL_MODE_CHOICE_KEY) === 'true';
+    } catch (error) {
+      return false;
+    }
+  });
   const [canResendConfirmationEmail, setCanResendConfirmationEmail] = useState(false);
   const [isOnline, setIsOnline] = useState(
     typeof navigator === 'undefined' ? true : navigator.onLine
@@ -734,6 +745,7 @@ function App() {
   const syncDeviceIdRef = useRef('');
   const latestPersistedDataRef = useRef(defaultState);
   const activeStorageKeyRef = useRef(getUserStorageKey());
+  const hadInitialLocalDataRef = useRef(false);
   const syncDebounceTimeoutRef = useRef(null);
   const skipNextRemoteSyncRef = useRef(false);
   const syncRefreshInFlightRef = useRef(false);
@@ -1036,6 +1048,12 @@ function App() {
   useEffect(() => {
     const initialStorageKey = getUserStorageKey();
     activeStorageKeyRef.current = initialStorageKey;
+    try {
+      hadInitialLocalDataRef.current = Boolean(window.localStorage.getItem(initialStorageKey));
+    } catch (error) {
+      hadInitialLocalDataRef.current = false;
+    }
+
     const loadedData = loadAppData(initialStorageKey);
     const preparedData = ensureSyncMeta(
       loadedData,
@@ -1565,14 +1583,24 @@ function App() {
   const userSettings = useMemo(
     () => {
       const fallbackProfile = diaryData.profileId === 'clean' ? 'fitness-basic' : 'daniel-full';
+      const requestedProfile = diaryData.userSettings?.profileType || fallbackProfile;
+      const safeProfile =
+        diaryData.profileId === 'daniel-full' || requestedProfile !== 'daniel-full'
+          ? requestedProfile
+          : fallbackProfile;
+
       return createUserSettings(
-        diaryData.userSettings?.profileType || fallbackProfile,
+        safeProfile,
         diaryData.userSettings?.enabledTabs,
         { onboardingCompleted: Boolean(diaryData.userSettings?.onboardingCompleted) }
       );
     },
     [diaryData.profileId, diaryData.userSettings]
   );
+  const selectableProfilesForSettings =
+    diaryData.profileId === 'daniel-full'
+      ? selectableUserProfiles
+      : selectableUserProfiles.filter((profileType) => profileType !== 'daniel-full');
   const shouldShowUserOnboarding = Boolean(
     syncUser?.id && diaryData.profileId === 'clean' && !userSettings.onboardingCompleted
   );
@@ -1596,6 +1624,9 @@ function App() {
   const privatePinLength = getPrivatePinLength(privateVault);
   const syncStatusLabel = syncStatusLabels[syncStatus] || syncStatusLabels.local;
   const syncUserLabel = syncUser?.email || 'Sin cuenta conectada';
+  const shouldGateUnauthenticatedApp = remoteSyncEnabled && !syncUser && !hasChosenLocalMode;
+  const shouldShowAuthLanding = shouldGateUnauthenticatedApp && hasResolvedSyncSession;
+  const shouldShowAuthResolvingScreen = shouldGateUnauthenticatedApp && !hasResolvedSyncSession;
   const privateCycles = useMemo(
     () => sortPrivateRecordsByDate(diaryData.privateCycles || [], 'startDate'),
     [diaryData.privateCycles]
@@ -2955,6 +2986,14 @@ function lockPrivateModule(feedbackText = '') {
 
   function handleUserProfileChange(event) {
     const nextProfileType = event.target.value;
+    if (nextProfileType === 'daniel-full' && diaryData.profileId !== 'daniel-full') {
+      setSyncFeedback({
+        type: 'error',
+        text: 'El perfil Daniel full solo esta disponible para la cuenta principal.',
+      });
+      return;
+    }
+
     const nextUserSettings = createUserSettings(nextProfileType, USER_PROFILE_TAB_PRESETS[nextProfileType], {
       onboardingCompleted: Boolean(userSettings.onboardingCompleted),
     });
@@ -3199,6 +3238,32 @@ function lockPrivateModule(feedbackText = '') {
     if (name === 'email') {
       setCanResendConfirmationEmail(false);
     }
+  }
+
+  function handleContinueWithoutAccount() {
+    try {
+      window.localStorage.setItem(LOCAL_MODE_CHOICE_KEY, 'true');
+    } catch (error) {
+      // The choice is UI-only; local mode still works even if the flag cannot be stored.
+    }
+
+    setHasChosenLocalMode(true);
+    setActiveTab('dashboard');
+    setSyncStatus('local');
+
+    if (!hadInitialLocalDataRef.current && diaryData.profileId === 'daniel-full') {
+      const cleanLocalState = ensureSyncMeta(createCleanDefaultState(), syncDeviceIdRef.current || createDeviceId());
+      latestPersistedDataRef.current = cleanLocalState;
+      saveAppData(cleanLocalState, activeStorageKeyRef.current);
+      setDiaryData(cleanLocalState);
+      applyFormStateFromSnapshot(cleanLocalState);
+      setSyncLastSyncedAt('');
+    }
+
+    setSyncFeedback({
+      type: 'info',
+      text: 'Modo local activado. Puedes crear cuenta o iniciar sesion despues desde Ajustes.',
+    });
   }
 
   async function handleSyncSignIn(event) {
@@ -4633,6 +4698,111 @@ function toggleRecommendedSupplement(itemConfig) {
     }));
   }
 
+  if (shouldShowAuthResolvingScreen || shouldShowAuthLanding) {
+    return (
+      <div className="auth-landing-shell">
+        <section className="auth-landing-card" aria-labelledby="auth-landing-title">
+          <div className="auth-landing-copy">
+            <p className="eyebrow">BITÁCORA DANIEL</p>
+            <h1 id="auth-landing-title">Ordena tu día en un solo lugar</h1>
+            <p>
+              Registra hábitos, alimentación, ejercicio, emociones y progreso desde tu celular.
+            </p>
+            <ol className="auth-landing-steps" aria-label="Pasos para empezar">
+              <li>
+                <span>1</span>
+                <strong>Crea tu cuenta</strong>
+              </li>
+              <li>
+                <span>2</span>
+                <strong>Confirma tu correo</strong>
+              </li>
+              <li>
+                <span>3</span>
+                <strong>Elige tu perfil</strong>
+              </li>
+            </ol>
+            <div className="auth-landing-benefits" aria-label="Beneficios principales">
+              <span>Datos separados por cuenta</span>
+              <span>Uso móvil simple</span>
+            </div>
+          </div>
+
+          {shouldShowAuthResolvingScreen ? (
+            <div className="auth-landing-status">
+              <strong>Preparando acceso...</strong>
+              <span>Estamos revisando si ya tienes una sesión activa.</span>
+            </div>
+          ) : (
+            <form className="auth-landing-form" onSubmit={handleSyncSignIn}>
+              <div className="auth-landing-form-head">
+                <strong>Empieza con tu cuenta</strong>
+                <span>Usa tu correo y una contraseña de mínimo 6 caracteres.</span>
+              </div>
+              <label className="field">
+                <span>Correo</span>
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  required
+                  value={syncCredentials.email}
+                  onChange={handleSyncCredentialsChange}
+                  placeholder="tu-correo@ejemplo.com"
+                />
+              </label>
+              <label className="field">
+                <span>Contraseña</span>
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  minLength={6}
+                  required
+                  value={syncCredentials.password}
+                  onChange={handleSyncCredentialsChange}
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </label>
+
+              {syncFeedback.text ? (
+                <p className={`form-feedback ${syncFeedback.type ? `form-feedback-${syncFeedback.type}` : ''}`}>
+                  {syncFeedback.text}
+                </p>
+              ) : null}
+
+              <div className="auth-landing-actions">
+                <button className="button button-primary" type="button" onClick={handleSyncSignUp}>
+                  Crear cuenta
+                </button>
+                <p className="auth-landing-action-note">
+                  Después de crear tu cuenta, revisa tu correo para confirmarla.
+                </p>
+                <button className="button button-secondary" type="submit">
+                  Iniciar sesión
+                </button>
+              </div>
+              <p className="auth-landing-privacy-note">Tus datos quedan separados por cuenta.</p>
+              <div className="auth-landing-local">
+                <button className="button button-secondary" type="button" onClick={handleContinueWithoutAccount}>
+                  Solo probar en este dispositivo
+                </button>
+              </div>
+              <button
+                className="button button-ghost auth-landing-resend"
+                type="button"
+                onClick={handleResendConfirmationEmail}
+                disabled={!syncCredentials.email.trim() || (!canResendConfirmationEmail && !syncCredentials.email.includes('@'))}
+              >
+                Reenviar correo de confirmación
+              </button>
+            </form>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <header className="hero hero-modern">
@@ -4865,7 +5035,7 @@ function toggleRecommendedSupplement(itemConfig) {
                 <label className="field settings-profile-field">
                   <span>Cambiar perfil</span>
                   <select value={userSettings.profileType} onChange={handleUserProfileChange}>
-                    {selectableUserProfiles.map((profileType) => (
+                    {selectableProfilesForSettings.map((profileType) => (
                       <option key={profileType} value={profileType}>
                         {USER_PROFILE_LABELS[profileType]}
                       </option>
