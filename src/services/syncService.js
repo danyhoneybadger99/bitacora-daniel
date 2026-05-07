@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export const SYNC_SCHEMA_VERSION = 1;
 export const SYNC_TABLE = 'diary_snapshots';
+export const APP_USERS_TABLE = 'app_users';
 const isDevSyncLogEnabled = typeof import.meta !== 'undefined' ? Boolean(import.meta.env?.DEV) : false;
 
 export const syncStatusLabels = {
@@ -319,6 +320,32 @@ export async function resendSupabaseSignupConfirmation({ email }) {
     email: normalizedEmail,
   });
   if (error) throw error;
+  return data;
+}
+
+export async function upsertAppUser({ userId, email, profileType, newsletterOptIn = false }) {
+  if (!isSupabaseConfigured || !supabase || !userId) return null;
+
+  const row = {
+    user_id: userId,
+    email: String(email || '').trim() || null,
+    profile_type: String(profileType || 'fitness-basic'),
+    newsletter_opt_in: Boolean(newsletterOptIn),
+    last_seen_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from(APP_USERS_TABLE)
+    .upsert(row, { onConflict: 'user_id' })
+    .select('user_id, profile_type, newsletter_opt_in, last_seen_at')
+    .single();
+
+  if (error) throw error;
+  logSyncDebug('app-user:upserted', {
+    userId,
+    profileType: row.profile_type,
+    newsletterOptIn: row.newsletter_opt_in,
+  });
   return data;
 }
 
