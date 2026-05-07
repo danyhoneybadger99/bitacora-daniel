@@ -132,6 +132,7 @@ import {
   signOutFromSupabase,
   signUpWithSupabasePassword,
   syncStatusLabels,
+  upsertAppUser,
   validateSupabaseCredentials,
 } from './services/syncService';
 import {
@@ -705,6 +706,7 @@ function App() {
   const [syncStatus, setSyncStatus] = useState(remoteSyncEnabled ? 'auth' : 'local');
   const [syncCredentials, setSyncCredentials] = useState({ email: '', password: '' });
   const [syncUser, setSyncUser] = useState(null);
+  const [newsletterOptInDraft, setNewsletterOptInDraft] = useState(false);
   const [hasChosenLocalMode, setHasChosenLocalMode] = useState(() => {
     if (!remoteSyncEnabled) return true;
     if (typeof window === 'undefined') return false;
@@ -1592,7 +1594,10 @@ function App() {
       return createUserSettings(
         safeProfile,
         diaryData.userSettings?.enabledTabs,
-        { onboardingCompleted: Boolean(diaryData.userSettings?.onboardingCompleted) }
+        {
+          onboardingCompleted: Boolean(diaryData.userSettings?.onboardingCompleted),
+          newsletterOptIn: Boolean(diaryData.userSettings?.newsletterOptIn),
+        }
       );
     },
     [diaryData.profileId, diaryData.userSettings]
@@ -1615,6 +1620,59 @@ function App() {
     if (enabledTabIds.includes(activeTab)) return;
     setActiveTab('dashboard');
   }, [activeTab, enabledTabsKey, enabledTabIds]);
+
+  useEffect(() => {
+    if (!syncUser?.id || !newsletterOptInDraft || userSettings.newsletterOptIn) return;
+
+    const nextUserSettings = createUserSettings(userSettings.profileType, userSettings.enabledTabs, {
+      onboardingCompleted: Boolean(userSettings.onboardingCompleted),
+      newsletterOptIn: true,
+    });
+
+    markPersistenceReason('settings:newsletter-opt-in');
+    setDiaryData((current) => ({
+      ...current,
+      userSettings: nextUserSettings,
+    }));
+  }, [
+    enabledTabsKey,
+    newsletterOptInDraft,
+    syncUser?.id,
+    userSettings.enabledTabs,
+    userSettings.newsletterOptIn,
+    userSettings.onboardingCompleted,
+    userSettings.profileType,
+  ]);
+
+  useEffect(() => {
+    if (!remoteSyncEnabled || !syncUser?.id || !hasLoadedData || !hasResolvedRemoteSnapshot) return;
+
+    let cancelled = false;
+    upsertAppUser({
+      userId: syncUser.id,
+      email: syncUser.email || '',
+      profileType: userSettings.profileType,
+      newsletterOptIn: Boolean(userSettings.newsletterOptIn),
+    }).catch((error) => {
+      if (cancelled) return;
+      if (isDevMode) {
+        console.warn('[Bitacora Daniel][app_users] No se pudo actualizar app_users.', error);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hasLoadedData,
+    hasResolvedRemoteSnapshot,
+    isDevMode,
+    remoteSyncEnabled,
+    syncUser?.email,
+    syncUser?.id,
+    userSettings.newsletterOptIn,
+    userSettings.profileType,
+  ]);
 
   useEffect(() => {
     setDailyCheckInForm(todayDailyCheckIn ? normalizeDailyCheckIn(todayDailyCheckIn) : createEmptyDailyCheckIn(currentDate));
@@ -2996,6 +3054,7 @@ function lockPrivateModule(feedbackText = '') {
 
     const nextUserSettings = createUserSettings(nextProfileType, USER_PROFILE_TAB_PRESETS[nextProfileType], {
       onboardingCompleted: Boolean(userSettings.onboardingCompleted),
+      newsletterOptIn: Boolean(userSettings.newsletterOptIn),
     });
 
     markPersistenceReason('settings:update-user-profile');
@@ -3010,7 +3069,10 @@ function lockPrivateModule(feedbackText = '') {
     const nextUserSettings = createUserSettings(
       normalizedProfileType,
       USER_PROFILE_TAB_PRESETS[normalizedProfileType],
-      { onboardingCompleted: true }
+      {
+        onboardingCompleted: true,
+        newsletterOptIn: Boolean(newsletterOptInDraft || userSettings.newsletterOptIn),
+      }
     );
 
     markPersistenceReason('settings:onboarding-profile');
@@ -3353,8 +3415,17 @@ function lockPrivateModule(feedbackText = '') {
   async function handleSyncSignOut() {
     try {
       await signOutFromSupabase();
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.removeItem(LOCAL_MODE_CHOICE_KEY);
+        } catch (_error) {
+          // Closing the account session should not depend on localStorage access.
+        }
+      }
+      setHasChosenLocalMode(false);
+      setActiveTab('dashboard');
       setSyncStatus(isOnline ? 'auth' : 'offline');
-      setSyncFeedback({ type: 'info', text: 'Sesion cerrada. La app sigue operando con cache local.' });
+      setSyncFeedback({ type: 'info', text: 'Sesion cerrada. Puedes iniciar sesion o cambiar de cuenta.' });
     } catch (error) {
       setSyncFeedback({
         type: 'error',
@@ -4771,6 +4842,15 @@ function toggleRecommendedSupplement(itemConfig) {
                 </p>
               ) : null}
 
+              <label className="auth-landing-checkbox">
+                <input
+                  type="checkbox"
+                  checked={newsletterOptInDraft}
+                  onChange={(event) => setNewsletterOptInDraft(event.target.checked)}
+                />
+                <span>Acepto recibir correos semanales con tips de bienestar, hábitos y progreso.</span>
+              </label>
+
               <div className="auth-landing-actions">
                 <button className="button button-primary" type="button" onClick={handleSyncSignUp}>
                   Crear cuenta
@@ -4900,6 +4980,15 @@ function toggleRecommendedSupplement(itemConfig) {
               </button>
             </div>
 
+            <label className="auth-landing-checkbox profile-onboarding-checkbox">
+              <input
+                type="checkbox"
+                checked={newsletterOptInDraft}
+                onChange={(event) => setNewsletterOptInDraft(event.target.checked)}
+              />
+              <span>Acepto recibir correos semanales con tips de bienestar, hábitos y progreso.</span>
+            </label>
+
             <button className="button button-secondary profile-onboarding-skip" type="button" onClick={handleUserOnboardingDismiss}>
               Omitir por ahora
             </button>
@@ -5015,6 +5104,41 @@ function toggleRecommendedSupplement(itemConfig) {
 
         {safeActiveTab === 'settings' ? (
           <>
+            {syncUser ? (
+              <SectionCard
+                title="Cuenta"
+                subtitle="Sesion actual y acceso para cambiar de cuenta sin borrar datos guardados."
+                className="card-soft settings-account-card"
+              >
+                <div className="settings-account-panel">
+                  <div className="backup-meta-grid settings-account-grid">
+                    <div className="backup-meta-card">
+                      <span>Correo actual</span>
+                      <strong>{syncUserLabel}</strong>
+                    </div>
+                    <div className="backup-meta-card">
+                      <span>Perfil actual</span>
+                      <strong>{USER_PROFILE_LABELS[userSettings.profileType] || userSettings.profileType}</strong>
+                    </div>
+                    <div className="backup-meta-card">
+                      <span>Estado de sincronizacion</span>
+                      <strong>{syncStatusLabel}</strong>
+                    </div>
+                  </div>
+
+                  <div className="settings-account-actions">
+                    <button className="button button-secondary" type="button" onClick={handleSyncSignOut}>
+                      Cerrar sesión / Cambiar cuenta
+                    </button>
+                  </div>
+
+                  <p className="helper-text">
+                    Cerrar sesión no borra snapshots remotos, caches locales de otros usuarios, PIN ni datos privados.
+                  </p>
+                </div>
+              </SectionCard>
+            ) : null}
+
             <SectionCard
               title="Perfil de uso"
               subtitle="Controla qué módulos aparecen en la navegación sin borrar datos guardados."
@@ -5144,9 +5268,6 @@ function toggleRecommendedSupplement(itemConfig) {
                       <div className="backup-actions">
                         <button className="button button-primary" type="button" onClick={handleManualSync}>
                           Sincronizar ahora
-                        </button>
-                        <button className="button button-secondary" type="button" onClick={handleSyncSignOut}>
-                          Cerrar sesion
                         </button>
                       </div>
                     ) : (

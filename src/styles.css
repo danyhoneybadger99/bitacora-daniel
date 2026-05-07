@@ -218,6 +218,31 @@ button {
   font-weight: 700;
 }
 
+.auth-landing-checkbox {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  padding: 10px 11px;
+  border: 1px solid #e4ebe5;
+  border-radius: 15px;
+  background: #fbfdfb;
+  color: #43515a;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.auth-landing-checkbox input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: #8b3f47;
+}
+
+.profile-onboarding-checkbox {
+  margin-top: 2px;
+}
+
 .auth-landing-local {
   display: grid;
   padding-top: 3px;
@@ -1758,6 +1783,25 @@ button {
 
 .settings-profile-card {
   gap: 14px;
+}
+
+.settings-account-card {
+  gap: 14px;
+}
+
+.settings-account-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-account-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .settings-profile-field {
