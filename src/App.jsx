@@ -230,6 +230,15 @@ function getPendingNewsletterOptIn(email = '') {
   return readNewsletterOptInChoices()[normalizedEmail] === true;
 }
 
+function getNewsletterOptInFromMetadata(syncUser = null) {
+  const metadata = syncUser?.user_metadata || {};
+
+  if (typeof metadata.newsletter_opt_in === 'boolean') return metadata.newsletter_opt_in;
+  if (typeof metadata.newsletterOptIn === 'boolean') return metadata.newsletterOptIn;
+
+  return null;
+}
+
 function savePendingNewsletterOptIn(email = '', value = false) {
   const normalizedEmail = normalizeAuthEmail(email);
   if (!normalizedEmail || typeof window === 'undefined') return;
@@ -1668,8 +1677,9 @@ function App() {
   }, [activeTab, enabledTabsKey, enabledTabIds]);
 
   useEffect(() => {
+    const metadataNewsletterOptIn = getNewsletterOptInFromMetadata(syncUser);
     const shouldApplyNewsletterOptIn =
-      Boolean(newsletterOptInDraft) || getPendingNewsletterOptIn(syncUser?.email);
+      metadataNewsletterOptIn === true || Boolean(newsletterOptInDraft) || getPendingNewsletterOptIn(syncUser?.email);
 
     if (!syncUser?.id || !shouldApplyNewsletterOptIn || userSettings.newsletterOptIn) return;
 
@@ -1696,9 +1706,20 @@ function App() {
   useEffect(() => {
     if (!remoteSyncEnabled || !syncUser?.id || !hasLoadedData || !hasResolvedRemoteSnapshot) return;
 
-    const shouldSyncNewsletterOptIn = Boolean(
-      userSettings.newsletterOptIn || newsletterOptInDraft || getPendingNewsletterOptIn(syncUser.email)
-    );
+    const metadataNewsletterOptIn = getNewsletterOptInFromMetadata(syncUser);
+    const isCleanFirstAccess = diaryData.profileId === 'clean' && !userSettings.onboardingCompleted;
+    const shouldSyncNewsletterOptIn = isCleanFirstAccess
+      ? Boolean(
+          metadataNewsletterOptIn === true ||
+            newsletterOptInDraft ||
+            getPendingNewsletterOptIn(syncUser.email)
+        )
+      : Boolean(
+          userSettings.newsletterOptIn ||
+            metadataNewsletterOptIn === true ||
+            newsletterOptInDraft ||
+            getPendingNewsletterOptIn(syncUser.email)
+        );
     let cancelled = false;
     upsertAppUser({
       userId: syncUser.id,
@@ -1722,7 +1743,10 @@ function App() {
     remoteSyncEnabled,
     syncUser?.email,
     syncUser?.id,
+    syncUser?.user_metadata,
+    diaryData.profileId,
     newsletterOptInDraft,
+    userSettings.onboardingCompleted,
     userSettings.newsletterOptIn,
     userSettings.profileType,
   ]);
@@ -3119,12 +3143,19 @@ function lockPrivateModule(feedbackText = '') {
 
   function handleUserOnboardingProfileSelect(profileType = 'fitness-basic') {
     const normalizedProfileType = USER_PROFILE_TAB_PRESETS[profileType] ? profileType : 'fitness-basic';
+    const metadataNewsletterOptIn = getNewsletterOptInFromMetadata(syncUser);
+    const finalNewsletterOptIn = Boolean(
+      userSettings.newsletterOptIn ||
+        metadataNewsletterOptIn === true ||
+        newsletterOptInDraft ||
+        getPendingNewsletterOptIn(syncUser?.email)
+    );
     const nextUserSettings = createUserSettings(
       normalizedProfileType,
       USER_PROFILE_TAB_PRESETS[normalizedProfileType],
       {
         onboardingCompleted: true,
-        newsletterOptIn: Boolean(newsletterOptInDraft || userSettings.newsletterOptIn),
+        newsletterOptIn: finalNewsletterOptIn,
       }
     );
 
@@ -3133,6 +3164,18 @@ function lockPrivateModule(feedbackText = '') {
       ...current,
       userSettings: nextUserSettings,
     }));
+    if (remoteSyncEnabled && syncUser?.id) {
+      upsertAppUser({
+        userId: syncUser.id,
+        email: syncUser.email || '',
+        profileType: nextUserSettings.profileType,
+        newsletterOptIn: finalNewsletterOptIn,
+      }).catch((error) => {
+        if (isDevMode) {
+          console.warn('[Bitacora Daniel][app_users] No se pudo actualizar app_users.', error);
+        }
+      });
+    }
     setActiveTab('dashboard');
   }
 
@@ -3429,7 +3472,10 @@ function lockPrivateModule(feedbackText = '') {
     try {
       setSyncStatus(isOnline ? 'syncing' : 'offline');
       savePendingNewsletterOptIn(syncCredentials.email, newsletterOptInDraft);
-      const result = await signUpWithSupabasePassword(syncCredentials);
+      const result = await signUpWithSupabasePassword({
+        ...syncCredentials,
+        newsletterOptIn: newsletterOptInDraft,
+      });
       if (result?.session && newsletterOptInDraft) {
         setNewsletterOptInDraft(true);
       }

@@ -293,14 +293,21 @@ export async function signInWithSupabasePassword({ email, password }) {
   return data.session || null;
 }
 
-export async function signUpWithSupabasePassword({ email, password }) {
+export async function signUpWithSupabasePassword({ email, password, newsletterOptIn = false }) {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error('Supabase no esta configurado.');
   }
 
+  const normalizedNewsletterOptIn = Boolean(newsletterOptIn);
   const { data, error } = await supabase.auth.signUp({
     email: String(email || '').trim(),
     password,
+    options: {
+      data: {
+        newsletter_opt_in: normalizedNewsletterOptIn,
+        newsletterOptIn: normalizedNewsletterOptIn,
+      },
+    },
   });
   if (error) throw error;
   return data;
