@@ -1798,6 +1798,20 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.settings-account-card,
+.settings-account-panel,
+.settings-account-grid,
+.settings-account-grid .backup-meta-card {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.settings-account-grid .backup-meta-card strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .settings-account-actions {
   display: flex;
   flex-wrap: wrap;

@@ -129,6 +129,7 @@ export function createUserSettings(profileType = 'fitness-basic', enabledTabs = 
     profileType: normalizedProfileType,
     enabledTabs: [...new Set(safeEnabledTabs.filter((tabId) => typeof tabId === 'string' && tabId.trim()))],
     onboardingCompleted: Boolean(options.onboardingCompleted),
+    newsletterOptIn: Boolean(options.newsletterOptIn),
   };
 }
 

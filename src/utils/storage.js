@@ -510,6 +510,7 @@ function normalizeUserSettings(userSettings, fallbackState = defaultState) {
   if (!userSettings || typeof userSettings !== 'object' || Array.isArray(userSettings)) {
     return createUserSettings(fallbackUserSettings.profileType, fallbackUserSettings.enabledTabs, {
       onboardingCompleted: Boolean(fallbackUserSettings.onboardingCompleted),
+      newsletterOptIn: Boolean(fallbackUserSettings.newsletterOptIn),
     });
   }
 
@@ -524,6 +525,7 @@ function normalizeUserSettings(userSettings, fallbackState = defaultState) {
 
   return createUserSettings(profileType, enabledTabs, {
     onboardingCompleted: Boolean(userSettings.onboardingCompleted || fallbackUserSettings.onboardingCompleted),
+    newsletterOptIn: Boolean(userSettings.newsletterOptIn ?? fallbackUserSettings.newsletterOptIn),
   });
 }
 

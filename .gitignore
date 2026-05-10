@@ -3,6 +3,7 @@ dist/
 .vercel/
 .env
 .env.*
+supabase/.temp/
 *.log
 .vscode/
 .idea/
