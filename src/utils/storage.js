@@ -636,7 +636,9 @@ export function loadAppData(storageKey = STORAGE_KEY, options = {}) {
 
     return migrated;
   } catch (error) {
-    console.error('[Mi Diario][storage] load:error', error);
+    if (isDevStorageLogEnabled) {
+      console.error('[Mi Diario][storage] load:error', error);
+    }
     return fallbackState;
   }
 }

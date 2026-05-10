@@ -1122,7 +1122,9 @@ function App() {
         reason,
         summary: getSnapshotSummary(localSnapshot),
       });
-      console.log('LOCAL STATE BEFORE MERGE:', localSnapshot);
+      if (isDevMode) {
+        console.log('LOCAL STATE BEFORE MERGE:', localSnapshot);
+      }
 
       const remoteSnapshot = await fetchRemoteSnapshot(syncUser.id);
 
@@ -1131,7 +1133,9 @@ function App() {
         return { status: 'no-remote', winner: 'local', localSnapshot };
       }
 
-      console.log('REMOTE SNAPSHOT:', remoteSnapshot.payload);
+      if (isDevMode) {
+        console.log('REMOTE SNAPSHOT:', remoteSnapshot.payload);
+      }
 
       const normalizedRemoteData = normalizeDanielFullSnapshot(
         migrateAppData(remoteSnapshot.payload),
