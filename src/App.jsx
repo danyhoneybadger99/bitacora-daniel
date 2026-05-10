@@ -3522,6 +3522,29 @@ function lockPrivateModule(feedbackText = '') {
     });
   }
 
+  function handleExitPublicLocalMode() {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem(LOCAL_MODE_CHOICE_KEY);
+        window.localStorage.removeItem(LOCAL_PUBLIC_STORAGE_KEY);
+      } catch (_error) {
+        // Leaving local mode should still return to the public entry screen if storage is unavailable.
+      }
+    }
+
+    const cleanLocalState = createCleanLocalModeState(syncDeviceIdRef.current || createDeviceId());
+    activeStorageKeyRef.current = getUserStorageKey();
+    latestPersistedDataRef.current = cleanLocalState;
+    setHasChosenLocalMode(false);
+    setActiveTab('dashboard');
+    setSyncStatus(isOnline ? 'auth' : 'offline');
+    setIsPrivateUnlocked(false);
+    setDiaryData(cleanLocalState);
+    applyFormStateFromSnapshot(cleanLocalState);
+    setSyncLastSyncedAt('');
+    setSyncFeedback({ type: 'info', text: 'Saliste del modo de prueba. Puedes crear cuenta o iniciar sesión.' });
+  }
+
   async function handleSyncSignIn(event) {
     event.preventDefault();
 
@@ -5344,6 +5367,37 @@ function toggleRecommendedSupplement(itemConfig) {
 
                   <p className="helper-text">
                     Cerrar sesión no borra tus datos guardados.
+                  </p>
+                </div>
+              </SectionCard>
+            ) : null}
+
+            {!syncUser && hasChosenLocalMode ? (
+              <SectionCard
+                title="Cuenta"
+                subtitle="Estás usando la app solo como prueba en este navegador."
+                className="card-soft settings-account-card"
+              >
+                <div className="settings-account-panel">
+                  <div className="backup-meta-grid settings-account-grid">
+                    <div className="backup-meta-card">
+                      <span>Modo actual</span>
+                      <strong>Prueba local</strong>
+                    </div>
+                    <div className="backup-meta-card">
+                      <span>Sincronización</span>
+                      <strong>No activa</strong>
+                    </div>
+                  </div>
+
+                  <div className="settings-account-actions">
+                    <button className="button button-primary" type="button" onClick={handleExitPublicLocalMode}>
+                      Salir del modo de prueba / Crear cuenta
+                    </button>
+                  </div>
+
+                  <p className="helper-text">
+                    Esto solo borra los datos de prueba de este navegador.
                   </p>
                 </div>
               </SectionCard>
