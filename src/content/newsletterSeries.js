@@ -1,6 +1,21 @@
 const standardDisclaimer =
   'La IA puede ayudarte a estimar y ordenar información, pero no da valores exactos ni garantiza resultados. Registra tus datos reales lo mejor posible y, si tienes una condición médica, consulta a un profesional.';
 
+const foodMacroEstimationPrompt = `Actúa como nutriólogo deportivo y experto en composición corporal. Ayúdame a estimar las calorías, proteína, carbohidratos y grasa de esta comida:
+
+Comida: [describe alimentos]
+Porciones aproximadas: [gramos, piezas, tazas, cucharadas o tamaño visual]
+Método de preparación: [asado, frito, hervido, con aceite, con mantequilla, etc.]
+Objetivo actual: [perder grasa / mantener / ganar músculo]
+Contexto: [ayuno, entrenamiento, antojo, comida libre, etc.]
+
+Dame:
+1. Estimación total de calorías.
+2. Macros aproximados: proteína, carbohidratos y grasa.
+3. Rango conservador si hay incertidumbre.
+4. Qué dato faltaría para hacerlo más preciso.
+5. Una versión lista para copiar a mi bitácora.`;
+
 export const welcomeNewsletter = {
   subject: 'Bienvenido a Bitácora Daniel',
   preheader: 'Empieza simple: registra tus hábitos y usa IA como apoyo práctico.',
@@ -13,8 +28,7 @@ export const welcomeNewsletter = {
     'La disciplina se vuelve más fuerte cuando tienes evidencia. Registrar tus acciones te ayuda a dejar de depender solo de memoria, culpa o motivación del momento.',
   actionStep:
     'Hoy registra una comida, una actividad física y un check-in breve. Con eso ya tienes una base real para empezar a mejorar.',
-  bitacoraPrompt:
-    'Prompt sugerido: "Ayúdame a estimar calorías, proteína, carbohidratos y grasa de esta comida: [describe comida y porciones]. Dame una estimación práctica y conservadora para registrarla en mi bitácora."',
+  bitacoraPrompt: foodMacroEstimationPrompt,
   disclaimerNote: standardDisclaimer,
 };
 
@@ -44,8 +58,7 @@ export const firstFourNewsletters = [
       'La comida no se controla con culpa; se controla con información. Una estimación imperfecta registrada con constancia vale más que un día perfecto que nunca se anota.',
     actionStep:
       'Elige una comida de hoy, pide una estimación de calorías y macros, y registra esos datos en Bitácora Daniel.',
-    bitacoraPrompt:
-      'Prompt sugerido: "Estima calorías y macros de esta comida: [describe comida, porciones y preparación]. Incluye proteína, carbohidratos y grasa. Dame un rango realista y una versión simple para registrarla."',
+    bitacoraPrompt: foodMacroEstimationPrompt,
     disclaimerNote: standardDisclaimer,
   },
   {

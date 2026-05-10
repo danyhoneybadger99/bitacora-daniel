@@ -236,6 +236,15 @@ const privateLocalStateCollections = [
   'privateCycleMedications',
 ];
 
+const privacyDataItems = [
+  'Correo de cuenta.',
+  'Hábitos diarios y check-in.',
+  'Alimentación, calorías y macros estimados.',
+  'Ejercicio, ayuno, hidratación y suplementación.',
+  'Métricas corporales como peso, grasa corporal, músculo y medidas.',
+  'Preferencias de uso de la app.',
+];
+
 function readLocalModeChoice(isRemoteSyncEnabled = true) {
   if (!isRemoteSyncEnabled || typeof window === 'undefined') return !isRemoteSyncEnabled;
 
@@ -869,6 +878,7 @@ function App() {
   const [syncCredentials, setSyncCredentials] = useState({ email: '', password: '' });
   const [syncUser, setSyncUser] = useState(null);
   const [newsletterOptInDraft, setNewsletterOptInDraft] = useState(false);
+  const [showPrivacyInfo, setShowPrivacyInfo] = useState(false);
   const [hasChosenLocalMode, setHasChosenLocalMode] = useState(() => {
     return readLocalModeChoice(remoteSyncEnabled);
   });
@@ -5195,6 +5205,68 @@ function toggleRecommendedSupplement(itemConfig) {
     }));
   }
 
+  const privacyInfoModal = showPrivacyInfo ? (
+    <div className="privacy-info-overlay" role="dialog" aria-modal="true" aria-labelledby="privacy-info-title">
+      <section className="privacy-info-card">
+        <button
+          className="profile-onboarding-close"
+          type="button"
+          onClick={() => setShowPrivacyInfo(false)}
+          aria-label="Cerrar privacidad y uso de datos"
+        >
+          ×
+        </button>
+        <p className="eyebrow">Beta privada</p>
+        <h2 id="privacy-info-title">Privacidad y uso de datos</h2>
+        <p>
+          Bitácora Daniel guarda la información que registras para ayudarte a dar seguimiento a tus hábitos,
+          alimentación, ejercicio, métricas y progreso personal.
+        </p>
+
+        <div className="privacy-info-section">
+          <h3>Datos que puedes registrar</h3>
+          <ul>
+            {privacyDataItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="privacy-info-section">
+          <h3>Uso de IA</h3>
+          <p>
+            La app no calcula automáticamente tus calorías ni sustituye orientación profesional. Puedes usar herramientas
+            externas de IA, como ChatGPT, para estimar comida, ejercicio y avances, y luego registrar esos datos en tu bitácora.
+          </p>
+        </div>
+
+        <div className="privacy-info-section">
+          <h3>Separación de datos</h3>
+          <p>
+            Tus datos quedan separados por cuenta. El modo “Solo probar en este dispositivo” guarda datos únicamente en ese
+            navegador y no se sincroniza con otros dispositivos.
+          </p>
+        </div>
+
+        <div className="privacy-info-section">
+          <h3>Newsletter</h3>
+          <p>
+            Si aceptas recibir tips semanales, se usará tu correo para enviarte contenido sobre hábitos, bienestar,
+            seguimiento personal y uso práctico de IA.
+          </p>
+        </div>
+
+        <p className="privacy-info-note">
+          Esta versión es beta privada. No compartas información médica sensible si no quieres registrarla en la app.
+        </p>
+
+        <button className="button button-primary" type="button" onClick={() => setShowPrivacyInfo(false)}>
+          Entendido
+        </button>
+      </section>
+    </div>
+  ) : null;
+
   if (shouldShowAuthResolvingScreen || shouldShowAuthLanding) {
     return (
       <div className="auth-landing-shell">
@@ -5288,7 +5360,12 @@ function toggleRecommendedSupplement(itemConfig) {
                   Iniciar sesión
                 </button>
               </div>
-              <p className="auth-landing-privacy-note">Tus datos quedan separados por cuenta.</p>
+              <div className="auth-landing-privacy-note">
+                <span>Tus datos quedan separados por cuenta.</span>
+                <button className="button button-ghost privacy-info-link" type="button" onClick={() => setShowPrivacyInfo(true)}>
+                  Ver privacidad y uso de datos
+                </button>
+              </div>
               <div className="auth-landing-local">
                 <button className="button button-secondary" type="button" onClick={handleContinueWithoutAccount}>
                   Solo probar en este dispositivo
@@ -5306,6 +5383,7 @@ function toggleRecommendedSupplement(itemConfig) {
             </form>
           )}
         </section>
+        {privacyInfoModal}
       </div>
     );
   }
@@ -5562,6 +5640,9 @@ function toggleRecommendedSupplement(itemConfig) {
                     <button className="button button-secondary" type="button" onClick={handleSyncSignOut}>
                       Cerrar sesión / Cambiar cuenta
                     </button>
+                    <button className="button button-secondary" type="button" onClick={() => setShowPrivacyInfo(true)}>
+                      Privacidad y uso de datos
+                    </button>
                   </div>
 
                   <p className="helper-text">
@@ -5592,6 +5673,9 @@ function toggleRecommendedSupplement(itemConfig) {
                   <div className="settings-account-actions">
                     <button className="button button-primary" type="button" onClick={handleExitPublicLocalMode}>
                       Salir del modo de prueba / Crear cuenta
+                    </button>
+                    <button className="button button-secondary" type="button" onClick={() => setShowPrivacyInfo(true)}>
+                      Privacidad y uso de datos
                     </button>
                   </div>
 
@@ -10094,6 +10178,7 @@ function toggleRecommendedSupplement(itemConfig) {
           </HormonalTab>
         ) : null}
       </main>
+      {privacyInfoModal}
     </div>
   );
 }
