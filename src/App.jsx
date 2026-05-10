@@ -5167,6 +5167,9 @@ function toggleRecommendedSupplement(itemConfig) {
               Registra comida, ejercicio, hábitos y avances desde tu celular. Crea una cuenta para guardar tus
               datos por separado.
             </p>
+            <p>
+              Usa IA para estimar calorías, macros y ejercicio; registra tus datos aquí para darles seguimiento.
+            </p>
             <ol className="auth-landing-steps" aria-label="Pasos para empezar">
               <li>
                 <span>1</span>
@@ -5282,13 +5285,13 @@ function toggleRecommendedSupplement(itemConfig) {
               <h1>Bitacora Daniel</h1>
             </div>
             <p className="hero-text">
-              Sistema personal para registrar nutricion, hidratacion, suplementacion, entrenamiento, ayuno y progreso fisico.
+              Sistema personal para registrar nutrición, hidratación, suplementación, entrenamiento, ayuno y progreso físico. Aprende a usar IA para estimar tus comidas, entrenamientos y avances.
             </p>
             <div className="hero-identity-strip" aria-label="Identidad profesional">
               <span className="hero-identity-chip">Ingeniero Mecánico</span>
               <span className="hero-identity-chip">Consejero en adicciones</span>
             </div>
-            <p className="hero-value">Te ayudo a cumplir tus metas</p>
+            <p className="hero-value">Te enseño a usar IA y hábitos diarios para cumplir tus metas</p>
             <a
               className="hero-signature"
               href="https://instagram.com/Daniel.Arredondo88"
