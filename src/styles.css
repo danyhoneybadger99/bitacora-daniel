@@ -875,9 +875,9 @@ button {
 
 .progress-card-krav,
 .dashboard-krav-card {
-  background: linear-gradient(180deg, #fffdf4 0%, #fbf6df 100%);
-  border: 1px solid #eadfae;
-  color: #7b6113;
+  background: linear-gradient(180deg, #fff8ef 0%, #f8ead8 100%);
+  border: 1px solid #e8c59b;
+  color: #7a4717;
 }
 
 .dashboard-krav-progress-card {
@@ -903,8 +903,8 @@ button {
   width: fit-content;
   padding: 4px 9px;
   border-radius: 999px;
-  background: #f2e7ad;
-  color: #6e5810;
+  background: #f1c48f;
+  color: #6f3e11;
   font-size: 0.76rem;
   font-weight: 700;
 }
@@ -921,10 +921,16 @@ button {
   width: fit-content;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(238, 221, 151, 0.48);
-  color: #705915;
+  background: rgba(232, 180, 116, 0.34);
+  color: #714313;
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.dashboard-krav-meta .belt-badge--verde {
+  background: rgba(47, 125, 79, 0.13);
+  color: #2f7d4f;
+  border: 1px solid rgba(47, 125, 79, 0.22);
 }
 
 .dashboard-krav-next {
@@ -941,20 +947,20 @@ button {
 }
 
 .dashboard-krav-progress-card .progress-card-top span:first-child {
-  color: #75621e;
+  color: #754719;
 }
 
 .dashboard-krav-progress-card .progress-card-top strong {
-  color: #6d5310;
+  color: #6f3f11;
 }
 
 .dashboard-krav-progress-card .progress-track {
-  background: rgba(123, 97, 19, 0.12);
+  background: rgba(122, 71, 23, 0.12);
   margin-top: 2px;
 }
 
 .dashboard-krav-progress-card .progress-fill {
-  background: linear-gradient(90deg, #c8ae48 0%, #e3cf7a 100%);
+  background: linear-gradient(90deg, #c56b22 0%, #e5a252 100%);
 }
 
 .dashboard-krav-progress-card p,
@@ -2196,6 +2202,54 @@ button {
   padding: 7px 12px;
 }
 
+.daily-checkin-spiritual {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(47, 125, 79, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(247, 251, 248, 0.98), rgba(239, 247, 242, 0.92));
+}
+
+.daily-checkin-spiritual .daily-checkin-label-row {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.daily-checkin-spiritual .daily-checkin-label-row div {
+  display: grid;
+  gap: 2px;
+}
+
+.daily-checkin-spiritual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.daily-checkin-spiritual-streak,
+.daily-checkin-spiritual-status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.daily-checkin-spiritual-streak {
+  padding: 4px 9px;
+  background: rgba(47, 125, 79, 0.1);
+  color: #2f7d4f;
+}
+
+.daily-checkin-spiritual-status {
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #3f5f49;
+  border: 1px solid rgba(47, 125, 79, 0.14);
+}
+
 .daily-checkin-actions {
   margin-top: 0;
 }
@@ -2271,6 +2325,14 @@ button {
   color: #7a8792;
 }
 
+.metric-trend-favorable {
+  color: #2f7b57;
+}
+
+.metric-trend-unfavorable {
+  color: #a24246;
+}
+
 .metrics-base-grid {
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
@@ -2335,6 +2397,14 @@ button {
   color: #55636f;
 }
 
+.metric-change-favorable {
+  color: #2f7b57;
+}
+
+.metric-change-unfavorable {
+  color: #a24246;
+}
+
 .metrics-base-card .metric-change-up {
   color: #2f7d4f;
 }
@@ -2345,6 +2415,14 @@ button {
 
 .metrics-base-card .metric-change-neutral {
   color: #6b7280;
+}
+
+.metrics-base-card .metric-change-favorable {
+  color: #2f7d4f;
+}
+
+.metrics-base-card .metric-change-unfavorable {
+  color: #a33d44;
 }
 
 .metrics-base-card .metric-base-trend {

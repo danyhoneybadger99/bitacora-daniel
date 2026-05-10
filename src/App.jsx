@@ -172,7 +172,15 @@ import {
   shiftDateByDays,
   sumBy,
 } from './utils/domain/shared';
-import { checkInEmotionOptions, createEmptyDailyCheckIn, normalizeDailyCheckIn } from './utils/domain/checkIn';
+import {
+  calculateMassAttendanceStreak,
+  checkInEmotionOptions,
+  createEmptyDailyCheckIn,
+  getSpiritualWeekStart,
+  hasMassAttendanceForWeek,
+  normalizeDailyCheckIn,
+  normalizeSpiritualWeeklyCheck,
+} from './utils/domain/checkIn';
 import { buildWeeklySummary } from './utils/domain/weeklySummary';
 import {
   formatDate,
@@ -620,6 +628,23 @@ function getMetricTrendPresentation(trend) {
   }
 
   return { label: 'Sin referencia', className: 'metric-trend metric-trend-muted' };
+}
+
+function getMetricTrendPresentationByPolarity(trend, prefer = 'neutral') {
+  const getTone = () => {
+    if (trend === 'sin cambio') return 'neutral';
+    if (trend !== 'bajo' && trend !== 'subio') return 'muted';
+    if (prefer === 'neutral') return 'neutral';
+    return (prefer === 'down' && trend === 'bajo') || (prefer === 'up' && trend === 'subio')
+      ? 'favorable'
+      : 'unfavorable';
+  };
+  const className = `metric-trend metric-trend-${getTone()}`;
+
+  if (trend === 'bajo') return { label: '↓ bajó', className };
+  if (trend === 'subio') return { label: '↑ subió', className };
+  if (trend === 'sin cambio') return { label: 'Sin cambio aún', className };
+  return { label: 'Sin referencia', className };
 }
 
 function formatFastingStatusCopy(status, { isFreeDay = false, reachedGoal = false } = {}) {
@@ -1474,6 +1499,7 @@ function App() {
       bodyFat: getLatestMetricFieldSnapshot(sortedMetrics, 'bodyFat'),
       skeletalMuscleMass: getLatestMetricFieldSnapshot(sortedMetrics, 'skeletalMuscleMass'),
       bodyFatMass: getLatestMetricFieldSnapshot(sortedMetrics, 'bodyFatMass'),
+      fatFreeMass: getLatestMetricFieldSnapshot(sortedMetrics, 'fatFreeMass'),
       waist: getLatestMetricFieldSnapshot(sortedMetrics, 'waist'),
       chest: getLatestMetricFieldSnapshot(sortedMetrics, 'chest'),
       arm: getLatestMetricFieldSnapshot(sortedMetrics, 'arm'),
@@ -1561,13 +1587,25 @@ function App() {
           currentValue: formatValue(latestValue),
           changeLabel: `${arrow} ${deltaText}`,
           detail: `${directionLabel} vs base ${formatValue(baseValue)}${currentDateLabel ? ` · ${currentDateLabel}` : ''}`,
-          trendClass: delta > 0 ? 'metric-base-trend metric-change-up' : 'metric-base-trend metric-change-down',
+          trendClass:
+            prefer === 'neutral'
+              ? 'metric-base-trend metric-change-neutral'
+              : (prefer === 'down' && delta < 0) || (prefer === 'up' && delta > 0)
+                ? 'metric-base-trend metric-change-favorable'
+                : 'metric-base-trend metric-change-unfavorable',
           snapshotLabel: currentDateLabel || 'Última medición',
         };
       }
 
+    const isDefinitionPhase =
+      normalizeTextToken(objectiveForm.goalType).includes('corte') ||
+      normalizeTextToken(objectiveForm.goalType).includes('definicion') ||
+      normalizeTextToken(objectiveForm.title).includes('corte') ||
+      normalizeTextToken(objectiveForm.title).includes('definicion');
+    const weightPrefer = isDefinitionPhase ? 'down' : 'neutral';
+
     return [
-      buildBaseComparison({ label: 'Peso', field: 'weight', unit: 'kg', formatter: 'weight', prefer: 'down' }),
+      buildBaseComparison({ label: 'Peso', field: 'weight', unit: 'kg', formatter: 'weight', prefer: weightPrefer }),
       buildBaseComparison({ label: 'Grasa corporal', field: 'bodyFat', unit: '%', formatter: 'percent', prefer: 'down' }),
       buildBaseComparison({ label: 'Músculo esquelético', field: 'skeletalMuscleMass', unit: 'kg', formatter: 'weight', prefer: 'up' }),
       buildBaseComparison({ label: 'Masa grasa', field: 'bodyFatMass', unit: 'kg', formatter: 'weight', prefer: 'down' }),
@@ -1581,6 +1619,42 @@ function App() {
       buildBaseComparison({ label: 'Cadera', field: 'hips', unit: 'cm', formatter: 'unit', prefer: 'down' }),
       buildBaseComparison({ label: 'Cuello', field: 'neck', unit: 'cm', formatter: 'unit', prefer: 'neutral' }),
     ];
+  }, [metricBaseEntry, metricFieldSnapshots, objectiveForm.goalType, objectiveForm.title]);
+  const metricCompositionGoal = useMemo(() => {
+    const currentWeight = getNumericMetric(metricFieldSnapshots.weight.rawValue);
+    const currentBodyFat = getNumericMetric(metricFieldSnapshots.bodyFat.rawValue);
+    const currentSkeletalMuscle = getNumericMetric(metricFieldSnapshots.skeletalMuscleMass.rawValue);
+    const currentFatFreeMass = getNumericMetric(metricFieldSnapshots.fatFreeMass?.rawValue);
+    const baseWeight = getNumericMetric(metricBaseEntry?.weight);
+    const baseBodyFat = getNumericMetric(metricBaseEntry?.bodyFat);
+    const baseSkeletalMuscle = getNumericMetric(metricBaseEntry?.skeletalMuscleMass);
+    const targetBodyFat = 10;
+    const safeFatFreeMass =
+      currentFatFreeMass !== null
+        ? currentFatFreeMass
+        : currentWeight !== null && currentBodyFat !== null
+          ? currentWeight * (1 - currentBodyFat / 100)
+          : null;
+    const estimatedWeightAtTarget =
+      safeFatFreeMass !== null ? safeFatFreeMass / (1 - targetBodyFat / 100) : null;
+    const estimatedFatToLose =
+      currentWeight !== null && estimatedWeightAtTarget !== null
+        ? Math.max(currentWeight - estimatedWeightAtTarget, 0)
+        : null;
+
+    return {
+      sourceDate: metricFieldSnapshots.weight.date || '',
+      baseDate: metricBaseEntry?.date || '',
+      weightChangeFromBase:
+        currentWeight !== null && baseWeight !== null ? currentWeight - baseWeight : null,
+      bodyFatChangeFromBase:
+        currentBodyFat !== null && baseBodyFat !== null ? currentBodyFat - baseBodyFat : null,
+      skeletalMuscleChangeFromBase:
+        currentSkeletalMuscle !== null && baseSkeletalMuscle !== null ? currentSkeletalMuscle - baseSkeletalMuscle : null,
+      targetBodyFat,
+      estimatedFatToLose,
+      estimatedWeightAtTarget,
+    };
   }, [metricBaseEntry, metricFieldSnapshots]);
   const fastingFreeDays = useMemo(
     () => [...new Set((diaryData.fastingFreeDays || []).map(normalizeDateString).filter(Boolean))],
@@ -1758,6 +1832,19 @@ function App() {
     diaryData.profileId === 'daniel-full' && isDanielAccount(syncUser)
       ? selectableUserProfiles
       : selectableUserProfiles.filter((profileType) => profileType !== 'daniel-full');
+  const isDanielFullProfile =
+    diaryData.profileId === 'daniel-full' &&
+    userSettings.profileType === 'daniel-full' &&
+    isDanielAccount(syncUser);
+  const spiritualWeeklyChecks = diaryData.spiritualWeeklyChecks || [];
+  const massAttendedThisWeek = useMemo(
+    () => hasMassAttendanceForWeek(spiritualWeeklyChecks, currentDate),
+    [currentDate, spiritualWeeklyChecks]
+  );
+  const massAttendanceStreak = useMemo(
+    () => calculateMassAttendanceStreak(spiritualWeeklyChecks, currentDate),
+    [currentDate, spiritualWeeklyChecks]
+  );
   const shouldShowUserOnboarding = Boolean(
     syncUser?.id && diaryData.profileId === 'clean' && !userSettings.onboardingCompleted
   );
@@ -1894,7 +1981,7 @@ function App() {
       ),
     [diaryData.privateCycleMedications]
   );
-  const kravCurriculum = useMemo(
+  const storedKravCurriculum = useMemo(
     () =>
       [...(diaryData.kravCurriculum || [])].sort((a, b) => {
         if (a.category !== b.category) {
@@ -1908,17 +1995,28 @@ function App() {
       }),
     [diaryData.kravCurriculum]
   );
-  const kravPracticeLogs = useMemo(
-    () =>
-      sortByDateDesc(diaryData.kravPracticeLogs || []).sort((a, b) => String(b.id || '').localeCompare(String(a.id || ''))),
-    [diaryData.kravPracticeLogs]
-  );
   const kravSettings = useMemo(
     () => ({
       ...defaultState.kravSettings,
       ...(diaryData.kravSettings || {}),
     }),
     [diaryData.kravSettings]
+  );
+  const normalizedKravCurrentBelt = String(kravSettings.currentBelt || 'naranja').trim().toLowerCase();
+  const kravCurriculum = useMemo(() => {
+    const scopedCurriculum = storedKravCurriculum.filter(
+      (item) => String(item.curriculumBelt || '').trim().toLowerCase() === normalizedKravCurrentBelt
+    );
+
+    if (normalizedKravCurrentBelt === 'naranja') return scopedCurriculum;
+    return scopedCurriculum.length > 0 ? scopedCurriculum : storedKravCurriculum;
+  }, [normalizedKravCurrentBelt, storedKravCurriculum]);
+  const archivedKravCurriculumCount = Math.max(storedKravCurriculum.length - kravCurriculum.length, 0);
+  const isKravCurriculumPending = normalizedKravCurrentBelt === 'naranja' && kravCurriculum.length === 0;
+  const kravPracticeLogs = useMemo(
+    () =>
+      sortByDateDesc(diaryData.kravPracticeLogs || []).sort((a, b) => String(b.id || '').localeCompare(String(a.id || ''))),
+    [diaryData.kravPracticeLogs]
   );
   const kravCoachLabelByValue = useMemo(
     () => Object.fromEntries(kravCoachOptions.map((item) => [item.value, item.label])),
@@ -1961,8 +2059,8 @@ function App() {
     [kravCurriculum, kravSettings, currentDate]
   );
   const kravDashboardSnapshot = useMemo(() => {
-    const currentBelt = formatKravBeltLabel(kravSettings.currentBelt || 'amarilla');
-    const targetBelt = formatKravBeltLabel(kravSettings.targetBelt || 'naranja');
+    const currentBelt = formatKravBeltLabel(kravSettings.currentBelt || 'naranja');
+    const targetBelt = formatKravBeltLabel(kravSettings.targetBelt || 'verde');
     const normalizedExamDate = normalizeDateString(kravSettings.examDate);
     const examDateLabel = normalizedExamDate ? formatPrivateDate(normalizedExamDate) : 'Fecha de examen pendiente';
     let examCountdownLabel = '';
@@ -1985,7 +2083,7 @@ function App() {
       nextTechniqueName: nextKravTechnique?.name || 'Sin técnica priorizada',
       examStatusLabel: getKravExamStatusText(kravExamStatus.status),
     };
-  }, [currentDate, kravExamStatus.pendingTechniques, kravExamStatus.status, kravProgress.totalProgress, kravSettings.currentBelt, kravSettings.examDate, kravSettings.targetBelt, nextKravTechnique]);
+  }, [currentDate, isKravCurriculumPending, kravExamStatus.pendingTechniques, kravExamStatus.status, kravProgress.totalProgress, kravSettings.currentBelt, kravSettings.examDate, kravSettings.targetBelt, nextKravTechnique]);
   const kravCurriculumByCategory = useMemo(
     () =>
       Object.entries(kravCategoryLabels)
@@ -2028,10 +2126,10 @@ function App() {
         ...item,
         coachLabel: item.coach === 'otro' ? item.coachCustomName || 'Otro coach' : kravCoachLabelByValue[item.coach] || item.coach,
         techniqueNames: item.techniqueIds
-          .map((techniqueId) => kravCurriculum.find((technique) => technique.id === techniqueId)?.name)
+          .map((techniqueId) => storedKravCurriculum.find((technique) => technique.id === techniqueId)?.name)
           .filter(Boolean),
       })),
-    [kravPracticeLogs, kravCoachLabelByValue, kravCurriculum]
+    [kravPracticeLogs, kravCoachLabelByValue, storedKravCurriculum]
   );
   const latestKravPracticeLog = kravPracticeLogCards[0] || null;
   const kravPracticeLogsThisWeek = useMemo(
@@ -2779,9 +2877,17 @@ function lockPrivateModule(feedbackText = '') {
   const proteinProgress = proteinGoal > 0 ? (todaySummary.protein / proteinGoal) * 100 : 0;
   const hydrationProgress = hydrationBaseGoal > 0 ? (todaySummary.hydrationMl / hydrationBaseGoal) * 100 : 0;
   const hydrationTone = hydrationProgress < 70 ? 'alert' : hydrationProgress < 100 ? 'energy' : 'success';
+  const dashboardCurrentWeight = useMemo(() => {
+    const latestRecordedWeight = getNumericMetric(metricFieldSnapshots.weight?.rawValue);
+    const currentStateWeight = getNumericMetric(activeObjective?.currentWeight);
+
+    if (latestRecordedWeight !== null && latestRecordedWeight > 0) return metricFieldSnapshots.weight.rawValue;
+    if (currentStateWeight !== null && currentStateWeight > 0) return activeObjective.currentWeight;
+    return todaySummary.weight;
+  }, [activeObjective?.currentWeight, metricFieldSnapshots.weight, todaySummary.weight]);
   const weightProgress =
-    weightGoal > 0 && Number(todaySummary.weight) > 0
-      ? Math.max(0, 100 - (Math.abs(Number(todaySummary.weight) - weightGoal) / weightGoal) * 100)
+    weightGoal > 0 && Number(dashboardCurrentWeight) > 0
+      ? Math.max(0, 100 - (Math.abs(Number(dashboardCurrentWeight) - weightGoal) / weightGoal) * 100)
       : 0;
   const isSundayReminderVisible = getDayOfWeekKey(currentDate) === 'domingo';
   const dashboardProteinReferenceLabel =
@@ -2932,6 +3038,31 @@ function lockPrivateModule(feedbackText = '') {
     }),
     [metricComparisonPairs]
   );
+  const metricPolarity = useMemo(() => {
+    const activeGoalType = normalizeTextToken(activeObjective?.goalType || objectiveForm.goalType);
+    const activeGoalTitle = normalizeTextToken(activeObjective?.title || objectiveForm.title);
+    const isDefinitionPhase =
+      activeGoalType.includes('corte') ||
+      activeGoalType.includes('definicion') ||
+      activeGoalTitle.includes('corte') ||
+      activeGoalTitle.includes('definicion');
+
+    return {
+      weight: isDefinitionPhase ? 'down' : 'neutral',
+      bodyFat: 'down',
+      skeletalMuscleMass: 'up',
+      bodyFatMass: 'down',
+      waist: 'down',
+      chest: 'up',
+      arm: 'up',
+      leg: 'up',
+      calf: 'up',
+      forearm: 'up',
+      upperBackTorso: 'up',
+      hips: isDefinitionPhase ? 'down' : 'neutral',
+      neck: 'neutral',
+    };
+  }, [activeObjective?.goalType, activeObjective?.title, objectiveForm.goalType, objectiveForm.title]);
 
   const metricSummarySourceLabels = useMemo(() => {
     const latestMetricDate = latestMetric?.date || null;
@@ -3016,6 +3147,31 @@ function lockPrivateModule(feedbackText = '') {
         : [...currentEmotions, emotionValue];
       return { ...current, emotions };
     });
+  }
+
+  function handleSpiritualMassToggle() {
+    if (!isDanielFullProfile) return;
+
+    const weekStart = getSpiritualWeekStart(currentDate);
+    const existingRecord = (diaryData.spiritualWeeklyChecks || []).find((item) => item.weekStart === weekStart);
+    const nextAttended = !Boolean(existingRecord?.attendedMass);
+    const record = normalizeSpiritualWeeklyCheck({
+      ...existingRecord,
+      id: existingRecord?.id || `spiritual-week-${weekStart}`,
+      weekStart,
+      attendedMass: nextAttended,
+      attendedAt: nextAttended ? currentDate : '',
+      updatedAt: getCurrentDateTimeValue(),
+    });
+
+    markPersistenceReason('guardar:spiritualWeeklyChecks');
+    setDiaryData((current) => ({
+      ...current,
+      spiritualWeeklyChecks: [
+        record,
+        ...(current.spiritualWeeklyChecks || []).filter((item) => item.weekStart !== weekStart),
+      ],
+    }));
   }
 
   function handleDailyCheckInSubmit(event) {
@@ -5252,7 +5408,8 @@ function toggleRecommendedSupplement(itemConfig) {
             displayedFastingRemainingHours={displayedFastingRemainingHours}
             activeFastingElapsedHours={activeFastingElapsedHours}
             formatHoursLabel={formatHoursLabel}
-            todaySummaryWeight={formatMetricValue(todaySummary.weight, todaySummary.weight === '--' ? '' : ' kg')}
+            dashboardCurrentWeight={dashboardCurrentWeight}
+            todaySummaryWeight={formatMetricValue(dashboardCurrentWeight, dashboardCurrentWeight === '--' ? '' : ' kg')}
             weightGoal={weightGoal}
             formatWeightValue={formatWeightValue}
             weightProgress={weightProgress}
@@ -5303,6 +5460,10 @@ function toggleRecommendedSupplement(itemConfig) {
             formatDate={formatDate}
             onFieldChange={handleDailyCheckInFieldChange}
             onEmotionToggle={handleDailyCheckInEmotionToggle}
+            showSpiritualSection={isDanielFullProfile}
+            massAttendedThisWeek={massAttendedThisWeek}
+            massAttendanceStreak={massAttendanceStreak}
+            onSpiritualMassToggle={handleSpiritualMassToggle}
             onSubmit={handleDailyCheckInSubmit}
           />
         ) : null}
@@ -6822,7 +6983,11 @@ function toggleRecommendedSupplement(itemConfig) {
           <div className="krav-board">
             <SectionCard
               title="Tablero de avance"
-              subtitle="Lectura ejecutiva del currículo rumbo a cinta naranja."
+              subtitle={
+                isKravCurriculumPending
+                  ? 'Cinta naranja activa. Curriculo nuevo pendiente de cargar rumbo a cinta verde.'
+                  : 'Lectura ejecutiva del curriculo activo.'
+              }
               className="card-soft krav-panel krav-panel-progress"
             >
               <div className="metrics-summary-grid krav-progress-grid">
@@ -6948,7 +7113,7 @@ function toggleRecommendedSupplement(itemConfig) {
                   <strong>{kravDashboardSnapshot.currentBelt}</strong>
                 </div>
                 <div className="mini-stat">
-                  <span>Cinta objetivo</span>
+                  <span>Objetivo proximo</span>
                   <strong>{kravDashboardSnapshot.targetBelt}</strong>
                 </div>
                 <div className="mini-stat">
@@ -6960,7 +7125,7 @@ function toggleRecommendedSupplement(itemConfig) {
               <div className="form-grid">
                 <label className="field">
                   <span>Cinta actual</span>
-                  <select name="currentBelt" value={kravSettings.currentBelt || 'amarilla'} onChange={handleKravSettingsFieldChange}>
+                  <select name="currentBelt" value={kravSettings.currentBelt || 'naranja'} onChange={handleKravSettingsFieldChange}>
                     {kravBeltOptions.map((option) => (
                       <option key={`current-${option}`} value={option}>
                         {formatKravBeltLabel(option)}
@@ -6969,8 +7134,8 @@ function toggleRecommendedSupplement(itemConfig) {
                   </select>
                 </label>
                 <label className="field">
-                  <span>Cinta objetivo</span>
-                  <select name="targetBelt" value={kravSettings.targetBelt || 'naranja'} onChange={handleKravSettingsFieldChange}>
+                  <span>Cinta objetivo futura</span>
+                  <select name="targetBelt" value={kravSettings.targetBelt || 'verde'} onChange={handleKravSettingsFieldChange}>
                     {kravBeltOptions.map((option) => (
                       <option key={`target-${option}`} value={option}>
                         {formatKravBeltLabel(option)}
@@ -6992,24 +7157,32 @@ function toggleRecommendedSupplement(itemConfig) {
 
             <SectionCard
               title="Estado de examen"
-              subtitle={`Estado rumbo a cinta ${kravSettings.targetBelt || 'naranja'}.`}
+              subtitle={isKravCurriculumPending ? 'Sin evaluacion hasta cargar el curriculo de cinta naranja rumbo a verde.' : `Estado rumbo a cinta ${kravSettings.targetBelt || 'verde'}.`}
               className="card-soft krav-panel krav-panel-exam"
             >
               <div className="krav-exam-card">
                 <div className="krav-exam-head">
                   <div className="krav-heading-copy">
                     <strong>
-                      {kravExamStatus.status === 'listo'
+                      {isKravCurriculumPending
+                        ? 'Curriculo pendiente'
+                        : kravExamStatus.status === 'listo'
                         ? 'Listo para examen'
                         : kravExamStatus.status === 'riesgo-medio'
                           ? 'Riesgo medio'
                           : 'Riesgo alto'}
                     </strong>
                     <span className="krav-meta-line">Promedio global actual · {kravExamStatus.averageLevel.toFixed(1)} / 4</span>
-                    <small>Lectura rápida de riesgo para no llegar al examen con huecos técnicos.</small>
+                    <small>
+                      {isKravCurriculumPending
+                        ? 'Carga el nuevo curriculo para reactivar progreso, alertas y tecnica prioritaria.'
+                        : 'Lectura rapida de riesgo para no llegar al examen con huecos tecnicos.'}
+                    </small>
                   </div>
                   <span className={`krav-risk-chip krav-risk-chip-${kravExamStatus.status}`}>
-                    {kravExamStatus.status === 'listo'
+                    {isKravCurriculumPending
+                      ? 'Pendiente'
+                      : kravExamStatus.status === 'listo'
                       ? 'Listo'
                       : kravExamStatus.status === 'riesgo-medio'
                         ? 'Atención'
@@ -7035,7 +7208,11 @@ function toggleRecommendedSupplement(itemConfig) {
 
             <SectionCard
               title="Currículo"
-              subtitle="Currículo operativo de cinta naranja organizado por categoría."
+              subtitle={
+                isKravCurriculumPending
+                  ? 'Placeholder listo para cargar el curriculo de cinta naranja.'
+                  : 'Curriculo operativo organizado por categoria.'
+              }
               className="card-soft krav-panel krav-panel-curriculum"
             >
               {selectedKravTechnique ? (
@@ -7102,6 +7279,22 @@ function toggleRecommendedSupplement(itemConfig) {
                     >
                       Subir nivel
                     </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {isKravCurriculumPending ? (
+                <div className="empty-state-card krav-empty-state-card">
+                  <div className="krav-heading-copy">
+                    <strong>Curriculo de cinta naranja pendiente de cargar</strong>
+                    <span className="krav-meta-line">
+                      Preparado para entrenar el nuevo bloque rumbo a cinta verde. El curriculo anterior quedo fuera de la vista principal sin borrar historial ni progreso guardado.
+                    </span>
+                    {archivedKravCurriculumCount > 0 ? (
+                      <small>{`${archivedKravCurriculumCount} tecnica(s) previas conservadas como referencia historica.`}</small>
+                    ) : (
+                      <small>Listo para recibir las tecnicas nuevas la proxima semana.</small>
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -7450,8 +7643,10 @@ function toggleRecommendedSupplement(itemConfig) {
             metricSummarySourceLabels={metricSummarySourceLabels}
             formatMetricValue={formatMetricValue}
             metricBaseComparisonCards={metricBaseComparisonCards}
+            metricCompositionGoal={metricCompositionGoal}
             metricTrend={metricTrend}
-            getMetricTrendPresentation={getMetricTrendPresentation}
+            metricPolarity={metricPolarity}
+            getMetricTrendPresentation={getMetricTrendPresentationByPolarity}
             metricComparisonPairs={metricComparisonPairs}
             metricForm={metricForm}
             handleFormChange={handleFormChange}

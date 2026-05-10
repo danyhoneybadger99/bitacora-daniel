@@ -26,6 +26,10 @@ export default function DailyCheckInTab({
   formatDate,
   onFieldChange,
   onEmotionToggle,
+  showSpiritualSection = false,
+  massAttendedThisWeek = false,
+  massAttendanceStreak = 0,
+  onSpiritualMassToggle,
   onSubmit,
 }) {
   const selectedEmotions = Array.isArray(checkInForm.emotions) ? checkInForm.emotions : [];
@@ -140,7 +144,7 @@ export default function DailyCheckInTab({
               })
             }
           >
-            {checkInForm.gratitudeDone ? 'Agradecí hoy' : 'Agradecí hoy'}
+            Agradecí hoy
           </button>
 
           <label className="field field-full">
@@ -168,6 +172,51 @@ export default function DailyCheckInTab({
             </button>
           ) : null}
         </div>
+
+        {showSpiritualSection ? (
+          <div className="daily-checkin-spiritual">
+            <div className="daily-checkin-label-row">
+              <div>
+                <strong>Vida espiritual</strong>
+                <small>Seguimiento personal semanal.</small>
+              </div>
+              <span className="daily-checkin-spiritual-streak">
+                {`Racha de misa: ${massAttendanceStreak} ${massAttendanceStreak === 1 ? 'semana seguida' : 'semanas seguidas'}`}
+              </span>
+            </div>
+
+            <div className="daily-checkin-spiritual-actions">
+              <button
+                className={`daily-checkin-chip daily-checkin-spiritual-toggle ${massAttendedThisWeek ? 'daily-checkin-chip-active' : ''}`}
+                type="button"
+                aria-pressed={Boolean(massAttendedThisWeek)}
+                onClick={onSpiritualMassToggle}
+              >
+                Fui a misa esta semana
+              </button>
+
+              <button
+                className={`daily-checkin-chip daily-checkin-spiritual-toggle ${checkInForm.confessionReady ? 'daily-checkin-chip-active' : ''}`}
+                type="button"
+                aria-pressed={Boolean(checkInForm.confessionReady)}
+                onClick={() =>
+                  onFieldChange({
+                    target: {
+                      name: 'confessionReady',
+                      value: !checkInForm.confessionReady,
+                    },
+                  })
+                }
+              >
+                Estoy confesado para comulgar
+              </button>
+            </div>
+
+            {checkInForm.confessionReady ? (
+              <span className="daily-checkin-spiritual-status">Confesado para comulgar</span>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="form-actions daily-checkin-actions">
           <button className="button button-primary" type="submit">

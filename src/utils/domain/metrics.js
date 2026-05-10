@@ -3,6 +3,8 @@ import { formatUnitValue, getNumericMetric } from './shared';
 
 const baseMetricSeedId = 'metric-base-2026-04-10';
 const baseMetricSeedDate = '2026-04-10';
+const inBodyMay2026MetricSeedId = 'metric-inbody-2026-05-08';
+const inBodyMay2026MetricSeedDate = '2026-05-08';
 const recentManualMetricSeedId = 'metric-manual-2026-04-17';
 const recentManualMetricSeedDate = '2026-04-17';
 const recentManualMetricLegacySeedId = 'metric-manual-2026-04-22';
@@ -39,10 +41,32 @@ const recentManualMetricSeedMatchFields = [
   'hips',
   'neck',
 ];
+const inBodyMay2026MetricSeedMatchFields = [];
+const metricFieldAliases = {
+  weight: ['weightKg'],
+  bodyFat: ['bodyFatPercentage', 'percentBodyFat'],
+  skeletalMuscleMass: ['skeletalMuscleMassKg'],
+  bodyFatMass: ['bodyFatMassKg'],
+  fatFreeMass: ['fatFreeMassKg'],
+};
+
+function getMetricFieldRawValue(item, field) {
+  if (!item || typeof item !== 'object') return undefined;
+
+  if (getNumericMetric(item[field]) !== null) return item[field];
+
+  const aliases = metricFieldAliases[field] || [];
+  for (const alias of aliases) {
+    if (getNumericMetric(item[alias]) !== null) return item[alias];
+  }
+
+  return item[field];
+}
 
 export function createEmptyMetric() {
   return {
     date: getToday(),
+    time: '',
     weight: '',
     waist: '',
     chest: '',
@@ -55,6 +79,8 @@ export function createEmptyMetric() {
     neck: '',
     bodyFat: '',
     height: '',
+    age: '',
+    sex: '',
     skeletalMuscleMass: '',
     bodyFatMass: '',
     fatFreeMass: '',
@@ -65,7 +91,16 @@ export function createEmptyMetric() {
     basalMetabolicRate: '',
     waistHipRatio: '',
     visceralFatLevel: '',
+    smi: '',
     recommendedCalorieIntake: '',
+    sourceLabel: '',
+    idealWeight: '',
+    weightControl: '',
+    fatControl: '',
+    muscleControl: '',
+    targetBodyFat: '',
+    estimatedWeightAtTargetBodyFat: '',
+    estimatedFatToLoseForTarget: '',
     dataSource: 'manual',
     observations: '',
   };
@@ -116,6 +151,43 @@ export function createRecentManualMetricSeed() {
     neck: '39',
     dataSource: 'manual',
     observations: 'Registro manual reciente de medidas corporales para comparar contra InBody base.',
+  };
+}
+
+export function createMay2026InBodyMetricSeed() {
+  return {
+    ...createEmptyMetric(),
+    id: inBodyMay2026MetricSeedId,
+    date: inBodyMay2026MetricSeedDate,
+    time: '09:37',
+    sourceLabel: 'InBody 270 - Sport City',
+    height: '167',
+    age: '37',
+    sex: 'Masculino',
+    weight: '73.6',
+    totalBodyWater: '47.9',
+    proteinsMass: '13.1',
+    mineralsMass: '4.19',
+    bodyFatMass: '8.4',
+    skeletalMuscleMass: '37.6',
+    bodyFat: '11.4',
+    bmi: '26.4',
+    fatFreeMass: '65.2',
+    basalMetabolicRate: '1779',
+    waistHipRatio: '0.83',
+    visceralFatLevel: '2',
+    smi: '9.6',
+    recommendedCalorieIntake: '2609',
+    idealWeight: '73.6',
+    weightControl: '0.0',
+    fatControl: '0.0',
+    muscleControl: '0.0',
+    targetBodyFat: '10',
+    estimatedWeightAtTargetBodyFat: '72.4',
+    estimatedFatToLoseForTarget: '1.2',
+    dataSource: 'inbody',
+    observations:
+      'InBody 270 - Sport City. Cambio vs 10 abr 2026: peso -1.9 kg, PGC -1.6 puntos, MME -0.3 kg. Objetivo 10%: peso estimado 72.4 kg y grasa por perder aprox. 1.2 kg.',
   };
 }
 
@@ -173,7 +245,8 @@ function mergeMetricSeed(items, seed, fields) {
 export function mergeInitialMetricSeed(items = []) {
   const normalizedItems = normalizeRecentManualMetricSeed(Array.isArray(items) ? items : []);
   const withBase = mergeMetricSeed(normalizedItems, createInitialMetricSeed(), baseMetricSeedMatchFields);
-  return mergeMetricSeed(withBase, createRecentManualMetricSeed(), recentManualMetricSeedMatchFields);
+  const withRecentManual = mergeMetricSeed(withBase, createRecentManualMetricSeed(), recentManualMetricSeedMatchFields);
+  return mergeMetricSeed(withRecentManual, createMay2026InBodyMetricSeed(), inBodyMay2026MetricSeedMatchFields);
 }
 
 export function formatMetricValue(value, unit = '') {
@@ -212,11 +285,12 @@ export function getMetricTrend(currentValue, previousValue) {
 
 export function getLatestMetricFieldSnapshot(items, field) {
   for (const item of items) {
-    const value = getNumericMetric(item?.[field]);
+    const rawValue = getMetricFieldRawValue(item, field);
+    const value = getNumericMetric(rawValue);
     if (value !== null) {
       return {
         value,
-        rawValue: item[field],
+        rawValue,
         date: item.date || null,
         dataSource: item.dataSource || 'manual',
       };
@@ -235,11 +309,12 @@ export function getMetricComparisonPair(items, field) {
   const comparableItems = [];
 
   for (const item of items) {
-    const value = getNumericMetric(item?.[field]);
+    const rawValue = getMetricFieldRawValue(item, field);
+    const value = getNumericMetric(rawValue);
     if (value !== null) {
       comparableItems.push({
         value,
-        rawValue: item[field],
+        rawValue,
         date: item.date || null,
       });
     }

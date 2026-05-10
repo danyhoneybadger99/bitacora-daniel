@@ -8,7 +8,9 @@ export default function MetricsTab(props) {
     formatMetricValue,
     SectionCardClassName,
     metricBaseComparisonCards,
+    metricCompositionGoal,
     metricTrend,
+    metricPolarity,
     getMetricTrendPresentation,
     metricComparisonPairs,
     metricForm,
@@ -25,6 +27,18 @@ export default function MetricsTab(props) {
     startEditing,
     deleteRecord,
   } = props;
+  const formatSignedMetric = (value, unit = '', suffix = '') => {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return 'Sin dato';
+    const prefix = Number(value) > 0 ? '+' : '';
+    return `${prefix}${formatMetricValue(value, unit)}${suffix}`;
+  };
+  const getChangeClass = (value, prefer = 'neutral') => {
+    const numericValue = Number(value);
+    if (Number.isNaN(numericValue) || numericValue === 0 || prefer === 'neutral') return 'metric-change-neutral';
+    return (prefer === 'down' && numericValue < 0) || (prefer === 'up' && numericValue > 0)
+      ? 'metric-change-favorable'
+      : 'metric-change-unfavorable';
+  };
 
   return (
     <>
@@ -72,6 +86,63 @@ export default function MetricsTab(props) {
       </SectionCard>
 
       <SectionCard
+        title="Objetivo 10% grasa corporal"
+        subtitle="Lectura operativa usando el ultimo InBody contra la base del 10 abr 2026."
+        className="card-soft"
+      >
+        <div className="metrics-trend-grid metrics-base-grid">
+          <article className="metrics-trend-card metrics-base-card">
+            <div className="metrics-base-card-top">
+              <span>Peso vs abril</span>
+              <small>{metricCompositionGoal?.baseDate || 'Base pendiente'}</small>
+            </div>
+            <strong className={`metrics-base-current ${getChangeClass(metricCompositionGoal?.weightChangeFromBase, 'down')}`}>
+              {formatSignedMetric(metricCompositionGoal?.weightChangeFromBase, ' kg')}
+            </strong>
+            <p>Referencia esperada: -1.9 kg desde InBody base.</p>
+          </article>
+          <article className="metrics-trend-card metrics-base-card">
+            <div className="metrics-base-card-top">
+              <span>PGC vs abril</span>
+              <small>Meta 10%</small>
+            </div>
+            <strong className={`metrics-base-current ${getChangeClass(metricCompositionGoal?.bodyFatChangeFromBase, 'down')}`}>
+              {formatSignedMetric(metricCompositionGoal?.bodyFatChangeFromBase, '', ' puntos')}
+            </strong>
+            <p>Referencia esperada: -1.6 puntos de grasa corporal.</p>
+          </article>
+          <article className="metrics-trend-card metrics-base-card">
+            <div className="metrics-base-card-top">
+              <span>MME vs abril</span>
+              <small>Musculo esqueletico</small>
+            </div>
+            <strong className={`metrics-base-current ${getChangeClass(metricCompositionGoal?.skeletalMuscleChangeFromBase, 'up')}`}>
+              {formatSignedMetric(metricCompositionGoal?.skeletalMuscleChangeFromBase, ' kg')}
+            </strong>
+            <p>Referencia esperada: -0.3 kg.</p>
+          </article>
+          <article className="metrics-trend-card metrics-base-card">
+            <div className="metrics-base-card-top">
+              <span>Estimacion a 10%</span>
+              <small>{metricCompositionGoal?.sourceDate || 'Sin InBody actual'}</small>
+            </div>
+            <strong className="metrics-base-current">
+              {metricCompositionGoal?.estimatedWeightAtTarget === null || metricCompositionGoal?.estimatedWeightAtTarget === undefined
+                ? 'Sin dato'
+                : formatMetricValue(metricCompositionGoal.estimatedWeightAtTarget, ' kg')}
+            </strong>
+            <p>
+              Grasa por perder aprox.{' '}
+              {metricCompositionGoal?.estimatedFatToLose === null || metricCompositionGoal?.estimatedFatToLose === undefined
+                ? 'sin dato'
+                : formatMetricValue(metricCompositionGoal.estimatedFatToLose, ' kg')}
+              .
+            </p>
+          </article>
+        </div>
+      </SectionCard>
+
+      <SectionCard
         title="Tendencia reciente"
         subtitle="Compara tu último registro contra el inmediatamente anterior."
         className="card-soft"
@@ -79,8 +150,8 @@ export default function MetricsTab(props) {
         <div className="metrics-trend-grid">
           <div className="metrics-trend-card">
             <span>Peso</span>
-            <strong className={getMetricTrendPresentation(metricTrend.weight).className}>
-              {getMetricTrendPresentation(metricTrend.weight).label}
+            <strong className={getMetricTrendPresentation(metricTrend.weight, metricPolarity?.weight).className}>
+              {getMetricTrendPresentation(metricTrend.weight, metricPolarity?.weight).label}
             </strong>
             <p>
               {metricTrend.weight === 'sin referencia'
@@ -93,8 +164,8 @@ export default function MetricsTab(props) {
           </div>
           <div className="metrics-trend-card">
             <span>Grasa corporal</span>
-            <strong className={getMetricTrendPresentation(metricTrend.bodyFat).className}>
-              {getMetricTrendPresentation(metricTrend.bodyFat).label}
+            <strong className={getMetricTrendPresentation(metricTrend.bodyFat, metricPolarity?.bodyFat).className}>
+              {getMetricTrendPresentation(metricTrend.bodyFat, metricPolarity?.bodyFat).label}
             </strong>
             <p>
               {metricTrend.bodyFat === 'sin referencia'
@@ -107,8 +178,8 @@ export default function MetricsTab(props) {
           </div>
           <div className="metrics-trend-card">
             <span>Músculo esquelético</span>
-            <strong className={getMetricTrendPresentation(metricTrend.skeletalMuscleMass).className}>
-              {getMetricTrendPresentation(metricTrend.skeletalMuscleMass).label}
+            <strong className={getMetricTrendPresentation(metricTrend.skeletalMuscleMass, metricPolarity?.skeletalMuscleMass).className}>
+              {getMetricTrendPresentation(metricTrend.skeletalMuscleMass, metricPolarity?.skeletalMuscleMass).label}
             </strong>
             <p>
               {metricTrend.skeletalMuscleMass === 'sin referencia'
@@ -124,8 +195,8 @@ export default function MetricsTab(props) {
           </div>
           <div className="metrics-trend-card">
             <span>Masa grasa</span>
-            <strong className={getMetricTrendPresentation(metricTrend.bodyFatMass).className}>
-              {getMetricTrendPresentation(metricTrend.bodyFatMass).label}
+            <strong className={getMetricTrendPresentation(metricTrend.bodyFatMass, metricPolarity?.bodyFatMass).className}>
+              {getMetricTrendPresentation(metricTrend.bodyFatMass, metricPolarity?.bodyFatMass).label}
             </strong>
             <p>
               {metricTrend.bodyFatMass === 'sin referencia'
@@ -237,7 +308,7 @@ export default function MetricsTab(props) {
                     </span>
                   </div>
                   <span className={`metrics-source-chip ${item.dataSource === 'inbody' ? 'metrics-source-chip-inbody' : ''}`}>
-                    {item.dataSource === 'inbody' ? 'InBody' : 'Manual'}
+                    {item.dataSource === 'inbody' ? item.sourceLabel || 'InBody' : 'Manual'}
                   </span>
                 </div>
 

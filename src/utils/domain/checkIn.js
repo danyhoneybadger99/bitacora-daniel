@@ -1,4 +1,4 @@
-import { getToday, normalizeDateString } from '../date';
+import { getStartOfWeek, getToday, normalizeDateString } from '../date';
 
 export const checkInEmotionOptions = [
   { value: 'tranquilo', label: 'Tranquilo' },
@@ -22,6 +22,7 @@ export function createEmptyDailyCheckIn(date = getToday()) {
     note: '',
     gratitudeDone: false,
     gratitudeText: '',
+    confessionReady: false,
   };
 }
 
@@ -45,5 +46,88 @@ export function normalizeDailyCheckIn(item = {}) {
     note: source.note ?? source.notes ?? '',
     gratitudeDone: Boolean(source.gratitudeDone),
     gratitudeText: source.gratitudeText ?? '',
+    confessionReady: Boolean(source.confessionReady),
   };
+}
+
+export function getSpiritualWeekStart(date = getToday()) {
+  return getStartOfWeek(normalizeDateString(date) || getToday());
+}
+
+export function normalizeSpiritualWeeklyCheck(item = {}) {
+  const source = item && typeof item === 'object' && !Array.isArray(item) ? item : {};
+  const attendedAt = normalizeDateString(source.attendedAt || source.date);
+  const weekStart = normalizeDateString(source.weekStart) || getSpiritualWeekStart(attendedAt || getToday());
+
+  return {
+    id: source.id || `spiritual-week-${weekStart}`,
+    weekStart,
+    attendedMass: Boolean(source.attendedMass ?? source.massAttended ?? source.massAttendedThisWeek),
+    attendedAt,
+    updatedAt: source.updatedAt ?? '',
+  };
+}
+
+export function createDanielSpiritualWeeklySeeds() {
+  return ['2026-04-25', '2026-05-02', '2026-05-09'].map((date) =>
+    normalizeSpiritualWeeklyCheck({
+      id: `spiritual-mass-${date}`,
+      weekStart: getSpiritualWeekStart(date),
+      attendedMass: true,
+      attendedAt: date,
+      updatedAt: `${date}T12:00:00`,
+    })
+  );
+}
+
+export function mergeDanielSpiritualWeeklySeeds(items = []) {
+  const normalized = Array.isArray(items)
+    ? items.map((item) => normalizeSpiritualWeeklyCheck(item)).filter((item) => item.weekStart)
+    : [];
+  const byWeek = new Map(normalized.map((item) => [item.weekStart, item]));
+
+  createDanielSpiritualWeeklySeeds().forEach((seed) => {
+    if (!byWeek.has(seed.weekStart)) {
+      byWeek.set(seed.weekStart, seed);
+    }
+  });
+
+  return [...byWeek.values()].sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+}
+
+export function hasMassAttendanceForWeek(items = [], date = getToday()) {
+  const weekStart = getSpiritualWeekStart(date);
+  return (items || []).some((item) => item.weekStart === weekStart && item.attendedMass);
+}
+
+export function calculateMassAttendanceStreak(items = [], date = getToday()) {
+  const attendedWeeks = new Set(
+    (items || [])
+      .filter((item) => item.attendedMass)
+      .map((item) => item.weekStart)
+      .filter(Boolean)
+  );
+
+  const currentWeekStart = getSpiritualWeekStart(date);
+  const currentDate = new Date(`${normalizeDateString(date) || getToday()}T12:00:00`);
+  const currentWeekIsComplete = currentDate.getDay() === 0;
+  let cursor = currentWeekStart;
+
+  if (!attendedWeeks.has(cursor)) {
+    if (currentWeekIsComplete) return 0;
+    const previousWeek = new Date(`${cursor}T12:00:00`);
+    previousWeek.setDate(previousWeek.getDate() - 7);
+    cursor = normalizeDateString(previousWeek);
+  }
+
+  let streak = 0;
+
+  while (attendedWeeks.has(cursor)) {
+    streak += 1;
+    const previousWeek = new Date(`${cursor}T12:00:00`);
+    previousWeek.setDate(previousWeek.getDate() - 7);
+    cursor = normalizeDateString(previousWeek);
+  }
+
+  return streak;
 }

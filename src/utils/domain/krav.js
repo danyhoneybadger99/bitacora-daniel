@@ -30,12 +30,13 @@ function slugify(text = '') {
     .replace(/^-+|-+$/g, '');
 }
 
-function createTechnique({ name, category, stage, description = '', tips = '', videoUrl = '' }) {
+function createTechnique({ name, category, stage, description = '', tips = '', videoUrl = '', curriculumBelt = 'amarilla' }) {
   return {
     id: `krav-${stage}-${slugify(name)}`,
     name,
     category,
     stage,
+    curriculumBelt,
     description,
     tips,
     videoUrl,
@@ -129,6 +130,7 @@ export function mergeOrangeKravCurriculum(existing = []) {
         name: currentTechnique.name || seedTechnique.name,
         category: currentTechnique.category || seedTechnique.category,
         stage: currentTechnique.stage || seedTechnique.stage,
+        curriculumBelt: currentTechnique.curriculumBelt || seedTechnique.curriculumBelt,
         description: currentTechnique.description || seedTechnique.description,
         tips: currentTechnique.tips || seedTechnique.tips,
         videoUrl: currentTechnique.videoUrl || seedTechnique.videoUrl,
@@ -162,8 +164,8 @@ export function createEmptyKravPracticeLog() {
 
 export function createEmptyKravSettings() {
   return {
-    currentBelt: 'amarilla',
-    targetBelt: 'naranja',
+    currentBelt: 'naranja',
+    targetBelt: 'verde',
     examDate: '',
     forgottenThresholdDays: '5',
   };

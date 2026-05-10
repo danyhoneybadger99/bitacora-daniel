@@ -1,5 +1,5 @@
 import { createCleanDefaultState, createUserSettings, defaultState, STORAGE_KEY } from '../data/defaultState';
-import { normalizeDailyCheckIn } from './domain/checkIn';
+import { mergeDanielSpiritualWeeklySeeds, normalizeDailyCheckIn, normalizeSpiritualWeeklyCheck } from './domain/checkIn';
 import { createEmptyKravSettings, mergeOrangeKravCurriculum } from './domain/krav';
 import { mergeInitialMetricSeed } from './domain/metrics';
 import { repairPrivateCycle2026Data } from './domain/private';
@@ -28,6 +28,7 @@ function getCollectionCounts(data = {}) {
   return {
     foods: Array.isArray(data.foods) ? data.foods.length : 0,
     dailyCheckIns: Array.isArray(data.dailyCheckIns) ? data.dailyCheckIns.length : 0,
+    spiritualWeeklyChecks: Array.isArray(data.spiritualWeeklyChecks) ? data.spiritualWeeklyChecks.length : 0,
     foodTemplates: Array.isArray(data.foodTemplates) ? data.foodTemplates.length : 0,
     hydrationEntries: Array.isArray(data.hydrationEntries) ? data.hydrationEntries.length : 0,
     supplements: Array.isArray(data.supplements) ? data.supplements.length : 0,
@@ -53,6 +54,14 @@ function normalizeDailyCheckIns(items) {
   return Array.isArray(items)
     ? items.map((item) => normalizeDailyCheckIn(item)).filter((item) => item.date)
     : [];
+}
+
+function normalizeSpiritualWeeklyChecks(items, { applySeed = false } = {}) {
+  const normalized = Array.isArray(items)
+    ? items.map((item) => normalizeSpiritualWeeklyCheck(item)).filter((item) => item.weekStart)
+    : [];
+
+  return applySeed ? mergeDanielSpiritualWeeklySeeds(normalized) : normalized;
 }
 
 function normalizeFoods(items) {
@@ -243,6 +252,7 @@ function normalizeKravCurriculum(items, { applySeed = true } = {}) {
     name: item.name ?? '',
     category: item.category ?? 'striking',
     stage: item.stage ?? 'etapa1',
+    curriculumBelt: item.curriculumBelt ?? 'amarilla',
     description: item.description ?? '',
     tips: item.tips ?? '',
     videoUrl: item.videoUrl ?? '',
@@ -272,10 +282,18 @@ function normalizeKravPracticeLogs(items) {
 function normalizeKravSettings(item) {
   const base = createEmptyKravSettings();
   if (!item || typeof item !== 'object' || Array.isArray(item)) return base;
+  const incomingCurrentBelt = item.currentBelt ?? base.currentBelt;
+  const incomingTargetBelt = item.targetBelt ?? base.targetBelt;
+  const promotedFromYellowToOrange = incomingCurrentBelt === 'amarilla' && incomingTargetBelt === 'naranja';
+  const currentBelt = promotedFromYellowToOrange ? 'naranja' : incomingCurrentBelt;
+  const targetBelt =
+    currentBelt === 'naranja' && (!incomingTargetBelt || incomingTargetBelt === 'naranja')
+      ? 'verde'
+      : incomingTargetBelt;
 
   return {
-    currentBelt: item.currentBelt ?? base.currentBelt,
-    targetBelt: item.targetBelt ?? base.targetBelt,
+    currentBelt,
+    targetBelt,
     examDate: normalizeDateString(item.examDate) || base.examDate,
     forgottenThresholdDays: item.forgottenThresholdDays ?? base.forgottenThresholdDays,
   };
@@ -413,6 +431,8 @@ function normalizeBodyMetrics(items) {
     ? items.map((item) => ({
         ...item,
         date: normalizeDateString(item.date),
+        time: item.time ?? '',
+        weight: item.weight ?? item.weightKg ?? '',
         chest: item.chest ?? '',
         hips: item.hips ?? '',
         neck: item.neck ?? '',
@@ -420,9 +440,12 @@ function normalizeBodyMetrics(items) {
         forearm: item.forearm ?? '',
         upperBackTorso: item.upperBackTorso ?? '',
         height: item.height ?? '',
-        skeletalMuscleMass: item.skeletalMuscleMass ?? '',
-        bodyFatMass: item.bodyFatMass ?? '',
-        fatFreeMass: item.fatFreeMass ?? '',
+        age: item.age ?? '',
+        sex: item.sex ?? '',
+        bodyFat: item.bodyFat ?? item.bodyFatPercentage ?? item.percentBodyFat ?? '',
+        skeletalMuscleMass: item.skeletalMuscleMass ?? item.skeletalMuscleMassKg ?? '',
+        bodyFatMass: item.bodyFatMass ?? item.bodyFatMassKg ?? '',
+        fatFreeMass: item.fatFreeMass ?? item.fatFreeMassKg ?? '',
         totalBodyWater: item.totalBodyWater ?? '',
         proteinsMass: item.proteinsMass ?? '',
         mineralsMass: item.mineralsMass ?? '',
@@ -430,7 +453,16 @@ function normalizeBodyMetrics(items) {
         basalMetabolicRate: item.basalMetabolicRate ?? '',
         waistHipRatio: item.waistHipRatio ?? '',
         visceralFatLevel: item.visceralFatLevel ?? '',
+        smi: item.smi ?? '',
         recommendedCalorieIntake: item.recommendedCalorieIntake ?? '',
+        sourceLabel: item.sourceLabel ?? '',
+        idealWeight: item.idealWeight ?? '',
+        weightControl: item.weightControl ?? '',
+        fatControl: item.fatControl ?? '',
+        muscleControl: item.muscleControl ?? '',
+        targetBodyFat: item.targetBodyFat ?? '',
+        estimatedWeightAtTargetBodyFat: item.estimatedWeightAtTargetBodyFat ?? '',
+        estimatedFatToLoseForTarget: item.estimatedFatToLoseForTarget ?? '',
         dataSource: item.dataSource ?? 'manual',
         observations: item.observations ?? item.notes ?? '',
       }))
@@ -572,6 +604,9 @@ export function migrateAppData(parsed = {}, options = {}) {
   const migrated = {
     profileId: inferredProfileId,
     dailyCheckIns: normalizeDailyCheckIns(parsed.dailyCheckIns),
+    spiritualWeeklyChecks: normalizeSpiritualWeeklyChecks(parsed.spiritualWeeklyChecks, {
+      applySeed: shouldApplyDanielSeeds,
+    }),
     foods: normalizeFoods(parsed.foods),
     foodTemplates: normalizeFoodTemplates(parsed.foodTemplates),
     hydrationEntries: normalizeHydrationEntries(hydrationSource),

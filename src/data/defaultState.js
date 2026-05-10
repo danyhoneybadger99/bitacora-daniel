@@ -1,6 +1,7 @@
 import { repairPrivateCycle2026Data } from '../utils/domain/private';
 import { createEmptyKravSettings, createOrangeKravCurriculum } from '../utils/domain/krav';
 import { createInitialMetricSeed, createRecentManualMetricSeed } from '../utils/domain/metrics';
+import { createDanielSpiritualWeeklySeeds } from '../utils/domain/checkIn';
 import { getToday } from '../utils/date';
 
 const defaultFastingProtocols = [
@@ -249,6 +250,7 @@ export function createCleanDefaultState() {
   return {
     profileId: 'clean',
     dailyCheckIns: [],
+    spiritualWeeklyChecks: [],
     foods: [],
     foodTemplates: [],
     hydrationEntries: [],
@@ -289,6 +291,7 @@ export function createDanielDefaultState() {
   return {
     profileId: 'daniel-full',
     dailyCheckIns: [],
+    spiritualWeeklyChecks: createDanielSpiritualWeeklySeeds(),
     foods: [],
     foodTemplates: [],
     hydrationEntries: [],

@@ -86,6 +86,7 @@ export default function DashboardTab(props) {
     displayedFastingRemainingHours,
     activeFastingElapsedHours,
     formatHoursLabel,
+    dashboardCurrentWeight,
     todaySummaryWeight,
     weightGoal,
     formatWeightValue,
@@ -128,6 +129,7 @@ export default function DashboardTab(props) {
     profileType,
   } = props;
   const checkInInsight = getCheckInInsight(todayDailyCheckIn, profileType);
+  const dashboardCurrentWeightNumber = Number(dashboardCurrentWeight);
   const primaryCheckInEmotionValue = Array.isArray(todayDailyCheckIn?.emotions)
     ? todayDailyCheckIn.emotions[0]
     : '';
@@ -233,7 +235,10 @@ export default function DashboardTab(props) {
                   todaySummary.skeletalMuscleMass,
                   todaySummary.skeletalMuscleMass === '--' ? '' : ' kg'
                 )}`
-              : getWeightMessage(todaySummary.weight === '--' ? null : Number(todaySummary.weight), weightGoal)
+              : getWeightMessage(
+                  Number.isFinite(dashboardCurrentWeightNumber) && dashboardCurrentWeightNumber > 0 ? dashboardCurrentWeightNumber : null,
+                  weightGoal
+                )
           }
         />
 
@@ -271,7 +276,15 @@ export default function DashboardTab(props) {
             <strong>{formatKravPercent(kravDashboardSnapshot.totalProgress)}</strong>
           </div>
           <div className="dashboard-krav-meta">
-            <span>{`Objetivo: ${kravDashboardSnapshot.targetBelt}`}</span>
+            <span
+              className={`dashboard-krav-target-belt ${
+                String(kravDashboardSnapshot.targetBelt || '').toLowerCase() === 'verde' ? 'belt-badge--verde' : ''
+              }`}
+            >
+              {kravDashboardSnapshot.targetBelt
+                ? `Objetivo: cinta ${String(kravDashboardSnapshot.targetBelt).toLowerCase()}`
+                : 'Objetivo pendiente'}
+            </span>
             <span>{`${kravDashboardSnapshot.pendingTechniques} pendientes`}</span>
           </div>
           <small className="dashboard-krav-next" title={kravDashboardSnapshot.nextTechniqueName}>
