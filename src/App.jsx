@@ -16,6 +16,7 @@ import ObjectivesTab from './components/tabs/ObjectivesTab';
 import SupplementsTab from './components/tabs/SupplementsTab';
 import WeeklyTab from './components/tabs/WeeklyTab';
 import { cutMayReferenceGroups, cutMayReferenceRule } from './data/cutMayReference';
+import { firstFourNewsletters, welcomeNewsletter } from './content/newsletterSeries';
 import {
   createCleanDefaultState,
   createUserSettings,
@@ -172,6 +173,7 @@ import {
   shiftDateByDays,
   sumBy,
 } from './utils/domain/shared';
+import { renderNewsletterHtml, renderNewsletterPreview, renderNewsletterText } from './utils/newsletterRenderer';
 import {
   calculateMassAttendanceStreak,
   checkInEmotionOptions,
@@ -217,6 +219,14 @@ const LOCAL_MODE_CHOICE_KEY = 'mi-diario-local-mode-enabled';
 const LOCAL_PUBLIC_STORAGE_KEY = `${STORAGE_KEY}:local-public`;
 const NEWSLETTER_OPT_IN_CHOICE_KEY = 'mi-diario-newsletter-opt-in';
 const selectableUserProfiles = ['fitness-basic', 'krav-360', 'daniel-full'];
+const newsletterPreviewOptions = [
+  { id: 'welcome', label: 'Welcome newsletter', newsletter: welcomeNewsletter },
+  ...firstFourNewsletters.map((newsletter) => ({
+    id: `week-${newsletter.week}`,
+    label: `Semana ${newsletter.week}`,
+    newsletter,
+  })),
+];
 const privateLocalStateCollections = [
   'privateCycles',
   'privateProducts',
@@ -846,6 +856,8 @@ function App() {
   const [kravTechniqueNoteDraft, setKravTechniqueNoteDraft] = useState('');
   const [kravExpandedCategories, setKravExpandedCategories] = useState({});
   const [kravCategoryShowAll, setKravCategoryShowAll] = useState({});
+  const [selectedNewsletterPreviewId, setSelectedNewsletterPreviewId] = useState('welcome');
+  const [newsletterPreviewFeedback, setNewsletterPreviewFeedback] = useState('');
   const [fastingNow, setFastingNow] = useState(() => Date.now());
   const [backupInputKey, setBackupInputKey] = useState(0);
   const [backupFeedback, setBackupFeedback] = useState({ type: '', text: '' });
@@ -1845,6 +1857,17 @@ function App() {
     () => calculateMassAttendanceStreak(spiritualWeeklyChecks, currentDate),
     [currentDate, spiritualWeeklyChecks]
   );
+  const selectedNewsletterPreviewOption = useMemo(
+    () =>
+      newsletterPreviewOptions.find((item) => item.id === selectedNewsletterPreviewId) ||
+      newsletterPreviewOptions[0],
+    [selectedNewsletterPreviewId]
+  );
+  const newsletterPreview = useMemo(
+    () => renderNewsletterPreview(selectedNewsletterPreviewOption.newsletter),
+    [selectedNewsletterPreviewOption]
+  );
+  const newsletterPrompt = selectedNewsletterPreviewOption.newsletter.bitacoraPrompt || '';
   const shouldShowUserOnboarding = Boolean(
     syncUser?.id && diaryData.profileId === 'clean' && !userSettings.onboardingCompleted
   );
@@ -3192,6 +3215,22 @@ function lockPrivateModule(feedbackText = '') {
       ],
     }));
     setDailyCheckInForm(record);
+  }
+
+  async function copyNewsletterPreviewText(value, label = 'contenido') {
+    const text = String(value || '').trim();
+    if (!text) return;
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setNewsletterPreviewFeedback(`${label} copiado.`);
+      } else {
+        setNewsletterPreviewFeedback(`${label} listo para copiar manualmente.`);
+      }
+    } catch (_error) {
+      setNewsletterPreviewFeedback(`No se pudo copiar ${label}. Puedes seleccionarlo manualmente.`);
+    }
   }
 
   function handleFastingProtocolChange(event) {
@@ -5164,11 +5203,7 @@ function toggleRecommendedSupplement(itemConfig) {
             <p className="eyebrow">BITÁCORA DANIEL</p>
             <h1 id="auth-landing-title">Tu registro diario de hábitos y progreso</h1>
             <p>
-              Registra comida, ejercicio, hábitos y avances desde tu celular. Crea una cuenta para guardar tus
-              datos por separado.
-            </p>
-            <p>
-              Usa IA para estimar calorías, macros y ejercicio; registra tus datos aquí para darles seguimiento.
+              Registra comida, ejercicio, hábitos y avances desde tu celular. Usa IA para estimar calorías, macros y entrenamientos.
             </p>
             <ol className="auth-landing-steps" aria-label="Pasos para empezar">
               <li>
@@ -5285,7 +5320,7 @@ function toggleRecommendedSupplement(itemConfig) {
               <h1>Bitacora Daniel</h1>
             </div>
             <p className="hero-text">
-              Sistema personal para registrar nutrición, hidratación, suplementación, entrenamiento, ayuno y progreso físico. Aprende a usar IA para estimar tus comidas, entrenamientos y avances.
+              Sistema personal para registrar nutrición, entrenamiento, ayuno y progreso físico. Usa IA para estimar comidas, ejercicio y avances.
             </p>
             <div className="hero-identity-strip" aria-label="Identidad profesional">
               <span className="hero-identity-chip">Ingeniero Mecánico</span>
@@ -5608,6 +5643,93 @@ function toggleRecommendedSupplement(itemConfig) {
                 </p>
               </div>
             </SectionCard>
+
+            {isDanielFullProfile ? (
+              <SectionCard
+                title="Newsletter"
+                subtitle="Preview interno. No se envía ningún correo desde esta pantalla."
+                className="card-soft settings-newsletter-preview-card"
+              >
+                <div className="newsletter-preview-panel">
+                  <div className="newsletter-preview-controls">
+                    <label className="field settings-profile-field">
+                      <span>Seleccionar newsletter</span>
+                      <select
+                        value={selectedNewsletterPreviewId}
+                        onChange={(event) => {
+                          setSelectedNewsletterPreviewId(event.target.value);
+                          setNewsletterPreviewFeedback('');
+                        }}
+                      >
+                        {newsletterPreviewOptions.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="backup-meta-grid settings-account-grid">
+                      <div className="backup-meta-card">
+                        <span>Subject</span>
+                        <strong>{newsletterPreview.subject}</strong>
+                      </div>
+                      <div className="backup-meta-card">
+                        <span>Preheader</span>
+                        <strong>{newsletterPreview.preheader || 'Sin preheader'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="newsletter-preview-grid">
+                    <section className="newsletter-preview-block">
+                      <div className="daily-checkin-label-row">
+                        <strong>HTML preview</strong>
+                        <small>Render seguro para revisar diseño.</small>
+                      </div>
+                      <div
+                        className="newsletter-html-preview"
+                        dangerouslySetInnerHTML={{ __html: renderNewsletterHtml(selectedNewsletterPreviewOption.newsletter) }}
+                      />
+                    </section>
+
+                    <section className="newsletter-preview-block">
+                      <div className="daily-checkin-label-row">
+                        <strong>Text preview</strong>
+                        <button
+                          className="button button-secondary newsletter-preview-copy-button"
+                          type="button"
+                          onClick={() => copyNewsletterPreviewText(renderNewsletterText(selectedNewsletterPreviewOption.newsletter), 'Texto plano')}
+                        >
+                          Copiar texto
+                        </button>
+                      </div>
+                      <pre className="newsletter-text-preview">{newsletterPreview.text}</pre>
+                    </section>
+                  </div>
+
+                  {newsletterPrompt ? (
+                    <div className="newsletter-prompt-preview">
+                      <div className="daily-checkin-label-row">
+                        <strong>Prompt copiable</strong>
+                        <button
+                          className="button button-secondary newsletter-preview-copy-button"
+                          type="button"
+                          onClick={() => copyNewsletterPreviewText(newsletterPrompt, 'Prompt')}
+                        >
+                          Copiar prompt
+                        </button>
+                      </div>
+                      <p>{newsletterPrompt}</p>
+                    </div>
+                  ) : null}
+
+                  {newsletterPreviewFeedback ? (
+                    <p className="form-feedback form-feedback-success">{newsletterPreviewFeedback}</p>
+                  ) : null}
+                </div>
+              </SectionCard>
+            ) : null}
 
             <SectionCard
               title="Parámetros de corte"

@@ -2260,6 +2260,77 @@ button {
   border: 1px solid rgba(47, 125, 79, 0.14);
 }
 
+.newsletter-preview-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.newsletter-preview-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.newsletter-preview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.newsletter-preview-block,
+.newsletter-prompt-preview {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e3e8ed;
+  border-radius: 18px;
+  background: #fbfcfd;
+}
+
+.newsletter-html-preview {
+  max-width: 100%;
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid #dde5df;
+  border-radius: 16px;
+  background: #f2f5f1;
+}
+
+.newsletter-html-preview > * {
+  max-width: 100%;
+}
+
+.newsletter-text-preview {
+  max-height: 520px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #dde5df;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #25313a;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.newsletter-prompt-preview p {
+  margin: 0;
+  color: #4d5d68;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.newsletter-preview-copy-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
 .daily-checkin-actions {
   margin-top: 0;
 }
@@ -5103,6 +5174,15 @@ button {
     width: 100%;
   }
 
+  .newsletter-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .newsletter-html-preview,
+  .newsletter-text-preview {
+    max-height: 380px;
+  }
+
   .dashboard-compact-card .card-header {
     margin-bottom: 6px;
   }
@@ -6075,11 +6155,11 @@ button {
 
   .hero-text {
     font-size: 0.82rem;
-    line-height: 1.28;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    line-height: 1.32;
+    display: block;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   .hero-signature {
