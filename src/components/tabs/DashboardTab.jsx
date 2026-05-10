@@ -137,6 +137,14 @@ export default function DashboardTab(props) {
 
   return (
     <>
+      {isSundayReminderVisible ? (
+        <div className="dashboard-alerts-top">
+          <div className="alert-banner alert-banner-sunday dashboard-sunday-alert-priority">
+            <strong>Domingo con control:</strong> evita azúcar, harina y exceso de calorías. No tires a la basura el esfuerzo de la semana.
+          </div>
+        </div>
+      ) : null}
+
       <div className="progress-card-grid">
         <ProgressCard
           title="Calorias"
@@ -350,7 +358,7 @@ export default function DashboardTab(props) {
         ) : null}
       </div>
 
-      {proteinAlert || fatAlert || isSundayReminderVisible ? (
+      {proteinAlert || fatAlert ? (
         <div className="dashboard-alert-stack">
           {proteinAlert ? (
             <div className="alert-banner">
@@ -364,11 +372,6 @@ export default function DashboardTab(props) {
             </div>
           ) : null}
 
-          {isSundayReminderVisible ? (
-            <div className="alert-banner alert-banner-sunday">
-              <strong>Domingo con control:</strong> evita azúcar, harina y exceso de calorías. No tires a la basura el esfuerzo de la semana.
-            </div>
-          ) : null}
         </div>
       ) : null}
 

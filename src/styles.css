@@ -873,6 +873,12 @@ button {
   gap: 8px;
 }
 
+.dashboard-alerts-top {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
 .progress-card-krav,
 .dashboard-krav-card {
   background: linear-gradient(180deg, #fff8ef 0%, #f8ead8 100%);
@@ -1712,6 +1718,10 @@ button {
   background: linear-gradient(135deg, #fff8ef, #f8e8d9);
   border-color: #e2c0a3;
   color: #7d4b22;
+}
+
+.dashboard-sunday-alert-priority {
+  box-shadow: 0 12px 26px rgba(125, 75, 34, 0.1);
 }
 
 .dashboard-main-grid,
