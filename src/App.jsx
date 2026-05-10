@@ -204,6 +204,7 @@ const tabs = [
 ];
 
 const tabLabelById = Object.fromEntries(tabs.map((tab) => [tab.id, tab.label]));
+const DANIEL_ACCOUNT_EMAIL = 'itsme.daniel0802@gmail.com';
 const LOCAL_MODE_CHOICE_KEY = 'mi-diario-local-mode-enabled';
 const LOCAL_PUBLIC_STORAGE_KEY = `${STORAGE_KEY}:local-public`;
 const NEWSLETTER_OPT_IN_CHOICE_KEY = 'mi-diario-newsletter-opt-in';
@@ -229,6 +230,29 @@ function readLocalModeChoice(isRemoteSyncEnabled = true) {
 
 function createCleanLocalModeState(deviceId = '') {
   return ensureSyncMeta(createCleanDefaultState(), deviceId || createDeviceId());
+}
+
+function isDanielAccount(user) {
+  return normalizeAuthEmail(user?.email) === DANIEL_ACCOUNT_EMAIL;
+}
+
+function normalizeDanielFullSnapshot(snapshot, user) {
+  if (!snapshot || snapshot.profileId !== 'daniel-full' || !isDanielAccount(user)) {
+    return snapshot;
+  }
+
+  if (snapshot.userSettings?.profileType === 'daniel-full') {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    profileId: 'daniel-full',
+    userSettings: createUserSettings('daniel-full', null, {
+      onboardingCompleted: true,
+      newsletterOptIn: Boolean(snapshot.userSettings?.newsletterOptIn),
+    }),
+  };
 }
 
 function isUnsafePublicLocalState(state = {}) {
@@ -844,6 +868,7 @@ function App() {
   const syncDebounceTimeoutRef = useRef(null);
   const skipNextRemoteSyncRef = useRef(false);
   const syncRefreshInFlightRef = useRef(false);
+  const initialRemoteLoadCompletedUserRef = useRef(remoteSyncEnabled ? '' : 'local');
   const lastSyncRefreshAtRef = useRef(0);
   const privateAutoLockTimeoutRef = useRef(null);
   const privateDailyHormonalSectionRef = useRef(null);
@@ -906,6 +931,7 @@ function App() {
       });
 
     const subscription = onSupabaseAuthChange((session) => {
+      initialRemoteLoadCompletedUserRef.current = session?.user?.id ? '' : 'local';
       setSyncUser(session?.user || null);
       setHasResolvedSyncSession(true);
       setHasResolvedRemoteSnapshot(false);
@@ -1065,12 +1091,13 @@ function App() {
   function applyHydratedSnapshot(snapshot, options = {}) {
     if (!snapshot) return;
 
-    latestPersistedDataRef.current = snapshot;
-    saveAppData(snapshot, options.storageKey || activeStorageKeyRef.current);
+    const normalizedSnapshot = normalizeDanielFullSnapshot(snapshot, syncUser);
+    latestPersistedDataRef.current = normalizedSnapshot;
+    saveAppData(normalizedSnapshot, options.storageKey || activeStorageKeyRef.current);
     skipNextRemoteSyncRef.current = true;
-    setDiaryData(snapshot);
-    applyFormStateFromSnapshot(snapshot);
-    setSyncLastSyncedAt(snapshot.syncMeta?.lastSyncedAt || '');
+    setDiaryData(normalizedSnapshot);
+    applyFormStateFromSnapshot(normalizedSnapshot);
+    setSyncLastSyncedAt(normalizedSnapshot.syncMeta?.lastSyncedAt || '');
 
     if (options.feedbackText) {
       setSyncFeedback({ type: 'success', text: options.feedbackText });
@@ -1106,27 +1133,40 @@ function App() {
 
       console.log('REMOTE SNAPSHOT:', remoteSnapshot.payload);
 
+      const normalizedRemoteData = normalizeDanielFullSnapshot(
+        migrateAppData(remoteSnapshot.payload),
+        syncUser
+      );
       const mergedRemoteData = mergeRemoteSnapshot({
-        remoteData: migrateAppData(remoteSnapshot.payload),
+        remoteData: normalizedRemoteData,
         localData: localSnapshot,
         deviceId: syncDeviceIdRef.current || localSnapshot.syncMeta?.deviceId || createDeviceId(),
         lastSyncedAt: remoteSnapshot.last_synced_at || remoteSnapshot.updated_at || getCurrentDateTimeValue(),
       });
+      const shouldForceRemoteWinner =
+        localSnapshot?.profileId === 'clean' &&
+        mergedRemoteData?.profileId === 'daniel-full' &&
+        isDanielAccount(syncUser);
 
       const decision = explainSnapshotWinner(localSnapshot, mergedRemoteData);
       logSyncDebug('reconcile:decision', {
         reason,
-        winner: decision.winner,
-        why: decision.reason,
+        winner: shouldForceRemoteWinner ? 'remote' : decision.winner,
+        why: shouldForceRemoteWinner ? 'daniel-remote-profile-guard' : decision.reason,
         local: getSnapshotSummary(localSnapshot),
         remote: getSnapshotSummary(mergedRemoteData),
         localValue: decision.localValue,
         remoteValue: decision.remoteValue,
       });
 
-      if (decision.winner === 'remote') {
+      if (shouldForceRemoteWinner || decision.winner === 'remote') {
         applyHydratedSnapshot(mergedRemoteData);
-        return { status: 'hydrated-remote', winner: 'remote', remoteSnapshot: mergedRemoteData };
+        return {
+          status: 'hydrated-remote',
+          winner: 'remote',
+          reason: shouldForceRemoteWinner ? 'daniel-remote-profile-guard' : decision.reason,
+          remoteSnapshot: mergedRemoteData,
+        };
       }
 
       if (decision.winner === 'equal') {
@@ -1261,6 +1301,7 @@ function App() {
     pullRemoteSnapshotAndHydrate({ reason: 'initial-session', force: true })
       .then((result) => {
         if (cancelled) return;
+        initialRemoteLoadCompletedUserRef.current = syncUser.id;
         if (result.status === 'hydrated-remote' || result.status === 'equal') {
           setSyncStatus('synced');
         } else if (result.status === 'no-remote') {
@@ -1272,6 +1313,7 @@ function App() {
       })
       .catch((error) => {
         if (cancelled) return;
+        initialRemoteLoadCompletedUserRef.current = '';
         setHasResolvedRemoteSnapshot(true);
         setSyncStatus(isOnline ? 'error' : 'offline');
         setSyncFeedback({
@@ -1287,6 +1329,7 @@ function App() {
 
   useEffect(() => {
     if (!hasLoadedData || !hasResolvedRemoteSnapshot || !remoteSyncEnabled || !syncUser) return;
+    if (initialRemoteLoadCompletedUserRef.current !== syncUser.id) return;
 
     if (!isOnline) {
       setSyncStatus('offline');
@@ -1304,7 +1347,11 @@ function App() {
     syncDebounceTimeoutRef.current = window.setTimeout(async () => {
       try {
         setSyncStatus('syncing');
-        const currentSnapshot = latestPersistedDataRef.current;
+        const currentSnapshot = normalizeDanielFullSnapshot(latestPersistedDataRef.current, syncUser);
+        if (currentSnapshot !== latestPersistedDataRef.current) {
+          latestPersistedDataRef.current = currentSnapshot;
+          saveAppData(currentSnapshot, activeStorageKeyRef.current);
+        }
         logSyncDebug('autosync:queued-push', {
           summary: getSnapshotSummary(currentSnapshot),
         });
@@ -1686,7 +1733,9 @@ function App() {
       const fallbackProfile = diaryData.profileId === 'clean' ? 'fitness-basic' : 'daniel-full';
       const requestedProfile = diaryData.userSettings?.profileType || fallbackProfile;
       const safeProfile =
-        diaryData.profileId === 'daniel-full' || requestedProfile !== 'daniel-full'
+        diaryData.profileId === 'daniel-full' && isDanielAccount(syncUser)
+          ? 'daniel-full'
+          : diaryData.profileId === 'daniel-full' || requestedProfile !== 'daniel-full'
           ? requestedProfile
           : fallbackProfile;
 
@@ -1699,10 +1748,10 @@ function App() {
         }
       );
     },
-    [diaryData.profileId, diaryData.userSettings]
+    [diaryData.profileId, diaryData.userSettings, syncUser?.email]
   );
   const selectableProfilesForSettings =
-    diaryData.profileId === 'daniel-full'
+    diaryData.profileId === 'daniel-full' && isDanielAccount(syncUser)
       ? selectableUserProfiles
       : selectableUserProfiles.filter((profileType) => profileType !== 'daniel-full');
   const shouldShowUserOnboarding = Boolean(
@@ -3612,7 +3661,11 @@ function lockPrivateModule(feedbackText = '') {
         return;
       }
 
-      const currentSnapshot = latestPersistedDataRef.current;
+      const currentSnapshot = normalizeDanielFullSnapshot(latestPersistedDataRef.current, syncUser);
+      if (currentSnapshot !== latestPersistedDataRef.current) {
+        latestPersistedDataRef.current = currentSnapshot;
+        saveAppData(currentSnapshot, activeStorageKeyRef.current);
+      }
       const syncResult = await pushRemoteSnapshot({
         userId: syncUser.id,
         data: currentSnapshot,

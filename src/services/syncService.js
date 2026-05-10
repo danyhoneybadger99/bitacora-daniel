@@ -1,4 +1,4 @@
-import { defaultState } from '../data/defaultState';
+import { createCleanDefaultState, defaultState } from '../data/defaultState';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export const SYNC_SCHEMA_VERSION = 1;
@@ -150,7 +150,11 @@ function getComparableSnapshot(data = {}) {
 }
 
 export function isEffectivelyDefaultSnapshot(data = {}) {
-  return JSON.stringify(getComparableSnapshot(data)) === JSON.stringify(getComparableSnapshot(defaultState));
+  const comparableSnapshot = JSON.stringify(getComparableSnapshot(data));
+  return (
+    comparableSnapshot === JSON.stringify(getComparableSnapshot(defaultState)) ||
+    comparableSnapshot === JSON.stringify(getComparableSnapshot(createCleanDefaultState()))
+  );
 }
 
 export function chooseSnapshotWinner(localData, remoteData) {
