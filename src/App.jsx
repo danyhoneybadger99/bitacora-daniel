@@ -129,12 +129,15 @@ import {
   pushRemoteSnapshot,
   getSupabaseAuthErrorMessage,
   isSupabaseEmailNotConfirmedError,
+  requestSupabasePasswordReset,
   resendSupabaseSignupConfirmation,
   signInWithSupabasePassword,
   signOutFromSupabase,
   signUpWithSupabasePassword,
   syncStatusLabels,
+  updateSupabasePassword,
   upsertAppUser,
+  validateSupabaseEmail,
   validateSupabaseCredentials,
 } from './services/syncService';
 import {
@@ -244,6 +247,16 @@ const privacyDataItems = [
   'Métricas corporales como peso, grasa corporal, músculo y medidas.',
   'Preferencias de uso de la app.',
 ];
+
+function getPasswordRecoveryRedirectUrl() {
+  if (typeof window === 'undefined') return undefined;
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+function isPasswordRecoveryRedirect() {
+  if (typeof window === 'undefined') return false;
+  return `${window.location.search} ${window.location.hash}`.includes('type=recovery');
+}
 
 function readLocalModeChoice(isRemoteSyncEnabled = true) {
   if (!isRemoteSyncEnabled || typeof window === 'undefined') return !isRemoteSyncEnabled;
@@ -876,6 +889,8 @@ function App() {
   const [syncFeedback, setSyncFeedback] = useState({ type: '', text: '' });
   const [syncStatus, setSyncStatus] = useState(remoteSyncEnabled ? 'auth' : 'local');
   const [syncCredentials, setSyncCredentials] = useState({ email: '', password: '' });
+  const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(() => isPasswordRecoveryRedirect());
+  const [passwordRecoveryForm, setPasswordRecoveryForm] = useState({ password: '', confirm: '' });
   const [syncUser, setSyncUser] = useState(null);
   const [newsletterOptInDraft, setNewsletterOptInDraft] = useState(false);
   const [showPrivacyInfo, setShowPrivacyInfo] = useState(false);
@@ -977,7 +992,15 @@ function App() {
         });
       });
 
-    const subscription = onSupabaseAuthChange((session) => {
+    const subscription = onSupabaseAuthChange((session, event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordRecoveryMode(true);
+        setPasswordRecoveryForm({ password: '', confirm: '' });
+        setSyncFeedback({
+          type: 'info',
+          text: 'Escribe una nueva contraseña para recuperar tu cuenta.',
+        });
+      }
       initialRemoteLoadCompletedUserRef.current = session?.user?.id ? '' : 'local';
       setSyncUser(session?.user || null);
       setHasResolvedSyncSession(true);
@@ -3701,6 +3724,89 @@ function lockPrivateModule(feedbackText = '') {
     }
   }
 
+  function handlePasswordRecoveryFormChange(event) {
+    const { name, value } = event.target;
+    setPasswordRecoveryForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function handlePasswordResetRequest() {
+    if (!remoteSyncEnabled) {
+      setSyncFeedback({ type: 'error', text: 'Faltan las variables de entorno de Supabase.' });
+      return;
+    }
+
+    const emailValidationMessage = validateSupabaseEmail(syncCredentials.email);
+    if (emailValidationMessage) {
+      setSyncFeedback({
+        type: 'error',
+        text: syncCredentials.email.trim()
+          ? emailValidationMessage
+          : 'Escribe tu correo para enviarte el enlace de recuperación.',
+      });
+      return;
+    }
+
+    try {
+      setSyncStatus(isOnline ? 'syncing' : 'offline');
+      await requestSupabasePasswordReset({
+        email: syncCredentials.email,
+        redirectTo: getPasswordRecoveryRedirectUrl(),
+      });
+      setCanResendConfirmationEmail(false);
+      setSyncFeedback({
+        type: 'success',
+        text: 'Te enviamos un correo para restablecer tu contraseña. Revisa también spam.',
+      });
+      setSyncStatus(isOnline ? 'auth' : 'offline');
+    } catch (error) {
+      setSyncStatus(isOnline ? 'error' : 'offline');
+      setSyncFeedback({
+        type: 'error',
+        text: getSupabaseAuthErrorMessage(error, 'sign-in'),
+      });
+    }
+  }
+
+  async function handlePasswordRecoverySubmit(event) {
+    event.preventDefault();
+
+    const nextPassword = passwordRecoveryForm.password;
+    if (!nextPassword) {
+      setSyncFeedback({ type: 'error', text: 'Escribe tu nueva contraseña.' });
+      return;
+    }
+
+    if (nextPassword.length < 6) {
+      setSyncFeedback({ type: 'error', text: 'La contraseña debe tener mínimo 6 caracteres.' });
+      return;
+    }
+
+    if (nextPassword !== passwordRecoveryForm.confirm) {
+      setSyncFeedback({ type: 'error', text: 'Las contraseñas no coinciden.' });
+      return;
+    }
+
+    try {
+      setSyncStatus(isOnline ? 'syncing' : 'offline');
+      await updateSupabasePassword({ password: nextPassword });
+      await signOutFromSupabase();
+      setPasswordRecoveryMode(false);
+      setPasswordRecoveryForm({ password: '', confirm: '' });
+      setSyncCredentials((current) => ({ ...current, password: '' }));
+      setSyncStatus(isOnline ? 'auth' : 'offline');
+      setSyncFeedback({
+        type: 'success',
+        text: 'Contraseña actualizada. Ya puedes iniciar sesión.',
+      });
+    } catch (error) {
+      setSyncStatus(isOnline ? 'error' : 'offline');
+      setSyncFeedback({
+        type: 'error',
+        text: getSupabaseAuthErrorMessage(error, 'sign-in'),
+      });
+    }
+  }
+
   function handleContinueWithoutAccount() {
     try {
       window.localStorage.setItem(LOCAL_MODE_CHOICE_KEY, 'true');
@@ -5267,6 +5373,65 @@ function toggleRecommendedSupplement(itemConfig) {
     </div>
   ) : null;
 
+  if (passwordRecoveryMode) {
+    return (
+      <div className="auth-landing-shell">
+        <section className="auth-landing-card" aria-labelledby="password-recovery-title">
+          <div className="auth-landing-copy">
+            <p className="eyebrow">BITÁCORA DANIEL</p>
+            <h1 id="password-recovery-title">Crea tu nueva contraseña</h1>
+            <p>
+              Escribe una contraseña nueva para recuperar el acceso a tu cuenta. Después podrás iniciar sesión normalmente.
+            </p>
+          </div>
+
+          <form className="auth-landing-form" onSubmit={handlePasswordRecoverySubmit}>
+            <div className="auth-landing-form-head">
+              <strong>Restablecer contraseña</strong>
+              <span>Usa una contraseña de al menos 6 caracteres.</span>
+            </div>
+            <label className="field">
+              <span>Nueva contraseña</span>
+              <input
+                type="password"
+                name="password"
+                autoComplete="new-password"
+                minLength={6}
+                required
+                value={passwordRecoveryForm.password}
+                onChange={handlePasswordRecoveryFormChange}
+                placeholder="Mínimo 6 caracteres"
+              />
+            </label>
+            <label className="field">
+              <span>Confirmar contraseña</span>
+              <input
+                type="password"
+                name="confirm"
+                autoComplete="new-password"
+                minLength={6}
+                required
+                value={passwordRecoveryForm.confirm}
+                onChange={handlePasswordRecoveryFormChange}
+                placeholder="Repite la contraseña"
+              />
+            </label>
+
+            {syncFeedback.text ? (
+              <p className={`form-feedback ${syncFeedback.type ? `form-feedback-${syncFeedback.type}` : ''}`}>
+                {syncFeedback.text}
+              </p>
+            ) : null}
+
+            <button className="button button-primary" type="submit">
+              Guardar nueva contraseña
+            </button>
+          </form>
+        </section>
+      </div>
+    );
+  }
+
   if (shouldShowAuthResolvingScreen || shouldShowAuthLanding) {
     return (
       <div className="auth-landing-shell">
@@ -5333,6 +5498,13 @@ function toggleRecommendedSupplement(itemConfig) {
                   placeholder="Mínimo 6 caracteres"
                 />
               </label>
+              <button
+                className="button button-ghost auth-landing-password-reset"
+                type="button"
+                onClick={handlePasswordResetRequest}
+              >
+                Olvidé mi contraseña
+              </button>
 
               {syncFeedback.text ? (
                 <p className={`form-feedback ${syncFeedback.type ? `form-feedback-${syncFeedback.type}` : ''}`}>

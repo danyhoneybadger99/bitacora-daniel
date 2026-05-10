@@ -201,6 +201,16 @@ button {
   min-height: 44px;
 }
 
+.auth-landing-password-reset {
+  width: fit-content;
+  min-height: 30px;
+  margin-top: -6px;
+  padding: 2px 0;
+  color: #8b3f47;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
 .auth-landing-action-note,
 .auth-landing-privacy-note {
   margin: -2px 0 2px;

@@ -205,8 +205,8 @@ export function onSupabaseAuthChange(callback) {
     return { unsubscribe() {} };
   }
 
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session || null);
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    callback(session || null, event);
   });
 
   return data.subscription;
@@ -329,6 +329,40 @@ export async function resendSupabaseSignupConfirmation({ email }) {
   const { data, error } = await supabase.auth.resend({
     type: 'signup',
     email: normalizedEmail,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function requestSupabasePasswordReset({ email, redirectTo }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase no esta configurado.');
+  }
+
+  const normalizedEmail = String(email || '').trim();
+  const validationMessage = validateSupabaseEmail(normalizedEmail);
+  if (validationMessage) throw new Error(validationMessage);
+
+  const { data, error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+    redirectTo,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function updateSupabasePassword({ password }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase no esta configurado.');
+  }
+
+  const normalizedPassword = String(password || '');
+  if (!normalizedPassword) throw new Error('Escribe tu nueva contrasena.');
+  if (normalizedPassword.length < supabasePasswordMinLength) {
+    throw new Error(`La contrasena debe tener minimo ${supabasePasswordMinLength} caracteres.`);
+  }
+
+  const { data, error } = await supabase.auth.updateUser({
+    password: normalizedPassword,
   });
   if (error) throw error;
   return data;
