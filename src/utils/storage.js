@@ -626,7 +626,7 @@ export function loadAppData(storageKey = STORAGE_KEY, options = {}) {
     }
 
     const parsed = JSON.parse(raw);
-    const migrated = migrateAppData(parsed);
+    const migrated = migrateAppData(parsed, { ...options, fallbackState });
 
     logStorage('load:success', {
       storageKey,

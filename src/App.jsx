@@ -20,6 +20,7 @@ import {
   createCleanDefaultState,
   createUserSettings,
   defaultState,
+  STORAGE_KEY,
   USER_PROFILE_LABELS,
   USER_PROFILE_TAB_PRESETS,
 } from './data/defaultState';
@@ -204,8 +205,53 @@ const tabs = [
 
 const tabLabelById = Object.fromEntries(tabs.map((tab) => [tab.id, tab.label]));
 const LOCAL_MODE_CHOICE_KEY = 'mi-diario-local-mode-enabled';
+const LOCAL_PUBLIC_STORAGE_KEY = `${STORAGE_KEY}:local-public`;
 const NEWSLETTER_OPT_IN_CHOICE_KEY = 'mi-diario-newsletter-opt-in';
 const selectableUserProfiles = ['fitness-basic', 'krav-360', 'daniel-full'];
+const privateLocalStateCollections = [
+  'privateCycles',
+  'privateProducts',
+  'privatePayments',
+  'privateHormonalEntries',
+  'privateDailyChecks',
+  'privateCycleMedications',
+];
+
+function readLocalModeChoice(isRemoteSyncEnabled = true) {
+  if (!isRemoteSyncEnabled || typeof window === 'undefined') return !isRemoteSyncEnabled;
+
+  try {
+    return window.localStorage.getItem(LOCAL_MODE_CHOICE_KEY) === 'true';
+  } catch (_error) {
+    return false;
+  }
+}
+
+function createCleanLocalModeState(deviceId = '') {
+  return ensureSyncMeta(createCleanDefaultState(), deviceId || createDeviceId());
+}
+
+function isUnsafePublicLocalState(state = {}) {
+  const enabledTabs = state.userSettings?.enabledTabs || [];
+  const hasPrivateCollections = privateLocalStateCollections.some((key) => Array.isArray(state[key]) && state[key].length > 0);
+  const hasPrivatePin = Boolean(state.privateVault?.pin);
+
+  return (
+    state.profileId !== 'clean' ||
+    state.userSettings?.profileType === 'daniel-full' ||
+    enabledTabs.includes('private') ||
+    hasPrivateCollections ||
+    hasPrivatePin
+  );
+}
+
+function preparePublicLocalState(state, deviceId = '') {
+  if (!state || isUnsafePublicLocalState(state)) {
+    return createCleanLocalModeState(deviceId);
+  }
+
+  return ensureSyncMeta(state, state.syncMeta?.deviceId || deviceId || createDeviceId());
+}
 
 function normalizeAuthEmail(email = '') {
   return String(email || '').trim().toLowerCase();
@@ -763,14 +809,7 @@ function App() {
   const [syncUser, setSyncUser] = useState(null);
   const [newsletterOptInDraft, setNewsletterOptInDraft] = useState(false);
   const [hasChosenLocalMode, setHasChosenLocalMode] = useState(() => {
-    if (!remoteSyncEnabled) return true;
-    if (typeof window === 'undefined') return false;
-
-    try {
-      return window.localStorage.getItem(LOCAL_MODE_CHOICE_KEY) === 'true';
-    } catch (error) {
-      return false;
-    }
+    return readLocalModeChoice(remoteSyncEnabled);
   });
   const [canResendConfirmationEmail, setCanResendConfirmationEmail] = useState(false);
   const [isOnline, setIsOnline] = useState(
@@ -802,7 +841,6 @@ function App() {
   const syncDeviceIdRef = useRef('');
   const latestPersistedDataRef = useRef(defaultState);
   const activeStorageKeyRef = useRef(getUserStorageKey());
-  const hadInitialLocalDataRef = useRef(false);
   const syncDebounceTimeoutRef = useRef(null);
   const skipNextRemoteSyncRef = useRef(false);
   const syncRefreshInFlightRef = useRef(false);
@@ -1103,19 +1141,18 @@ function App() {
   }
 
   useEffect(() => {
-    const initialStorageKey = getUserStorageKey();
+    const shouldUsePublicLocalCache = readLocalModeChoice(remoteSyncEnabled);
+    const initialStorageKey = shouldUsePublicLocalCache ? LOCAL_PUBLIC_STORAGE_KEY : getUserStorageKey();
+    const initialFallbackState = shouldUsePublicLocalCache ? createCleanDefaultState() : defaultState;
     activeStorageKeyRef.current = initialStorageKey;
-    try {
-      hadInitialLocalDataRef.current = Boolean(window.localStorage.getItem(initialStorageKey));
-    } catch (error) {
-      hadInitialLocalDataRef.current = false;
-    }
 
-    const loadedData = loadAppData(initialStorageKey);
-    const preparedData = ensureSyncMeta(
-      loadedData,
-      loadedData?.syncMeta?.deviceId || createDeviceId()
-    );
+    const loadedData = loadAppData(initialStorageKey, {
+      fallbackState: initialFallbackState,
+      profileId: shouldUsePublicLocalCache ? 'clean' : undefined,
+    });
+    const preparedData = shouldUsePublicLocalCache
+      ? preparePublicLocalState(loadedData, loadedData?.syncMeta?.deviceId || createDeviceId())
+      : ensureSyncMeta(loadedData, loadedData?.syncMeta?.deviceId || createDeviceId());
     syncDeviceIdRef.current = preparedData.syncMeta.deviceId;
     latestPersistedDataRef.current = preparedData;
     setDiaryData(preparedData);
@@ -1130,7 +1167,7 @@ function App() {
       });
     }
     setHasLoadedData(true);
-  }, [isDevMode]);
+  }, [isDevMode, remoteSyncEnabled]);
 
   useEffect(() => {
     if (!hasLoadedData) return;
@@ -1162,16 +1199,23 @@ function App() {
   useEffect(() => {
     if (!hasLoadedData || !hasResolvedSyncSession || !remoteSyncEnabled) return;
 
-    const nextStorageKey = getUserStorageKey(syncUser?.id);
+    const isPublicLocalMode = !syncUser?.id && hasChosenLocalMode;
+    const nextStorageKey = syncUser?.id
+      ? getUserStorageKey(syncUser.id)
+      : isPublicLocalMode
+        ? LOCAL_PUBLIC_STORAGE_KEY
+        : getUserStorageKey();
     if (activeStorageKeyRef.current === nextStorageKey) return;
 
-    const fallbackState = syncUser?.id ? createCleanDefaultState() : defaultState;
+    const fallbackState = syncUser?.id || isPublicLocalMode ? createCleanDefaultState() : defaultState;
     activeStorageKeyRef.current = nextStorageKey;
-    const loadedData = loadAppData(nextStorageKey, { fallbackState });
-    const preparedData = ensureSyncMeta(
-      loadedData,
-      loadedData?.syncMeta?.deviceId || syncDeviceIdRef.current || createDeviceId()
-    );
+    const loadedData = loadAppData(nextStorageKey, {
+      fallbackState,
+      profileId: isPublicLocalMode ? 'clean' : undefined,
+    });
+    const preparedData = isPublicLocalMode
+      ? preparePublicLocalState(loadedData, loadedData?.syncMeta?.deviceId || syncDeviceIdRef.current || createDeviceId())
+      : ensureSyncMeta(loadedData, loadedData?.syncMeta?.deviceId || syncDeviceIdRef.current || createDeviceId());
     syncDeviceIdRef.current = preparedData.syncMeta.deviceId;
     latestPersistedDataRef.current = preparedData;
     setDiaryData(preparedData);
@@ -1186,7 +1230,7 @@ function App() {
         collectionCounts: getPersistenceCollectionCounts(preparedData),
       });
     }
-  }, [hasLoadedData, hasResolvedSyncSession, isDevMode, remoteSyncEnabled, syncUser?.id]);
+  }, [hasChosenLocalMode, hasLoadedData, hasResolvedSyncSession, isDevMode, remoteSyncEnabled, syncUser?.id]);
 
   useEffect(() => {
     if (!hasLoadedData || !hasResolvedSyncSession) return;
@@ -3177,6 +3221,7 @@ function lockPrivateModule(feedbackText = '') {
       });
     }
     setActiveTab('dashboard');
+    setSyncFeedback({ type: 'success', text: 'Cuenta lista. Tu modo de uso quedó configurado.' });
   }
 
   function handleUserOnboardingDismiss() {
@@ -3405,18 +3450,18 @@ function lockPrivateModule(feedbackText = '') {
       // The choice is UI-only; local mode still works even if the flag cannot be stored.
     }
 
+    const cleanLocalState = createCleanLocalModeState(syncDeviceIdRef.current || createDeviceId());
+    activeStorageKeyRef.current = LOCAL_PUBLIC_STORAGE_KEY;
+    latestPersistedDataRef.current = cleanLocalState;
+    syncDeviceIdRef.current = cleanLocalState.syncMeta.deviceId;
+    saveAppData(cleanLocalState, LOCAL_PUBLIC_STORAGE_KEY);
     setHasChosenLocalMode(true);
     setActiveTab('dashboard');
     setSyncStatus('local');
-
-    if (!hadInitialLocalDataRef.current && diaryData.profileId === 'daniel-full') {
-      const cleanLocalState = ensureSyncMeta(createCleanDefaultState(), syncDeviceIdRef.current || createDeviceId());
-      latestPersistedDataRef.current = cleanLocalState;
-      saveAppData(cleanLocalState, activeStorageKeyRef.current);
-      setDiaryData(cleanLocalState);
-      applyFormStateFromSnapshot(cleanLocalState);
-      setSyncLastSyncedAt('');
-    }
+    setIsPrivateUnlocked(false);
+    setDiaryData(cleanLocalState);
+    applyFormStateFromSnapshot(cleanLocalState);
+    setSyncLastSyncedAt('');
 
     setSyncFeedback({
       type: 'info',
@@ -3484,8 +3529,8 @@ function lockPrivateModule(feedbackText = '') {
       setSyncFeedback({
         type: 'success',
         text: result?.session
-          ? 'Cuenta creada y sesion iniciada.'
-          : 'Cuenta creada. Revisa tu correo para confirmar la cuenta antes de iniciar sesion.',
+          ? 'Cuenta creada y sesión iniciada.'
+          : 'Cuenta creada. Te enviamos un correo de confirmación. Ábrelo, confirma tu cuenta y después vuelve aquí para iniciar sesión.',
       });
     } catch (error) {
       setSyncStatus(isOnline ? 'error' : 'offline');
@@ -4881,9 +4926,10 @@ function toggleRecommendedSupplement(itemConfig) {
         <section className="auth-landing-card" aria-labelledby="auth-landing-title">
           <div className="auth-landing-copy">
             <p className="eyebrow">BITÁCORA DANIEL</p>
-            <h1 id="auth-landing-title">Ordena tu día en un solo lugar</h1>
+            <h1 id="auth-landing-title">Tu registro diario de hábitos y progreso</h1>
             <p>
-              Registra hábitos, alimentación, ejercicio, emociones y progreso desde tu celular.
+              Crea tu cuenta, confirma tu correo y empieza con una versión simple para registrar hábitos,
+              alimentación, ejercicio y progreso desde tu celular.
             </p>
             <ol className="auth-landing-steps" aria-label="Pasos para empezar">
               <li>
@@ -4896,7 +4942,7 @@ function toggleRecommendedSupplement(itemConfig) {
               </li>
               <li>
                 <span>3</span>
-                <strong>Elige tu perfil</strong>
+                <strong>Elige tu modo de uso</strong>
               </li>
             </ol>
             <div className="auth-landing-benefits" aria-label="Beneficios principales">
@@ -5062,9 +5108,9 @@ function toggleRecommendedSupplement(itemConfig) {
               ×
             </button>
             <p className="eyebrow">Primer acceso</p>
-            <h2 id="profile-onboarding-title">Elige tu perfil</h2>
+            <h2 id="profile-onboarding-title">Elige cómo quieres usar la app</h2>
             <p className="profile-onboarding-copy">
-              Elige cómo quieres usar la app. Puedes cambiarlo después en Ajustes.
+              Puedes empezar simple y cambiarlo después en Ajustes.
             </p>
 
             <div className="profile-onboarding-options">
@@ -5074,7 +5120,7 @@ function toggleRecommendedSupplement(itemConfig) {
                 onClick={() => handleUserOnboardingProfileSelect('fitness-basic')}
               >
                 <span>Fitness basic</span>
-                <small>Nutrición, ayuno, ejercicio, métricas y check-in diario.</small>
+                <small>Para registrar comida, ayuno, ejercicio, métricas y check-in diario.</small>
               </button>
               <button
                 className="profile-onboarding-option"
@@ -5082,7 +5128,7 @@ function toggleRecommendedSupplement(itemConfig) {
                 onClick={() => handleUserOnboardingProfileSelect('krav-360')}
               >
                 <span>Krav 360</span>
-                <small>Krav Maga, entrenamiento, alimentos, métricas y revisión semanal.</small>
+                <small>Para combinar entrenamiento, técnica, alimentación, métricas y revisión semanal.</small>
               </button>
             </div>
 
@@ -5096,7 +5142,7 @@ function toggleRecommendedSupplement(itemConfig) {
             </label>
 
             <button className="button button-secondary profile-onboarding-skip" type="button" onClick={handleUserOnboardingDismiss}>
-              Omitir por ahora
+              Omitir y usar modo básico
             </button>
           </section>
         </div>
@@ -5246,8 +5292,8 @@ function toggleRecommendedSupplement(itemConfig) {
             ) : null}
 
             <SectionCard
-              title="Perfil de uso"
-              subtitle="Controla qué módulos aparecen en la navegación sin borrar datos guardados."
+              title="Modo de uso"
+              subtitle="Controla qué secciones aparecen en la app. Esto solo muestra u oculta módulos; no borra datos guardados."
               className="card-soft settings-profile-card"
             >
               <div className="backup-panel">
@@ -5263,7 +5309,7 @@ function toggleRecommendedSupplement(itemConfig) {
                 </div>
 
                 <label className="field settings-profile-field">
-                  <span>Cambiar perfil</span>
+                  <span>Cambiar modo</span>
                   <select value={userSettings.profileType} onChange={handleUserProfileChange}>
                     {selectableProfilesForSettings.map((profileType) => (
                       <option key={profileType} value={profileType}>
@@ -5282,7 +5328,7 @@ function toggleRecommendedSupplement(itemConfig) {
                 </div>
 
                 <p className="section-helper">
-                  Cambiar perfil solo oculta o muestra tabs. Los datos existentes de los módulos ocultos se conservan.
+                  Cambiar modo solo oculta o muestra secciones. Los datos existentes de los módulos ocultos se conservan.
                 </p>
               </div>
             </SectionCard>
