@@ -1,19 +1,21 @@
+const standardDisclaimer =
+  'La IA puede ayudarte a estimar y ordenar información, pero no da valores exactos ni garantiza resultados. Registra tus datos reales lo mejor posible y, si tienes una condición médica, consulta a un profesional.';
+
 export const welcomeNewsletter = {
-  subject: 'Bienvenido a Bitacora Daniel',
-  preheader: 'Una forma simple de ordenar habitos, progreso y decisiones diarias.',
-  title: 'Empieza simple: registra, revisa y ajusta',
+  subject: 'Bienvenido a Bitácora Daniel',
+  preheader: 'Empieza simple: registra tus hábitos y usa IA como apoyo práctico.',
+  title: 'Tu progreso empieza con un registro honesto',
   intro:
-    'Bienvenido. Bitacora Daniel esta pensada para ayudarte a llevar un registro claro de comida, ejercicio, habitos, check-in y progreso. La clave no es hacerlo perfecto, sino hacerlo constante.',
+    'Bienvenido. Bitácora Daniel está pensada para ayudarte a ordenar comida, ejercicio, hábitos, check-in y progreso físico desde tu celular. No se trata de hacerlo perfecto; se trata de tener claridad y constancia.',
   aiTip:
-    'Puedes usar ChatGPT como apoyo antes de registrar: describe lo que comiste, como entrenaste o como te sentiste, y pide una estimacion practica en lenguaje simple.',
+    'Usa ChatGPT como apoyo externo antes de registrar. Describe lo que comiste, cómo entrenaste o cómo te sentiste, y pídele una estimación simple que puedas pasar a tu bitácora.',
   personalReflection:
-    'La disciplina se construye con evidencia. Cuando registras lo que haces, dejas de depender solo de memoria o sensaciones y empiezas a tomar decisiones con mas claridad.',
+    'La disciplina se vuelve más fuerte cuando tienes evidencia. Registrar tus acciones te ayuda a dejar de depender solo de memoria, culpa o motivación del momento.',
   actionStep:
-    'Hoy registra una comida, un movimiento fisico y un check-in breve. Con eso ya tienes una base real para empezar.',
+    'Hoy registra una comida, una actividad física y un check-in breve. Con eso ya tienes una base real para empezar a mejorar.',
   bitacoraPrompt:
-    'Prompt sugerido: "Ayudame a estimar calorias, proteina, carbohidratos y grasa de esta comida: [describe comida y porciones]. Dame una estimacion simple para registrarla en mi bitacora."',
-  disclaimerNote:
-    'Las respuestas de IA son estimaciones. Registra tus datos reales lo mejor posible y usa criterio personal; esto no sustituye consejo medico o nutricional.',
+    'Prompt sugerido: "Ayúdame a estimar calorías, proteína, carbohidratos y grasa de esta comida: [describe comida y porciones]. Dame una estimación práctica y conservadora para registrarla en mi bitácora."',
+  disclaimerNote: standardDisclaimer,
 };
 
 export const weeklyNewsletterTemplate = {
@@ -25,80 +27,78 @@ export const weeklyNewsletterTemplate = {
   personalReflection: '',
   actionStep: '',
   bitacoraPrompt: '',
-  disclaimerNote:
-    'Las respuestas de IA son estimaciones. Registra tus datos reales lo mejor posible y usa criterio personal; esto no sustituye consejo medico o nutricional.',
+  disclaimerNote: standardDisclaimer,
 };
 
 export const firstFourNewsletters = [
   {
     week: 1,
-    subject: 'Semana 1: usa IA para estimar comida y macros',
-    preheader: 'Aprende a convertir una comida real en datos utiles para tu registro.',
-    title: 'Como estimar comida, calorias y macros con IA',
+    subject: 'Semana 1: estima comida y macros con apoyo de IA',
+    preheader: 'Convierte una comida real en datos útiles para tu registro diario.',
+    title: 'Cómo usar IA para estimar comida, calorías y macros',
     intro:
-      'Esta semana el objetivo es aprender a describir mejor lo que comes para obtener una estimacion mas util. No necesitas pesar todo desde el dia uno; empieza por registrar con honestidad y detalle.',
+      'Esta semana el objetivo es aprender a describir mejor lo que comes para registrar con más claridad. No necesitas pesar todo desde el primer día; empieza por anotar con honestidad y suficiente detalle.',
     aiTip:
-      'Cuando uses ChatGPT, incluye alimento, cantidad aproximada, metodo de preparacion y extras como aceite, salsas, pan, tortillas o bebidas. Mientras mas contexto das, mejor sera la estimacion.',
+      'Cuando uses ChatGPT, incluye alimento, cantidad aproximada, método de preparación y extras como aceite, salsas, pan, tortillas, bebidas o postres. Mientras más contexto des, más útil será la estimación.',
     personalReflection:
-      'La comida no se controla con culpa, se controla con informacion. Una estimacion imperfecta registrada con constancia vale mas que un dia perfecto que nunca se anota.',
+      'La comida no se controla con culpa; se controla con información. Una estimación imperfecta registrada con constancia vale más que un día perfecto que nunca se anota.',
     actionStep:
-      'Elige una comida de hoy y pide a la IA una estimacion de calorias, proteina, carbohidratos y grasa. Luego registra esos datos en Bitacora Daniel.',
+      'Elige una comida de hoy, pide una estimación de calorías y macros, y registra esos datos en Bitácora Daniel.',
     bitacoraPrompt:
-      'Prompt sugerido: "Estima calorias y macros de esta comida: [comida]. Incluye proteina, carbohidratos y grasa. Dame un rango realista y una version simple para registrar."',
-    disclaimerNote:
-      'Las respuestas de IA son estimaciones. Registra tus datos reales lo mejor posible y usa criterio personal; esto no sustituye consejo medico o nutricional.',
+      'Prompt sugerido: "Estima calorías y macros de esta comida: [describe comida, porciones y preparación]. Incluye proteína, carbohidratos y grasa. Dame un rango realista y una versión simple para registrarla."',
+    disclaimerNote: standardDisclaimer,
   },
   {
     week: 2,
-    subject: 'Semana 2: registra entrenamientos con mas claridad',
-    preheader: 'Usa IA para ordenar sesiones, duracion, intensidad y calorias estimadas.',
-    title: 'Como usar IA para registrar ejercicio y calorias quemadas',
+    subject: 'Semana 2: registra tus entrenamientos con más claridad',
+    preheader: 'Usa IA para ordenar duración, intensidad y calorías estimadas.',
+    title: 'Cómo usar IA para registrar ejercicio y calorías quemadas',
     intro:
-      'El ejercicio tambien necesita registro simple. No se trata de adivinar perfecto, sino de capturar que hiciste, cuanto tiempo, con que intensidad y como te sentiste.',
+      'El ejercicio también necesita registro simple. No se trata de adivinar perfecto, sino de capturar qué hiciste, cuánto duró, con qué intensidad y cómo respondió tu cuerpo.',
     aiTip:
-      'Describe tu entrenamiento con duracion, tipo de actividad, intensidad, peso corporal aproximado y pausas. Pide una estimacion conservadora de calorias quemadas y un resumen corto para registrar.',
+      'Describe tu entrenamiento con duración, tipo de actividad, intensidad, peso corporal aproximado y pausas. Pide una estimación conservadora de calorías quemadas y un resumen breve para registrar.',
     personalReflection:
-      'Entrenar sin registro puede sentirse bien, pero registrar te permite ver constancia. La bitacora convierte esfuerzo en evidencia.',
+      'Entrenar se siente bien, pero registrar te permite ver constancia. La bitácora convierte esfuerzo suelto en evidencia acumulada.',
     actionStep:
-      'Registra un entrenamiento de esta semana con nombre, duracion, intensidad y calorias estimadas. Si dudas, usa una estimacion conservadora.',
+      'Registra un entrenamiento esta semana con nombre, duración, intensidad y calorías estimadas. Si dudas, usa una estimación conservadora.',
     bitacoraPrompt:
-      'Prompt sugerido: "Peso aproximadamente [peso]. Hice [actividad] durante [minutos] a intensidad [baja/media/alta]. Estima calorias quemadas de forma conservadora y dame una nota breve para mi registro."',
+      'Prompt sugerido: "Peso aproximadamente [peso]. Hice [actividad] durante [minutos] a intensidad [baja/media/alta], con [pausas o detalles]. Estima calorías quemadas de forma conservadora y dame una nota breve para mi registro."',
     disclaimerNote:
-      'Las calorias quemadas son aproximadas y pueden variar mucho por persona, intensidad y dispositivo. Usa la estimacion como referencia, no como verdad exacta.',
+      'Las calorías quemadas son aproximadas y pueden variar mucho por persona, intensidad, técnica y dispositivo. Usa la estimación como referencia, no como verdad exacta.',
   },
   {
     week: 3,
-    subject: 'Semana 3: entiende peso, grasa, musculo y medidas',
-    preheader: 'Aprende a leer progreso sin depender de un solo numero.',
-    title: 'Como interpretar tus metricas corporales con mejor criterio',
+    subject: 'Semana 3: entiende peso, grasa, músculo y medidas',
+    preheader: 'Aprende a leer progreso sin depender de un solo número.',
+    title: 'Cómo interpretar tus métricas corporales con mejor criterio',
     intro:
-      'El peso es importante, pero no cuenta toda la historia. Tambien importan grasa corporal, masa muscular, cintura, pecho, brazo, pierna y tendencia en el tiempo.',
+      'El peso importa, pero no cuenta toda la historia. También conviene revisar grasa corporal, masa muscular, cintura, pecho, brazo, pierna y tendencia en el tiempo.',
     aiTip:
-      'Puedes pedir a ChatGPT que te ayude a interpretar cambios entre dos fechas. Incluye peso, porcentaje de grasa, masa muscular y medidas. Pide una lectura objetiva, sin exagerar conclusiones.',
+      'Puedes pedir a ChatGPT que te ayude a comparar cambios entre dos fechas. Incluye peso, porcentaje de grasa, masa muscular y medidas. Pide una lectura objetiva, sin diagnóstico médico ni conclusiones exageradas.',
     personalReflection:
-      'La paciencia tambien es disciplina. Una semana puede verse rara; varias semanas juntas muestran direccion. No te castigues por una medicion aislada.',
+      'La paciencia también es disciplina. Una semana puede verse rara; varias semanas juntas muestran dirección. No te castigues por una medición aislada.',
     actionStep:
-      'Registra una medicion corporal o revisa tu ultima comparacion. Observa que subio, que bajo y que conviene ajustar esta semana.',
+      'Registra una medición corporal o revisa tu última comparación. Observa qué subió, qué bajó y qué ajuste pequeño conviene hacer esta semana.',
     bitacoraPrompt:
-      'Prompt sugerido: "Compara estas dos mediciones: [fecha 1 con datos] y [fecha 2 con datos]. Dime cambios principales en peso, grasa, musculo y cintura, sin dar diagnostico medico."',
+      'Prompt sugerido: "Compara estas dos mediciones: [fecha 1 con datos] y [fecha 2 con datos]. Dime cambios principales en peso, grasa, músculo y medidas. No des diagnóstico médico; dame una lectura práctica para ajustar hábitos."',
     disclaimerNote:
-      'Las metricas corporales tienen margen de error. Usa tendencias y registros repetidos; para temas medicos consulta a un profesional.',
+      'Las métricas corporales tienen margen de error. Usa tendencias y registros repetidos; para temas médicos o clínicos consulta a un profesional.',
   },
   {
     week: 4,
-    subject: 'Semana 4: disciplina diaria y consistencia',
-    preheader: 'El progreso se sostiene con habitos pequenos, honestidad y seguimiento.',
-    title: 'Disciplina diaria: registra aunque el dia no sea perfecto',
+    subject: 'Semana 4: disciplina diaria y consistencia real',
+    preheader: 'El progreso se sostiene con hábitos pequeños, honestidad y seguimiento.',
+    title: 'Registra aunque el día no sea perfecto',
     intro:
-      'La bitacora no es para presumir dias perfectos. Es para sostener conciencia, corregir rapido y volver al camino cuando algo se desordena.',
+      'La bitácora no es para presumir días perfectos. Es para sostener conciencia, corregir rápido y volver al camino cuando algo se desordena.',
     aiTip:
-      'Usa ChatGPT para hacer cierres breves del dia: que salio bien, que se puede corregir y cual es la accion simple de manana. No necesitas una respuesta larga.',
+      'Usa ChatGPT para cerrar el día en pocas líneas: qué salió bien, qué se puede corregir y cuál es la acción simple para mañana. No necesitas una respuesta larga.',
     personalReflection:
-      'El testimonio se construye en lo ordinario: comer mejor, moverse, descansar, orar o reflexionar, y volver a intentarlo sin drama. La constancia tambien es una forma de respeto propio.',
+      'El testimonio se construye en lo ordinario: comer mejor, moverse, descansar, orar o reflexionar, y volver a intentarlo sin drama. La constancia también es una forma de respeto propio.',
     actionStep:
-      'Haz tu check-in diario y escribe una nota honesta de una linea: que hiciste bien y que vas a cuidar manana.',
+      'Haz tu check-in diario y escribe una nota honesta de una línea: qué hiciste bien y qué vas a cuidar mañana.',
     bitacoraPrompt:
-      'Prompt sugerido: "Con base en mi dia: [resume comida, ejercicio, energia, sueno y emociones], dame una reflexion breve y una accion concreta para manana."',
+      'Prompt sugerido: "Con base en mi día: [resume comida, ejercicio, energía, sueño y emociones], dame una reflexión breve, una corrección concreta y una acción simple para mañana."',
     disclaimerNote:
       'La IA puede ayudarte a ordenar ideas, pero tus decisiones y registros reales son la base. No promete resultados garantizados.',
   },
