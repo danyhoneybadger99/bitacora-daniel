@@ -3579,7 +3579,7 @@ function lockPrivateModule(feedbackText = '') {
         type: 'success',
         text: result?.session
           ? 'Cuenta creada y sesión iniciada.'
-          : 'Cuenta creada. Te enviamos un correo de confirmación. Ábrelo, confirma tu cuenta y después vuelve aquí para iniciar sesión.',
+          : 'Cuenta creada. Te enviamos un correo de confirmación. Ábrelo, confirma tu cuenta y vuelve aquí para iniciar sesión. Si no lo ves, revisa también la carpeta de spam.',
       });
     } catch (error) {
       setSyncStatus(isOnline ? 'error' : 'offline');
@@ -4981,8 +4981,8 @@ function toggleRecommendedSupplement(itemConfig) {
             <p className="eyebrow">BITÁCORA DANIEL</p>
             <h1 id="auth-landing-title">Tu registro diario de hábitos y progreso</h1>
             <p>
-              Crea tu cuenta, confirma tu correo y empieza con una versión simple para registrar hábitos,
-              alimentación, ejercicio y progreso desde tu celular.
+              Registra comida, ejercicio, hábitos y avances desde tu celular. Crea una cuenta para guardar tus
+              datos por separado.
             </p>
             <ol className="auth-landing-steps" aria-label="Pasos para empezar">
               <li>
@@ -4991,11 +4991,11 @@ function toggleRecommendedSupplement(itemConfig) {
               </li>
               <li>
                 <span>2</span>
-                <strong>Confirma tu correo</strong>
+                <strong>Confirma el correo que te enviamos</strong>
               </li>
               <li>
                 <span>3</span>
-                <strong>Elige tu modo de uso</strong>
+                <strong>Elige cómo quieres usar la app</strong>
               </li>
             </ol>
             <div className="auth-landing-benefits" aria-label="Beneficios principales">
@@ -5012,8 +5012,8 @@ function toggleRecommendedSupplement(itemConfig) {
           ) : (
             <form className="auth-landing-form" onSubmit={handleSyncSignIn}>
               <div className="auth-landing-form-head">
-                <strong>Empieza con tu cuenta</strong>
-                <span>Usa tu correo y una contraseña de mínimo 6 caracteres.</span>
+                <strong>Crea tu cuenta o inicia sesión</strong>
+                <span>Usa tu correo y una contraseña de al menos 6 caracteres.</span>
               </div>
               <label className="field">
                 <span>Correo</span>
@@ -5053,7 +5053,7 @@ function toggleRecommendedSupplement(itemConfig) {
                   checked={newsletterOptInDraft}
                   onChange={(event) => setNewsletterOptInDraft(event.target.checked)}
                 />
-                <span>Acepto recibir correos semanales con tips de bienestar, hábitos y progreso.</span>
+                <span>Quiero recibir tips semanales por correo.</span>
               </label>
 
               <div className="auth-landing-actions">
@@ -5072,6 +5072,7 @@ function toggleRecommendedSupplement(itemConfig) {
                 <button className="button button-secondary" type="button" onClick={handleContinueWithoutAccount}>
                   Solo probar en este dispositivo
                 </button>
+                <p className="auth-landing-action-note">No se sincroniza con otros dispositivos.</p>
               </div>
               <button
                 className="button button-ghost auth-landing-resend"
@@ -5173,7 +5174,7 @@ function toggleRecommendedSupplement(itemConfig) {
                 onClick={() => handleUserOnboardingProfileSelect('fitness-basic')}
               >
                 <span>Fitness basic</span>
-                <small>Para registrar comida, ayuno, ejercicio, métricas y check-in diario.</small>
+                <small>Para registrar comida, ejercicio, hábitos, métricas y check-in diario.</small>
               </button>
               <button
                 className="profile-onboarding-option"
@@ -5312,7 +5313,7 @@ function toggleRecommendedSupplement(itemConfig) {
             {syncUser ? (
               <SectionCard
                 title="Cuenta"
-                subtitle="Sesion actual y acceso para cambiar de cuenta sin borrar datos guardados."
+                subtitle="Aquí puedes ver tu correo, revisar la sincronización o cambiar de cuenta."
                 className="card-soft settings-account-card"
               >
                 <div className="settings-account-panel">
@@ -5322,11 +5323,11 @@ function toggleRecommendedSupplement(itemConfig) {
                       <strong>{syncUserLabel}</strong>
                     </div>
                     <div className="backup-meta-card">
-                      <span>Perfil actual</span>
+                      <span>Modo actual</span>
                       <strong>{USER_PROFILE_LABELS[userSettings.profileType] || userSettings.profileType}</strong>
                     </div>
                     <div className="backup-meta-card">
-                      <span>Estado de sincronizacion</span>
+                      <span>Estado de sincronización</span>
                       <strong>{syncStatusLabel}</strong>
                     </div>
                   </div>
@@ -5338,7 +5339,7 @@ function toggleRecommendedSupplement(itemConfig) {
                   </div>
 
                   <p className="helper-text">
-                    Cerrar sesión no borra snapshots remotos, caches locales de otros usuarios, PIN ni datos privados.
+                    Cerrar sesión no borra tus datos guardados.
                   </p>
                 </div>
               </SectionCard>
@@ -5346,7 +5347,7 @@ function toggleRecommendedSupplement(itemConfig) {
 
             <SectionCard
               title="Modo de uso"
-              subtitle="Controla qué secciones aparecen en la app. Esto solo muestra u oculta módulos; no borra datos guardados."
+              subtitle="Elige qué secciones quieres ver en la app. Esto no borra tus datos."
               className="card-soft settings-profile-card"
             >
               <div className="backup-panel">
@@ -5356,7 +5357,7 @@ function toggleRecommendedSupplement(itemConfig) {
                     <strong>{USER_PROFILE_LABELS[userSettings.profileType] || userSettings.profileType}</strong>
                   </div>
                   <div className="backup-meta-card">
-                    <span>Tabs visibles</span>
+                    <span>Secciones visibles</span>
                     <strong>{enabledTabIds.length}</strong>
                   </div>
                 </div>
@@ -5381,7 +5382,7 @@ function toggleRecommendedSupplement(itemConfig) {
                 </div>
 
                 <p className="section-helper">
-                  Cambiar modo solo oculta o muestra secciones. Los datos existentes de los módulos ocultos se conservan.
+                  Puedes cambiar de modo cuando quieras. Las secciones ocultas conservan sus datos.
                 </p>
               </div>
             </SectionCard>
