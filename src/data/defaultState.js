@@ -1,5 +1,5 @@
 import { repairPrivateCycle2026Data } from '../utils/domain/private';
-import { createEmptyKravSettings, createOrangeKravCurriculum } from '../utils/domain/krav';
+import { applyDanielKravPracticeSeed, createEmptyKravSettings, mergeDanielKravCurriculum } from '../utils/domain/krav';
 import { createInitialMetricSeed, createRecentManualMetricSeed } from '../utils/domain/metrics';
 import { createDanielSpiritualWeeklySeeds } from '../utils/domain/checkIn';
 import { getToday } from '../utils/date';
@@ -272,6 +272,7 @@ export function createCleanDefaultState() {
     kravSettings: {
       currentBelt: '',
       targetBelt: '',
+      activeCurriculumBelt: '',
       examDate: '',
       forgottenThresholdDays: '5',
     },
@@ -287,6 +288,10 @@ export function createCleanDefaultState() {
 
 export function createDanielDefaultState() {
   const privateSeedData = createPrivateSeedData();
+  const seededKrav = applyDanielKravPracticeSeed({
+    curriculum: mergeDanielKravCurriculum([]),
+    practiceLogs: [],
+  });
 
   return {
     profileId: 'daniel-full',
@@ -308,8 +313,8 @@ export function createDanielDefaultState() {
     privateHormonalEntries: privateSeedData.privateHormonalEntries,
     privateDailyChecks: privateSeedData.privateDailyChecks,
     privateCycleMedications: privateSeedData.privateCycleMedications,
-    kravCurriculum: createOrangeKravCurriculum(),
-    kravPracticeLogs: [],
+    kravCurriculum: seededKrav.curriculum,
+    kravPracticeLogs: seededKrav.practiceLogs,
     kravSettings: createEmptyKravSettings(),
     privateVault: createDefaultPrivateVault(),
     privateSeedVersion: privateSeedData.privateSeedVersion,

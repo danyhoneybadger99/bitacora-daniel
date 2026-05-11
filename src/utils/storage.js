@@ -1,6 +1,6 @@
 import { createCleanDefaultState, createUserSettings, defaultState, STORAGE_KEY } from '../data/defaultState';
 import { mergeDanielSpiritualWeeklySeeds, normalizeDailyCheckIn, normalizeSpiritualWeeklyCheck } from './domain/checkIn';
-import { createEmptyKravSettings, mergeOrangeKravCurriculum } from './domain/krav';
+import { applyDanielKravPracticeSeed, createEmptyKravSettings, mergeDanielKravCurriculum } from './domain/krav';
 import { mergeInitialMetricSeed } from './domain/metrics';
 import { repairPrivateCycle2026Data } from './domain/private';
 import { normalizeDateString } from './date';
@@ -242,7 +242,7 @@ function normalizePrivateCycleMedications(items) {
 
 function normalizeKravCurriculum(items, { applySeed = true } = {}) {
   const sourceItems = applySeed
-    ? mergeOrangeKravCurriculum(items)
+    ? mergeDanielKravCurriculum(items)
     : Array.isArray(items)
       ? items
       : [];
@@ -253,6 +253,9 @@ function normalizeKravCurriculum(items, { applySeed = true } = {}) {
     category: item.category ?? 'striking',
     stage: item.stage ?? 'etapa1',
     curriculumBelt: item.curriculumBelt ?? 'amarilla',
+    targetBelt: item.targetBelt ?? '',
+    status: item.status ?? 'pending',
+    seededAt: item.seededAt ?? '',
     description: item.description ?? '',
     tips: item.tips ?? '',
     videoUrl: item.videoUrl ?? '',
@@ -279,8 +282,8 @@ function normalizeKravPracticeLogs(items) {
     : [];
 }
 
-function normalizeKravSettings(item) {
-  const base = createEmptyKravSettings();
+function normalizeKravSettings(item, fallbackState = defaultState) {
+  const base = fallbackState.kravSettings || createEmptyKravSettings();
   if (!item || typeof item !== 'object' || Array.isArray(item)) return base;
   const incomingCurrentBelt = item.currentBelt ?? base.currentBelt;
   const incomingTargetBelt = item.targetBelt ?? base.targetBelt;
@@ -294,6 +297,7 @@ function normalizeKravSettings(item) {
   return {
     currentBelt,
     targetBelt,
+    activeCurriculumBelt: item.activeCurriculumBelt ?? targetBelt ?? base.activeCurriculumBelt ?? '',
     examDate: normalizeDateString(item.examDate) || base.examDate,
     forgottenThresholdDays: item.forgottenThresholdDays ?? base.forgottenThresholdDays,
   };
@@ -579,6 +583,15 @@ export function migrateAppData(parsed = {}, options = {}) {
     applySeed: shouldApplyDanielSeeds,
   });
   const normalizedKravPracticeLogs = normalizeKravPracticeLogs(parsed.kravPracticeLogs);
+  const seededKrav = shouldApplyDanielSeeds
+    ? applyDanielKravPracticeSeed({
+        curriculum: normalizedKravCurriculum,
+        practiceLogs: normalizedKravPracticeLogs,
+      })
+    : {
+        curriculum: normalizedKravCurriculum,
+        practiceLogs: normalizedKravPracticeLogs,
+      };
   const seededPrivate = shouldApplyDanielSeeds
     ? repairPrivateCycle2026Data({
         privateCycles: normalizedPrivateCycles,
@@ -623,9 +636,9 @@ export function migrateAppData(parsed = {}, options = {}) {
     privateHormonalEntries: seededPrivate.privateHormonalEntries,
     privateDailyChecks: seededPrivate.privateDailyChecks,
     privateCycleMedications: seededPrivate.privateCycleMedications,
-    kravCurriculum: normalizedKravCurriculum,
-    kravPracticeLogs: normalizedKravPracticeLogs,
-    kravSettings: normalizeKravSettings(parsed.kravSettings),
+    kravCurriculum: seededKrav.curriculum,
+    kravPracticeLogs: seededKrav.practiceLogs,
+    kravSettings: normalizeKravSettings(parsed.kravSettings, fallbackState),
     privateVault: normalizePrivateVault(parsed.privateVault, fallbackState),
     privateSeedVersion: seededPrivate.privateSeedVersion,
     objectives: normalizeObjectives(parsed.objectives, fallbackState),

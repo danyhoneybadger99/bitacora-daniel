@@ -293,7 +293,7 @@ export default function DashboardTab(props) {
                 ? `Objetivo: cinta ${String(kravDashboardSnapshot.targetBelt).toLowerCase()}`
                 : 'Objetivo pendiente'}
             </span>
-            <span>{`${kravDashboardSnapshot.pendingTechniques} pendientes`}</span>
+            <span>{`${kravDashboardSnapshot.pendingTechniques} por dominar`}</span>
           </div>
           <small className="dashboard-krav-next" title={kravDashboardSnapshot.nextTechniqueName}>
             Próxima: {kravDashboardSnapshot.nextTechniqueName}

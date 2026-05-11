@@ -7,12 +7,38 @@ export const kravCategoryLabels = {
   grappling: 'Grappling',
   sparring: 'Sparring',
   acondicionamiento: 'Acondicionamiento',
+  'warm-up-360': 'Warm Up 360',
+  herramientas: 'Herramientas',
+  'defensa-interna': 'Defensa personal de pie - defensa interna',
+  'golpes-curvos': 'Golpes curvos',
+  'abrazo-oso-frente': 'Abrazo de oso frente',
+  'abrazo-oso-espalda': 'Abrazo de oso espalda',
+  'candados-cuello': 'Candados de cuello',
+  'candado-lateral-cuello': 'Candado lateral de cuello',
+  'ahorcamiento-frente': 'Ahorcamiento de frente',
+  'ahorcamiento-espalda': 'Ahorcamiento de espalda',
+  'armas-bate': 'Armas - bate',
+  'armas-cuchillo-frontal': 'Armas - cuchillo frontal',
+  'armas-pistola-frontal': 'Armas - pistola frontal',
+  lucha: 'Lucha',
+  'romper-caida-piso': 'Defensa personal piso - romper caída',
+  'guardia-piso': 'Guardia de piso',
+  'patada-frontal-piso': 'Patada frontal de piso',
+  'movimientos-fundamentales': 'Movimientos fundamentales',
+  flujo: 'Flujo',
+  'stiff-arm': 'Stiff arm',
+  llaves: 'Llaves',
+  'striking-sombra': 'Striking - sombra',
+  'golpeo-1-10': 'Golpeo 1-10',
+  combos: 'Combos',
+  'sparring-kick-boxing': 'Sparring - kick boxing',
 };
 
 export const kravStageLabels = {
   etapa1: 'Etapa 1',
   etapa2: 'Etapa 2',
   etapa3: 'Etapa 3',
+  etapa4: 'Etapa 4',
 };
 
 export const kravCoachOptions = [
@@ -20,6 +46,38 @@ export const kravCoachOptions = [
   { value: 'jesus', label: 'Jesús' },
   { value: 'otro', label: 'Otro' },
 ];
+
+const kravProgressCategoryMap = {
+  'warm-up-360': 'striking',
+  herramientas: 'striking',
+  'striking-sombra': 'striking',
+  'golpeo-1-10': 'striking',
+  combos: 'striking',
+  'defensa-interna': 'defensa-personal',
+  'golpes-curvos': 'defensa-personal',
+  'abrazo-oso-frente': 'defensa-personal',
+  'abrazo-oso-espalda': 'defensa-personal',
+  'candados-cuello': 'defensa-personal',
+  'candado-lateral-cuello': 'defensa-personal',
+  'ahorcamiento-frente': 'defensa-personal',
+  'ahorcamiento-espalda': 'defensa-personal',
+  'armas-bate': 'defensa-personal',
+  'armas-cuchillo-frontal': 'defensa-personal',
+  'armas-pistola-frontal': 'defensa-personal',
+  lucha: 'grappling',
+  'romper-caida-piso': 'grappling',
+  'guardia-piso': 'grappling',
+  'patada-frontal-piso': 'grappling',
+  'movimientos-fundamentales': 'grappling',
+  flujo: 'grappling',
+  'stiff-arm': 'grappling',
+  llaves: 'grappling',
+  'sparring-kick-boxing': 'sparring',
+};
+
+function getKravProgressCategory(category = '') {
+  return kravProgressCategoryMap[category] || category;
+}
 
 function slugify(text = '') {
   return String(text)
@@ -44,6 +102,24 @@ function createTechnique({ name, category, stage, description = '', tips = '', v
     lastPracticedAt: '',
     notes: '',
     isExamRelevant: true,
+  };
+}
+
+function createGreenTechnique({ name, category, stage }) {
+  const categoryLabel = kravCategoryLabels[category] || category;
+  return {
+    ...createTechnique({
+      name,
+      category,
+      stage,
+      curriculumBelt: 'verde',
+      description: `Currículo de cinta verde · ${categoryLabel}.`,
+      tips: '',
+    }),
+    id: `krav-verde-${stage}-${category}-${slugify(name)}`,
+    targetBelt: 'verde',
+    status: 'pending',
+    seededAt: '2026-05-11',
   };
 }
 
@@ -108,8 +184,76 @@ const orangeCurriculumSeed = [
   createTechnique({ name: 'Grappling dominar posición', category: 'grappling', stage: 'etapa3', description: 'Control de posición dominante en grappling.', tips: 'Piensa primero en controlar antes de finalizar.' }),
 ];
 
+const greenCurriculumGroups = [
+  { stage: 'etapa1', category: 'warm-up-360', names: ['Guardia con golpeo 1-2', 'Guardia con desplaces y golpeo 1-2 frente', 'Guardia con desplaces y golpeo 1-2 espalda', 'Codazos ambos brazos', 'Rodilla frontal ambas piernas', 'Patada frontal ambas piernas', 'Romper caída frente', 'Romper caída espalda suave', 'Romper caída espalda duro', 'Puentes', 'Camarones'] },
+  { stage: 'etapa1', category: 'herramientas', names: ['Arm drag', 'Pummeling', 'Codazos horizontales frontal', 'Codazos horizontales lateral', 'Codazos horizontales trasero', 'Codazos verticales abajo atrás', 'Codazos verticales arriba', 'Codazos verticales atrás', 'Codazos verticales ascendente', 'Codazos verticales descendente', '360 con contraataque'] },
+  { stage: 'etapa2', category: 'defensa-interna', names: ['Defensa interna simultáneo arriba', 'Defensa interna simultáneo abajo', 'Defensa interna uno y medio', 'Defensa interna esquivando', 'Defensa interna izquierda vs izquierda'] },
+  { stage: 'etapa2', category: 'distancias', names: ['Empujando', 'Uno y medio', 'Doble under-hook', 'Derribo de una pierna'] },
+  { stage: 'etapa2', category: 'golpes-curvos', names: ['Defensa de casco', 'Abajo', 'Esquivando'] },
+  { stage: 'etapa2', category: 'abrazo-oso-frente', names: ['Brazos atrapados', 'Brazos libres', 'Cargado atrapado', 'Cargado libre'] },
+  { stage: 'etapa2', category: 'abrazo-oso-espalda', names: ['Brazos atrapados arriba', 'Brazos atrapados abajo', 'Brazos libres', 'Opción nudillos'] },
+  { stage: 'etapa2', category: 'candados-cuello', names: ['Intento de mata-león', 'Guillotina'] },
+  { stage: 'etapa2', category: 'candado-lateral-cuello', names: ['A tiempo', 'Tardío'] },
+  { stage: 'etapa2', category: 'ahorcamiento-frente', names: ['Media distancia', 'Corta distancia', 'Muy corta distancia', 'Empujando', 'Contra la pared'] },
+  { stage: 'etapa2', category: 'ahorcamiento-espalda', names: ['Jalando', 'Empujando', 'Vs pared dinámico pierna', 'Vs pared dinámico palmas', 'Vs pared dinámico antebrazos', 'Vs pared dinámico codos', 'Vs pared estático'] },
+  { stage: 'etapa2', category: 'armas-bate', names: ['Descendente lado vivo', 'Descendente lado muerto', 'Cuerpo'] },
+  { stage: 'etapa2', category: 'armas-cuchillo-frontal', names: ['Amenaza'] },
+  { stage: 'etapa2', category: 'armas-pistola-frontal', names: ['Barril', 'Antebrazo', 'Uno y medio'] },
+  { stage: 'etapa3', category: 'lucha', names: ['Sprawl frontal', 'Derribo O Soto Gari'] },
+  { stage: 'etapa3', category: 'romper-caida-piso', names: ['Encuadre', 'Guardia sentado', 'Levantarse'] },
+  { stage: 'etapa3', category: 'guardia-piso', names: ['Boca arriba', 'Sentado'] },
+  { stage: 'etapa3', category: 'patada-frontal-piso', names: ['Derecha', 'Izquierda'] },
+  { stage: 'etapa3', category: 'movimientos-fundamentales', names: ['Puente', 'Camarón', 'Guardia sentado', 'Stiff arm'] },
+  { stage: 'etapa3', category: 'flujo', names: ['Bravo series'] },
+  { stage: 'etapa3', category: 'stiff-arm', names: ['Dos piernas', 'Una pierna', 'Guardia completa'] },
+  { stage: 'etapa3', category: 'llaves', names: ['Montado armbar', 'Full guard triángulo', 'Seat belt mata-león', 'Control lateral americana'] },
+  { stage: 'etapa3', category: 'striking-sombra', names: ['Ofensivo', 'Defensivo', 'Foot work'] },
+  { stage: 'etapa3', category: 'golpeo-1-10', names: ['Slips', 'Unders', 'Covers', 'Parrys', 'Leanings'] },
+  { stage: 'etapa3', category: 'combos', names: ['Combo holandés', 'Serie de codos 1', 'Serie de codos 2', 'Combo Sensei', 'Combo Dekker general', 'Combo Dekker progresivo 1', 'Combo Dekker progresivo 2'] },
+  { stage: 'etapa4', category: 'sparring-kick-boxing', names: ['Light sparring', 'Sin derribos', 'Sin codos y rodillas'] },
+  { stage: 'etapa4', category: 'lucha', names: ['Pummeling', 'Toma de espalda'] },
+  { stage: 'etapa4', category: 'grappling', names: ['Dominar posición', 'Sumisiones'] },
+];
+
+const greenCurriculumSeed = greenCurriculumGroups.flatMap((group) =>
+  group.names.map((name) => createGreenTechnique({ name, category: group.category, stage: group.stage }))
+);
+
+const danielFirstOrangePracticeDate = '2026-05-11';
+const danielFirstOrangePracticeTechniqueIds = [
+  'krav-verde-etapa3-combos-combo-dekker-progresivo-1',
+  'krav-verde-etapa2-armas-cuchillo-frontal-amenaza',
+];
+
+export function createDanielFirstOrangePracticeLog() {
+  return {
+    id: 'krav-practice-daniel-orange-first-2026-05-11',
+    date: danielFirstOrangePracticeDate,
+    startTime: '08:00',
+    endTime: '09:00',
+    coach: 'otro',
+    coachCustomName: 'Jesús Flores',
+    techniqueIds: [...danielFirstOrangePracticeTechniqueIds],
+    sparring: 'no',
+    currentBelt: 'naranja',
+    targetBelt: 'verde',
+    type: 'Krav Maga / técnica',
+    description: 'Primer entrenamiento como cinta naranja.',
+    observations:
+      'Primer entrenamiento como cinta naranja. Se practicó Combo Dekker 1 y técnica de desarme ante amenaza con cuchillo. Enfoque principal: adaptación al currículo de cinta verde, coordinación, reacción inicial y ejecución técnica limpia.',
+    mistakes: '',
+    reviewNeeded:
+      'Repasar entradas del Combo Dekker 1, fluidez entre golpes y reacción inicial ante amenaza con cuchillo. Priorizar control, distancia y ejecución segura antes de subir nivel.',
+    seededAt: danielFirstOrangePracticeDate,
+  };
+}
+
 export function createOrangeKravCurriculum() {
   return orangeCurriculumSeed.map((item) => ({ ...item }));
+}
+
+export function createGreenKravCurriculum() {
+  return greenCurriculumSeed.map((item) => ({ ...item }));
 }
 
 export function mergeOrangeKravCurriculum(existing = []) {
@@ -149,6 +293,105 @@ export function mergeOrangeKravCurriculum(existing = []) {
   return merged;
 }
 
+export function mergeGreenKravCurriculum(existing = []) {
+  const current = Array.isArray(existing) ? existing : [];
+  const seeded = createGreenKravCurriculum();
+  const merged = [...current];
+
+  seeded.forEach((seedTechnique) => {
+    const seedKey = [
+      seedTechnique.curriculumBelt,
+      seedTechnique.stage,
+      seedTechnique.category,
+      slugify(seedTechnique.name),
+    ].join('|');
+    const existingIndex = merged.findIndex((item) => {
+      const itemKey = [
+        item?.curriculumBelt,
+        item?.stage,
+        item?.category,
+        slugify(item?.name || ''),
+      ].join('|');
+      return item?.id === seedTechnique.id || itemKey === seedKey;
+    });
+
+    if (existingIndex >= 0) {
+      const currentTechnique = merged[existingIndex];
+      merged[existingIndex] = {
+        ...seedTechnique,
+        ...currentTechnique,
+        id: currentTechnique.id || seedTechnique.id,
+        curriculumBelt: currentTechnique.curriculumBelt || seedTechnique.curriculumBelt,
+        targetBelt: currentTechnique.targetBelt || seedTechnique.targetBelt,
+        status: currentTechnique.status || seedTechnique.status,
+        seededAt: currentTechnique.seededAt || seedTechnique.seededAt,
+        level: Number.isFinite(Number(currentTechnique.level)) ? Number(currentTechnique.level) : seedTechnique.level,
+        lastPracticedAt: normalizeDateString(currentTechnique.lastPracticedAt) || seedTechnique.lastPracticedAt,
+        isExamRelevant:
+          typeof currentTechnique.isExamRelevant === 'boolean' ? currentTechnique.isExamRelevant : seedTechnique.isExamRelevant,
+      };
+      return;
+    }
+
+    merged.push(seedTechnique);
+  });
+
+  return merged;
+}
+
+export function mergeDanielKravCurriculum(existing = []) {
+  return mergeGreenKravCurriculum(mergeOrangeKravCurriculum(existing));
+}
+
+export function applyDanielFirstOrangePracticeToCurriculum(curriculum = []) {
+  const targetIds = new Set(danielFirstOrangePracticeTechniqueIds);
+  return (Array.isArray(curriculum) ? curriculum : []).map((item) => {
+    if (!targetIds.has(item?.id)) return item;
+
+    return {
+      ...item,
+      lastPracticedAt: normalizeDateString(item.lastPracticedAt) || danielFirstOrangePracticeDate,
+    };
+  });
+}
+
+function hasDanielFirstOrangePracticeLog(logs = []) {
+  const seedLog = createDanielFirstOrangePracticeLog();
+  return (Array.isArray(logs) ? logs : []).some((item) => {
+    if (item?.id === seedLog.id) return true;
+    const itemTechniqueIds = Array.isArray(item?.techniqueIds) ? item.techniqueIds : [];
+    return (
+      normalizeDateString(item?.date) === seedLog.date &&
+      danielFirstOrangePracticeTechniqueIds.every((techniqueId) => itemTechniqueIds.includes(techniqueId))
+    );
+  });
+}
+
+export function mergeDanielFirstOrangePracticeLog(existing = []) {
+  const current = Array.isArray(existing) ? existing : [];
+  if (hasDanielFirstOrangePracticeLog(current)) {
+    return current.map((item) => {
+      if (item?.id !== 'krav-practice-daniel-orange-first-2026-05-11') return item;
+      return {
+        ...createDanielFirstOrangePracticeLog(),
+        ...item,
+        techniqueIds: Array.isArray(item.techniqueIds) && item.techniqueIds.length > 0
+          ? item.techniqueIds
+          : [...danielFirstOrangePracticeTechniqueIds],
+      };
+    });
+  }
+
+  return [createDanielFirstOrangePracticeLog(), ...current];
+}
+
+export function applyDanielKravPracticeSeed({ curriculum = [], practiceLogs = [] } = {}) {
+  return {
+    curriculum: applyDanielFirstOrangePracticeToCurriculum(curriculum),
+    practiceLogs: mergeDanielFirstOrangePracticeLog(practiceLogs),
+  };
+}
+
 export function createEmptyKravPracticeLog() {
   return {
     date: getToday(),
@@ -166,6 +409,7 @@ export function createEmptyKravSettings() {
   return {
     currentBelt: 'naranja',
     targetBelt: 'verde',
+    activeCurriculumBelt: 'verde',
     examDate: '',
     forgottenThresholdDays: '5',
   };
@@ -192,7 +436,7 @@ export function buildKravProgress(curriculum = []) {
   const items = Array.isArray(curriculum) ? curriculum : [];
   const categories = ['striking', 'defensa-personal', 'grappling', 'sparring'];
   const categoryProgress = categories.reduce((accumulator, category) => {
-    const categoryItems = items.filter((item) => item.category === category);
+    const categoryItems = items.filter((item) => getKravProgressCategory(item.category) === category);
     const average =
       categoryItems.length > 0
         ? categoryItems.reduce((sum, item) => sum + getKravTechniqueProgress(item.level), 0) / categoryItems.length
@@ -239,10 +483,12 @@ export function buildKravExamStatus(curriculum = [], settings = {}, referenceDat
     items.length > 0 ? items.reduce((sum, item) => sum + Math.min(Math.max(Number(item.level) || 0, 0), 4), 0) / items.length : 0;
   const pendingTechniques = items.filter((item) => (Number(item.level) || 0) < 3).length;
   const lowTechniques = items.filter((item) => (Number(item.level) || 0) <= 1).length;
-  const forgottenTechniques = items.filter((item) => {
+  const neverPracticedTechniques = items.filter((item) => !normalizeDateString(item.lastPracticedAt)).length;
+  const stalePracticeTechniques = items.filter((item) => {
     const days = getDaysSincePractice(item.lastPracticedAt, referenceDate);
-    return days === null || days >= threshold;
+    return days !== null && days >= threshold;
   }).length;
+  const forgottenTechniques = neverPracticedTechniques + stalePracticeTechniques;
 
   const status =
     averageLevel > 3 ? 'listo' : averageLevel >= 2 ? 'riesgo-medio' : 'riesgo-alto';
@@ -251,6 +497,8 @@ export function buildKravExamStatus(curriculum = [], settings = {}, referenceDat
     averageLevel,
     pendingTechniques,
     lowTechniques,
+    neverPracticedTechniques,
+    stalePracticeTechniques,
     forgottenTechniques,
     status,
   };
@@ -281,10 +529,7 @@ export function buildKravAlerts(curriculum = [], settings = {}, referenceDate = 
     });
   }
 
-  const forgottenCount = items.filter((item) => {
-    const days = getDaysSincePractice(item.lastPracticedAt, referenceDate);
-    return days === null || days >= threshold;
-  }).length;
+  const forgottenCount = examStatus.neverPracticedTechniques + examStatus.stalePracticeTechniques;
 
   if (forgottenCount > 0) {
     alerts.push({

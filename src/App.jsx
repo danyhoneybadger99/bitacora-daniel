@@ -248,6 +248,25 @@ const privacyDataItems = [
   'Preferencias de uso de la app.',
 ];
 
+const feedbackMailtoHref = [
+  'mailto:ing.darredondo@lobomex.mx',
+  '?subject=',
+  encodeURIComponent('Feedback Bitácora Daniel'),
+  '&body=',
+  encodeURIComponent(
+    [
+      'Qué estaba haciendo:',
+      '',
+      'Qué esperaba que pasara:',
+      '',
+      'Qué pasó realmente:',
+      '',
+      'Dispositivo usado:',
+      '',
+    ].join('\n')
+  ),
+].join('');
+
 function getPasswordRecoveryRedirectUrl() {
   if (typeof window === 'undefined') return undefined;
   return `${window.location.origin}${window.location.pathname}`;
@@ -2058,17 +2077,18 @@ function App() {
     }),
     [diaryData.kravSettings]
   );
-  const normalizedKravCurrentBelt = String(kravSettings.currentBelt || 'naranja').trim().toLowerCase();
+  const normalizedKravActiveCurriculumBelt = String(
+    kravSettings.activeCurriculumBelt || kravSettings.targetBelt || kravSettings.currentBelt || 'verde'
+  ).trim().toLowerCase();
   const kravCurriculum = useMemo(() => {
     const scopedCurriculum = storedKravCurriculum.filter(
-      (item) => String(item.curriculumBelt || '').trim().toLowerCase() === normalizedKravCurrentBelt
+      (item) => String(item.curriculumBelt || '').trim().toLowerCase() === normalizedKravActiveCurriculumBelt
     );
 
-    if (normalizedKravCurrentBelt === 'naranja') return scopedCurriculum;
-    return scopedCurriculum.length > 0 ? scopedCurriculum : storedKravCurriculum;
-  }, [normalizedKravCurrentBelt, storedKravCurriculum]);
+    return scopedCurriculum.length > 0 ? scopedCurriculum : [];
+  }, [normalizedKravActiveCurriculumBelt, storedKravCurriculum]);
   const archivedKravCurriculumCount = Math.max(storedKravCurriculum.length - kravCurriculum.length, 0);
-  const isKravCurriculumPending = normalizedKravCurrentBelt === 'naranja' && kravCurriculum.length === 0;
+  const isKravCurriculumPending = kravCurriculum.length === 0;
   const kravPracticeLogs = useMemo(
     () =>
       sortByDateDesc(diaryData.kravPracticeLogs || []).sort((a, b) => String(b.id || '').localeCompare(String(a.id || ''))),
@@ -2141,14 +2161,22 @@ function App() {
     };
   }, [currentDate, isKravCurriculumPending, kravExamStatus.pendingTechniques, kravExamStatus.status, kravProgress.totalProgress, kravSettings.currentBelt, kravSettings.examDate, kravSettings.targetBelt, nextKravTechnique]);
   const kravCurriculumByCategory = useMemo(
-    () =>
-      Object.entries(kravCategoryLabels)
-        .map(([category, label]) => ({
+    () => {
+      const orderedCategories = [
+        ...Object.keys(kravCategoryLabels),
+        ...kravCurriculum
+          .map((item) => item.category)
+          .filter((category) => category && !Object.prototype.hasOwnProperty.call(kravCategoryLabels, category)),
+      ];
+
+      return orderedCategories
+        .map((category) => ({
           category,
-          label,
+          label: kravCategoryLabels[category] || category,
           items: kravCurriculum.filter((item) => item.category === category),
         }))
-        .filter((group) => group.items.length > 0),
+        .filter((group) => group.items.length > 0);
+    },
     [kravCurriculum]
   );
   const kravPriorityReason = useMemo(() => {
@@ -2195,6 +2223,16 @@ function App() {
   const kravWeeklyTechniqueNames = useMemo(
     () => [...new Set(kravPracticeLogsThisWeek.flatMap((item) => item.techniqueNames || []))],
     [kravPracticeLogsThisWeek]
+  );
+  const kravCurriculumTechniqueIds = useMemo(() => new Set(kravCurriculum.map((item) => item.id)), [kravCurriculum]);
+  const kravPracticedThisWeekCount = useMemo(
+    () =>
+      new Set(
+        kravPracticeLogsThisWeek.flatMap((item) =>
+          (item.techniqueIds || []).filter((techniqueId) => kravCurriculumTechniqueIds.has(techniqueId))
+        )
+      ).size,
+    [kravCurriculumTechniqueIds, kravPracticeLogsThisWeek]
   );
   const kravPendingReviewNotes = useMemo(
     () =>
@@ -5538,6 +5576,10 @@ function toggleRecommendedSupplement(itemConfig) {
                   Ver privacidad y uso de datos
                 </button>
               </div>
+              <p className="auth-landing-beta-note">
+                Beta privada: esta app está en prueba. Úsala para registrar hábitos, comida, ejercicio y progreso.
+                Si encuentras algo raro, compártelo con Daniel.
+              </p>
               <div className="auth-landing-local">
                 <button className="button button-secondary" type="button" onClick={handleContinueWithoutAccount}>
                   Solo probar en este dispositivo
@@ -5857,6 +5899,21 @@ function toggleRecommendedSupplement(itemConfig) {
                 </div>
               </SectionCard>
             ) : null}
+
+            <SectionCard
+              title="Enviar comentario a Daniel"
+              subtitle="Ayuda a mejorar esta beta privada con comentarios claros y rápidos."
+              className="card-soft settings-feedback-card"
+            >
+              <div className="settings-feedback-panel">
+                <p>
+                  Si encuentras algo raro, cuéntame qué estabas haciendo, qué esperabas y qué pasó realmente.
+                </p>
+                <a className="button button-secondary" href={feedbackMailtoHref}>
+                  Enviar comentario
+                </a>
+              </div>
+            </SectionCard>
 
             <SectionCard
               title="Modo de uso"
@@ -7366,7 +7423,7 @@ function toggleRecommendedSupplement(itemConfig) {
               title="Tablero de avance"
               subtitle={
                 isKravCurriculumPending
-                  ? 'Cinta naranja activa. Curriculo nuevo pendiente de cargar rumbo a cinta verde.'
+                  ? 'Cinta naranja activa. Currículo verde pendiente de cargar.'
                   : 'Lectura ejecutiva del curriculo activo.'
               }
               className="card-soft krav-panel krav-panel-progress"
@@ -7538,7 +7595,7 @@ function toggleRecommendedSupplement(itemConfig) {
 
             <SectionCard
               title="Estado de examen"
-              subtitle={isKravCurriculumPending ? 'Sin evaluacion hasta cargar el curriculo de cinta naranja rumbo a verde.' : `Estado rumbo a cinta ${kravSettings.targetBelt || 'verde'}.`}
+              subtitle={isKravCurriculumPending ? 'Sin evaluación hasta cargar el currículo activo.' : `Estado rumbo a cinta ${kravSettings.targetBelt || 'verde'}.`}
               className="card-soft krav-panel krav-panel-exam"
             >
               <div className="krav-exam-card">
@@ -7556,7 +7613,7 @@ function toggleRecommendedSupplement(itemConfig) {
                     <span className="krav-meta-line">Promedio global actual · {kravExamStatus.averageLevel.toFixed(1)} / 4</span>
                     <small>
                       {isKravCurriculumPending
-                        ? 'Carga el nuevo curriculo para reactivar progreso, alertas y tecnica prioritaria.'
+                        ? 'Carga el currículo activo para reactivar progreso, alertas y técnica prioritaria.'
                         : 'Lectura rapida de riesgo para no llegar al examen con huecos tecnicos.'}
                     </small>
                   </div>
@@ -7572,16 +7629,26 @@ function toggleRecommendedSupplement(itemConfig) {
                 </div>
                 <div className="mini-stat-grid">
                   <div className="mini-stat">
-                    <span>Técnicas pendientes</span>
+                    <span>Pendientes de dominar</span>
                     <strong>{kravExamStatus.pendingTechniques}</strong>
+                    <small>Nivel técnico menor a 3/4</small>
                   </div>
                   <div className="mini-stat">
                     <span>Técnicas en nivel 0 o 1</span>
                     <strong>{kravExamStatus.lowTechniques}</strong>
                   </div>
                   <div className="mini-stat">
-                    <span>Técnicas olvidadas (+5 días)</span>
-                    <strong>{kravExamStatus.forgottenTechniques}</strong>
+                    <span>Sin práctica registrada</span>
+                    <strong>{kravExamStatus.neverPracticedTechniques}</strong>
+                  </div>
+                  <div className="mini-stat">
+                    <span>Sin repaso +5 días</span>
+                    <strong>{kravExamStatus.stalePracticeTechniques}</strong>
+                  </div>
+                  <div className="mini-stat">
+                    <span>Practicadas esta semana</span>
+                    <strong>{kravPracticedThisWeekCount}</strong>
+                    <small>Práctica reciente, no dominio</small>
                   </div>
                 </div>
               </div>
@@ -7591,7 +7658,7 @@ function toggleRecommendedSupplement(itemConfig) {
               title="Currículo"
               subtitle={
                 isKravCurriculumPending
-                  ? 'Placeholder listo para cargar el curriculo de cinta naranja.'
+                  ? 'Placeholder listo para cargar el currículo activo.'
                   : 'Curriculo operativo organizado por categoria.'
               }
               className="card-soft krav-panel krav-panel-curriculum"
@@ -7667,9 +7734,9 @@ function toggleRecommendedSupplement(itemConfig) {
               {isKravCurriculumPending ? (
                 <div className="empty-state-card krav-empty-state-card">
                   <div className="krav-heading-copy">
-                    <strong>Curriculo de cinta naranja pendiente de cargar</strong>
+                    <strong>Currículo de cinta verde pendiente de cargar</strong>
                     <span className="krav-meta-line">
-                      Preparado para entrenar el nuevo bloque rumbo a cinta verde. El curriculo anterior quedo fuera de la vista principal sin borrar historial ni progreso guardado.
+                      Preparado para entrenar el nuevo bloque rumbo a cinta verde. El currículo anterior quedó fuera de la vista principal sin borrar historial ni progreso guardado.
                     </span>
                     {archivedKravCurriculumCount > 0 ? (
                       <small>{`${archivedKravCurriculumCount} tecnica(s) previas conservadas como referencia historica.`}</small>

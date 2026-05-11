@@ -230,6 +230,17 @@ button {
   font-weight: 700;
 }
 
+.auth-landing-beta-note {
+  margin: 0;
+  padding: 10px 11px;
+  border: 1px solid #eadfd8;
+  border-radius: 15px;
+  background: #fff8f2;
+  color: #704a34;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .privacy-info-link {
   width: fit-content;
   min-height: 28px;
@@ -1946,6 +1957,22 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.settings-feedback-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-feedback-panel p {
+  margin: 0;
+  color: #5d6a73;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.settings-feedback-panel .button {
+  justify-self: start;
 }
 
 .settings-profile-field {
