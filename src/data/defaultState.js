@@ -114,6 +114,7 @@ export const USER_PROFILE_LABELS = {
 
 const USER_PROFILE_ALIASES = {
   'krav-student': 'krav-360',
+  krav360: 'krav-360',
 };
 
 export function createUserSettings(profileType = 'fitness-basic', enabledTabs = null, options = {}) {
@@ -273,6 +274,9 @@ export function createCleanDefaultState() {
       currentBelt: '',
       targetBelt: '',
       activeCurriculumBelt: '',
+      activeCurriculumKey: '',
+      activeCurriculumLabel: '',
+      sourceLabel: '',
       examDate: '',
       forgottenThresholdDays: '5',
     },

@@ -1,12 +1,14 @@
 ﻿import ProgressCard from '../ProgressCard';
 import GoalForm from '../GoalForm';
 import SectionCard from '../SectionCard';
+import { getDailyCheckInTrafficLight } from '../../utils/domain/checkIn';
 
 const checkInInsightCopyByProfile = {
   'krav-360': {
     lowEnergy: ['Energía baja. Prioriza técnica y recuperación.', 'Repasa suave + movilidad ligera'],
     lowSleep: ['Sueño bajo. Baja intensidad y cuida reacción.', 'Técnica limpia, sin forzar sparring'],
     stress: ['Tensión alta. Control emocional antes de entrenar.', 'Respira, camina y entrena básico'],
+    pain: ['Dolor o lesión registrada. Ajusta la carga.', 'Prioriza movilidad y técnica sin riesgo'],
     highState: ['Buen estado. Día para progresar con intención.', 'Practica la técnica prioritaria'],
     stable: ['Día estable. Suma constancia sin exceso.', 'Haz una sesión técnica corta'],
   },
@@ -14,6 +16,7 @@ const checkInInsightCopyByProfile = {
     lowEnergy: ['Energía baja. Cuida hidratación y comida.', 'Camina ligero + agua suficiente'],
     lowSleep: ['Sueño bajo. Recupera antes de exigir más.', 'Come simple y duerme temprano'],
     stress: ['Estrés alto. Mantén el día simple.', 'Respira, hidrátate y muévete suave'],
+    pain: ['Dolor o lesión registrada. Baja intensidad.', 'Muévete suave y cuida recuperación'],
     highState: ['Buen estado. Día para cumplir básicos.', 'Proteína, agua y movimiento primero'],
     stable: ['Día estable. Mantén adherencia.', 'Completa comida, agua y movimiento'],
   },
@@ -21,6 +24,7 @@ const checkInInsightCopyByProfile = {
     lowEnergy: ['Energía baja. Disciplina con recuperación.', 'Ora/reflexiona y baja intensidad'],
     lowSleep: ['Dormiste mal. Protege enfoque y sobriedad.', 'Haz lo esencial y duerme temprano'],
     stress: ['Estrés alto. Vuelve al centro.', 'Respira, ora y trabaja una cosa profunda'],
+    pain: ['Dolor o lesión registrada. Control y prudencia.', 'Entrena alrededor del dolor, sin ego'],
     highState: ['Buen estado. Día para trabajo profundo.', 'Entrena, ora y ejecuta lo importante'],
     stable: ['Día estable. Sostén disciplina.', 'Cumple básicos y reflexión breve'],
   },
@@ -28,6 +32,7 @@ const checkInInsightCopyByProfile = {
     lowEnergy: ['Energía baja. Hoy enfócate en recuperación.', 'Camina ligero + hidrátate bien'],
     lowSleep: ['Dormiste mal. Reduce intensidad hoy.', 'Evita estrés y duerme temprano'],
     stress: ['Alto estrés detectado.', 'Respira y baja el ritmo'],
+    pain: ['Dolor o lesión registrada.', 'Baja intensidad y cuida recuperación'],
     highState: ['Buen estado. Día para avanzar.', 'Haz lo más importante primero'],
     stable: ['Día estable.', 'Mantén disciplina'],
   },
@@ -43,8 +48,14 @@ function buildCheckInInsight(copy, key) {
 function getCheckInInsight(checkIn, profileType = 'default') {
   if (!checkIn) return null;
 
-  const { energy, sleepQuality, emotions = [], generalState } = checkIn;
+  const { energy, sleepQuality, emotions = [], generalState, stressLevel, painOrInjury } = checkIn;
   const copy = checkInInsightCopyByProfile[profileType] || checkInInsightCopyByProfile.default;
+  const normalizedEmotions = emotions.map((emotion) => String(emotion || '').toLowerCase());
+  const stressNumber = Number(stressLevel);
+
+  if (painOrInjury) {
+    return buildCheckInInsight(copy, 'pain');
+  }
 
   if (energy <= 4) {
     return buildCheckInInsight(copy, 'lowEnergy');
@@ -54,7 +65,11 @@ function getCheckInInsight(checkIn, profileType = 'default') {
     return buildCheckInInsight(copy, 'lowSleep');
   }
 
-  if (emotions.includes("Estresado") || emotions.includes("Ansioso")) {
+  if (
+    normalizedEmotions.includes('estresado') ||
+    normalizedEmotions.includes('ansioso') ||
+    (Number.isFinite(stressNumber) && stressNumber >= 8)
+  ) {
     return buildCheckInInsight(copy, 'stress');
   }
 
@@ -129,7 +144,14 @@ export default function DashboardTab(props) {
     profileType,
   } = props;
   const checkInInsight = getCheckInInsight(todayDailyCheckIn, profileType);
+  const checkInTrafficLight = todayDailyCheckIn ? getDailyCheckInTrafficLight(todayDailyCheckIn) : null;
   const dashboardCurrentWeightNumber = Number(dashboardCurrentWeight);
+  const kravCurrentBeltKey = String(kravDashboardSnapshot?.currentBelt || '').toLowerCase();
+  const kravTargetBeltKey = String(kravDashboardSnapshot?.targetBelt || '').toLowerCase();
+  const kravTargetLabel = kravDashboardSnapshot?.activeCurriculumLabel
+    || (kravDashboardSnapshot?.targetBelt
+      ? `Objetivo: cinta ${String(kravDashboardSnapshot.targetBelt).toLowerCase()}`
+      : 'Objetivo pendiente');
   const primaryCheckInEmotionValue = Array.isArray(todayDailyCheckIn?.emotions)
     ? todayDailyCheckIn.emotions[0]
     : '';
@@ -279,7 +301,13 @@ export default function DashboardTab(props) {
           <div className="progress-card-top dashboard-krav-head">
             <div className="dashboard-krav-title-group">
               <span>Krav Maga</span>
-              <span className="dashboard-krav-belt">{`Cinta ${kravDashboardSnapshot.currentBelt.toLowerCase()}`}</span>
+              <span
+                className={`dashboard-krav-belt ${
+                  kravCurrentBeltKey.includes('cafe') || kravCurrentBeltKey.includes('café') ? 'belt-badge--cafe' : ''
+                }`}
+              >
+                {`Cinta ${kravDashboardSnapshot.currentBelt.toLowerCase()}`}
+              </span>
             </div>
             <strong>{formatKravPercent(kravDashboardSnapshot.totalProgress)}</strong>
           </div>
@@ -287,11 +315,9 @@ export default function DashboardTab(props) {
             <span
               className={`dashboard-krav-target-belt ${
                 String(kravDashboardSnapshot.targetBelt || '').toLowerCase() === 'verde' ? 'belt-badge--verde' : ''
-              }`}
+              } ${kravTargetBeltKey.includes('cafe') || kravTargetBeltKey.includes('café') ? 'belt-badge--cafe' : ''}`}
             >
-              {kravDashboardSnapshot.targetBelt
-                ? `Objetivo: cinta ${String(kravDashboardSnapshot.targetBelt).toLowerCase()}`
-                : 'Objetivo pendiente'}
+              {kravTargetLabel}
             </span>
             <span>{`${kravDashboardSnapshot.pendingTechniques} por dominar`}</span>
           </div>
@@ -321,9 +347,13 @@ export default function DashboardTab(props) {
               </div>
               {todayDailyCheckIn ? (
                 <div className="dashboard-checkin-mini-grid">
+                  <span className={`dashboard-checkin-semaphore dashboard-checkin-semaphore-${checkInTrafficLight?.status || 'yellow'}`}>
+                    Semáforo {checkInTrafficLight?.label || 'Amarillo'}
+                  </span>
                   <span>Energía {todayDailyCheckIn.energy}/10</span>
                   <span>Sueño {todayDailyCheckIn.sleepQuality}/10</span>
                   <span>{primaryCheckInEmotion || 'Sin emoción'}</span>
+                  {todayDailyCheckIn.stressLevel ? <span>Estrés {todayDailyCheckIn.stressLevel}/10</span> : null}
                   <span className="dashboard-checkin-gratitude-chip">
                     {todayDailyCheckIn.gratitudeDone ? 'Gratitud registrada' : 'Sin gratitud'}
                   </span>

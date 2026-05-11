@@ -253,8 +253,10 @@ function normalizeKravCurriculum(items, { applySeed = true } = {}) {
     category: item.category ?? 'striking',
     stage: item.stage ?? 'etapa1',
     curriculumBelt: item.curriculumBelt ?? 'amarilla',
+    curriculumKey: item.curriculumKey ?? '',
     targetBelt: item.targetBelt ?? '',
     status: item.status ?? 'pending',
+    sourceLabel: item.sourceLabel ?? '',
     seededAt: item.seededAt ?? '',
     description: item.description ?? '',
     tips: item.tips ?? '',
@@ -263,6 +265,7 @@ function normalizeKravCurriculum(items, { applySeed = true } = {}) {
     lastPracticedAt: normalizeDateString(item.lastPracticedAt),
     notes: item.notes ?? '',
     isExamRelevant: typeof item.isExamRelevant === 'boolean' ? item.isExamRelevant : true,
+    relevantForExam: typeof item.relevantForExam === 'boolean' ? item.relevantForExam : true,
   }));
 }
 
@@ -298,6 +301,9 @@ function normalizeKravSettings(item, fallbackState = defaultState) {
     currentBelt,
     targetBelt,
     activeCurriculumBelt: item.activeCurriculumBelt ?? targetBelt ?? base.activeCurriculumBelt ?? '',
+    activeCurriculumKey: item.activeCurriculumKey ?? base.activeCurriculumKey ?? '',
+    activeCurriculumLabel: item.activeCurriculumLabel ?? base.activeCurriculumLabel ?? '',
+    sourceLabel: item.sourceLabel ?? base.sourceLabel ?? '',
     examDate: normalizeDateString(item.examDate) || base.examDate,
     forgottenThresholdDays: item.forgottenThresholdDays ?? base.forgottenThresholdDays,
   };

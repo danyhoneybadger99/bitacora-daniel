@@ -112,6 +112,7 @@ import {
   kravCoachOptions,
   kravStageLabels,
   markKravTechniquePracticed,
+  mergeBrownAdults360KravCurriculum,
 } from './utils/domain/krav';
 import {
   chooseSnapshotWinner,
@@ -218,6 +219,7 @@ const tabs = [
 
 const tabLabelById = Object.fromEntries(tabs.map((tab) => [tab.id, tab.label]));
 const DANIEL_ACCOUNT_EMAIL = 'itsme.daniel0802@gmail.com';
+const JESUS_FLORES_ACCOUNT_EMAIL = 'jfloresm1994@gmail.com';
 const LOCAL_MODE_CHOICE_KEY = 'mi-diario-local-mode-enabled';
 const LOCAL_PUBLIC_STORAGE_KEY = `${STORAGE_KEY}:local-public`;
 const NEWSLETTER_OPT_IN_CHOICE_KEY = 'mi-diario-newsletter-opt-in';
@@ -295,6 +297,10 @@ function isDanielAccount(user) {
   return normalizeAuthEmail(user?.email) === DANIEL_ACCOUNT_EMAIL;
 }
 
+function isJesusFloresAccount(user) {
+  return normalizeAuthEmail(user?.email) === JESUS_FLORES_ACCOUNT_EMAIL;
+}
+
 function normalizeDanielFullSnapshot(snapshot, user) {
   if (!snapshot || snapshot.profileId !== 'daniel-full' || !isDanielAccount(user)) {
     return snapshot;
@@ -312,6 +318,38 @@ function normalizeDanielFullSnapshot(snapshot, user) {
       newsletterOptIn: Boolean(snapshot.userSettings?.newsletterOptIn),
     }),
   };
+}
+
+function normalizeJesusFloresKravSnapshot(snapshot, user) {
+  if (!snapshot || !isJesusFloresAccount(user)) {
+    return snapshot;
+  }
+
+  const nextUserSettings = createUserSettings('krav360', null, {
+    onboardingCompleted: true,
+    newsletterOptIn: Boolean(snapshot.userSettings?.newsletterOptIn),
+  });
+
+  return {
+    ...snapshot,
+    profileId: snapshot.profileId === 'daniel-full' ? 'clean' : snapshot.profileId || 'clean',
+    userSettings: nextUserSettings,
+    kravSettings: {
+      ...(snapshot.kravSettings || {}),
+      currentBelt: 'cafe',
+      targetBelt: 'cafe',
+      activeCurriculumBelt: 'cafe',
+      activeCurriculumKey: 'brown-adults-360',
+      activeCurriculumLabel: 'Currículo café adultos 360',
+      sourceLabel: '360 Company - Brown Belt Adultos',
+      forgottenThresholdDays: snapshot.kravSettings?.forgottenThresholdDays || '5',
+    },
+    kravCurriculum: mergeBrownAdults360KravCurriculum(snapshot.kravCurriculum || []),
+  };
+}
+
+function normalizeUserSpecificSnapshot(snapshot, user) {
+  return normalizeJesusFloresKravSnapshot(normalizeDanielFullSnapshot(snapshot, user), user);
 }
 
 function isUnsafePublicLocalState(state = {}) {
@@ -438,7 +476,7 @@ const cutReferenceFieldGroups = [
 ];
 const cutReferenceFieldNames = cutReferenceFieldGroups.flatMap((group) => group.fields.map((field) => field.name));
 
-const kravBeltOptions = ['amarilla', 'naranja', 'verde', 'azul', 'marron', 'negra'];
+const kravBeltOptions = ['amarilla', 'naranja', 'verde', 'cafe', 'azul', 'marron', 'negra'];
 const privateDailyHormonalPanelOrder = ['oxandrolona', 'liver-cleanse', 'tamoxifeno', 'clomifeno'];
 
 function pickGoalFormValues(goals = {}) {
@@ -1180,7 +1218,7 @@ function App() {
   function applyHydratedSnapshot(snapshot, options = {}) {
     if (!snapshot) return;
 
-    const normalizedSnapshot = normalizeDanielFullSnapshot(snapshot, syncUser);
+    const normalizedSnapshot = normalizeUserSpecificSnapshot(snapshot, syncUser);
     latestPersistedDataRef.current = normalizedSnapshot;
     saveAppData(normalizedSnapshot, options.storageKey || activeStorageKeyRef.current);
     skipNextRemoteSyncRef.current = true;
@@ -1230,7 +1268,7 @@ function App() {
         console.log('REMOTE SNAPSHOT:', remoteSnapshot.payload);
       }
 
-      const normalizedRemoteData = normalizeDanielFullSnapshot(
+      const normalizedRemoteData = normalizeUserSpecificSnapshot(
         migrateAppData(remoteSnapshot.payload),
         syncUser
       );
@@ -1353,18 +1391,22 @@ function App() {
     const preparedData = isPublicLocalMode
       ? preparePublicLocalState(loadedData, loadedData?.syncMeta?.deviceId || syncDeviceIdRef.current || createDeviceId())
       : ensureSyncMeta(loadedData, loadedData?.syncMeta?.deviceId || syncDeviceIdRef.current || createDeviceId());
-    syncDeviceIdRef.current = preparedData.syncMeta.deviceId;
-    latestPersistedDataRef.current = preparedData;
-    setDiaryData(preparedData);
-    applyFormStateFromSnapshot(preparedData);
-    setSyncLastSyncedAt(preparedData.syncMeta?.lastSyncedAt || '');
+    const userPreparedData = syncUser?.id ? normalizeUserSpecificSnapshot(preparedData, syncUser) : preparedData;
+    syncDeviceIdRef.current = userPreparedData.syncMeta.deviceId;
+    latestPersistedDataRef.current = userPreparedData;
+    if (userPreparedData !== preparedData) {
+      saveAppData(userPreparedData, nextStorageKey);
+    }
+    setDiaryData(userPreparedData);
+    applyFormStateFromSnapshot(userPreparedData);
+    setSyncLastSyncedAt(userPreparedData.syncMeta?.lastSyncedAt || '');
     const loadTimestamp = getCurrentDateTimeValue();
     setDebugLastLoadAt(loadTimestamp);
     if (isDevMode) {
       console.info('[Mi Diario][debug] user-cache:switched', {
         at: loadTimestamp,
         userId: syncUser?.id || 'local',
-        collectionCounts: getPersistenceCollectionCounts(preparedData),
+        collectionCounts: getPersistenceCollectionCounts(userPreparedData),
       });
     }
   }, [hasChosenLocalMode, hasLoadedData, hasResolvedSyncSession, isDevMode, remoteSyncEnabled, syncUser?.id]);
@@ -1444,7 +1486,7 @@ function App() {
     syncDebounceTimeoutRef.current = window.setTimeout(async () => {
       try {
         setSyncStatus('syncing');
-        const currentSnapshot = normalizeDanielFullSnapshot(latestPersistedDataRef.current, syncUser);
+        const currentSnapshot = normalizeUserSpecificSnapshot(latestPersistedDataRef.current, syncUser);
         if (currentSnapshot !== latestPersistedDataRef.current) {
           latestPersistedDataRef.current = currentSnapshot;
           saveAppData(currentSnapshot, activeStorageKeyRef.current);
@@ -2084,13 +2126,19 @@ function App() {
   const normalizedKravActiveCurriculumBelt = String(
     kravSettings.activeCurriculumBelt || kravSettings.targetBelt || kravSettings.currentBelt || 'verde'
   ).trim().toLowerCase();
+  const normalizedKravActiveCurriculumKey = String(kravSettings.activeCurriculumKey || '').trim().toLowerCase();
   const kravCurriculum = useMemo(() => {
-    const scopedCurriculum = storedKravCurriculum.filter(
-      (item) => String(item.curriculumBelt || '').trim().toLowerCase() === normalizedKravActiveCurriculumBelt
-    );
+    const scopedCurriculum = storedKravCurriculum.filter((item) => {
+      const itemBelt = String(item.curriculumBelt || '').trim().toLowerCase();
+      const itemKey = String(item.curriculumKey || '').trim().toLowerCase();
+      return (
+        itemBelt === normalizedKravActiveCurriculumBelt &&
+        (!normalizedKravActiveCurriculumKey || itemKey === normalizedKravActiveCurriculumKey)
+      );
+    });
 
     return scopedCurriculum.length > 0 ? scopedCurriculum : [];
-  }, [normalizedKravActiveCurriculumBelt, storedKravCurriculum]);
+  }, [normalizedKravActiveCurriculumBelt, normalizedKravActiveCurriculumKey, storedKravCurriculum]);
   const archivedKravCurriculumCount = Math.max(storedKravCurriculum.length - kravCurriculum.length, 0);
   const isKravCurriculumPending = kravCurriculum.length === 0;
   const kravPracticeLogs = useMemo(
@@ -2108,6 +2156,7 @@ function App() {
   function formatKravBeltLabel(value) {
     const normalized = String(value || '').trim();
     if (!normalized) return 'Sin cinta';
+    if (normalized.toLowerCase() === 'cafe') return 'Café';
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
   function getKravExamStatusText(status) {
@@ -2155,6 +2204,9 @@ function App() {
     return {
       currentBelt,
       targetBelt,
+      activeCurriculumLabel: kravSettings.activeCurriculumLabel || '',
+      activeCurriculumKey: kravSettings.activeCurriculumKey || '',
+      sourceLabel: kravSettings.sourceLabel || '',
       examDate: normalizedExamDate,
       examDateLabel,
       examCountdownLabel,
@@ -2163,7 +2215,7 @@ function App() {
       nextTechniqueName: nextKravTechnique?.name || 'Sin técnica priorizada',
       examStatusLabel: getKravExamStatusText(kravExamStatus.status),
     };
-  }, [currentDate, isKravCurriculumPending, kravExamStatus.pendingTechniques, kravExamStatus.status, kravProgress.totalProgress, kravSettings.currentBelt, kravSettings.examDate, kravSettings.targetBelt, nextKravTechnique]);
+  }, [currentDate, isKravCurriculumPending, kravExamStatus.pendingTechniques, kravExamStatus.status, kravProgress.totalProgress, kravSettings.activeCurriculumKey, kravSettings.activeCurriculumLabel, kravSettings.currentBelt, kravSettings.examDate, kravSettings.sourceLabel, kravSettings.targetBelt, nextKravTechnique]);
   const kravCurriculumByCategory = useMemo(
     () => {
       const orderedCategories = [
@@ -4041,7 +4093,7 @@ function lockPrivateModule(feedbackText = '') {
         return;
       }
 
-      const currentSnapshot = normalizeDanielFullSnapshot(latestPersistedDataRef.current, syncUser);
+      const currentSnapshot = normalizeUserSpecificSnapshot(latestPersistedDataRef.current, syncUser);
       if (currentSnapshot !== latestPersistedDataRef.current) {
         latestPersistedDataRef.current = currentSnapshot;
         saveAppData(currentSnapshot, activeStorageKeyRef.current);

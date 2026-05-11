@@ -987,6 +987,24 @@ button {
   padding: 5px 8px;
 }
 
+.dashboard-checkin-mini-grid .dashboard-checkin-semaphore-green {
+  border-color: rgba(47, 125, 79, 0.18);
+  background: rgba(47, 125, 79, 0.12);
+  color: #2f7d4f;
+}
+
+.dashboard-checkin-mini-grid .dashboard-checkin-semaphore-yellow {
+  border-color: rgba(174, 125, 36, 0.2);
+  background: rgba(174, 125, 36, 0.13);
+  color: #8a651f;
+}
+
+.dashboard-checkin-mini-grid .dashboard-checkin-semaphore-red {
+  border-color: rgba(163, 61, 68, 0.2);
+  background: rgba(163, 61, 68, 0.12);
+  color: #a33d44;
+}
+
 .dashboard-checkin-button {
   justify-self: start;
   min-height: 34px;
@@ -1038,6 +1056,13 @@ button {
   color: #6f3e11;
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.dashboard-krav-belt.belt-badge--cafe,
+.dashboard-krav-meta .belt-badge--cafe {
+  background: rgba(121, 85, 61, 0.16);
+  color: #6b4a32;
+  border: 1px solid rgba(121, 85, 61, 0.24);
 }
 
 .dashboard-krav-meta {
@@ -2294,9 +2319,100 @@ button {
   gap: 10px;
 }
 
+.daily-checkin-traffic {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid #e4eaf0;
+  background: #f8fafc;
+}
+
+.daily-checkin-traffic div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.daily-checkin-traffic span {
+  color: #667684;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.daily-checkin-traffic strong {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+}
+
+.daily-checkin-traffic p {
+  margin: 0;
+  color: #24313a;
+  font-weight: 800;
+}
+
+.daily-checkin-traffic small {
+  color: #667684;
+  font-size: 0.8rem;
+}
+
+.daily-checkin-traffic-green {
+  border-color: rgba(47, 125, 79, 0.18);
+  background: rgba(240, 248, 243, 0.86);
+}
+
+.daily-checkin-traffic-green strong {
+  background: rgba(47, 125, 79, 0.12);
+  color: #2f7d4f;
+}
+
+.daily-checkin-traffic-yellow {
+  border-color: rgba(174, 125, 36, 0.2);
+  background: rgba(255, 250, 235, 0.86);
+}
+
+.daily-checkin-traffic-yellow strong {
+  background: rgba(174, 125, 36, 0.13);
+  color: #8a651f;
+}
+
+.daily-checkin-traffic-red {
+  border-color: rgba(163, 61, 68, 0.2);
+  background: rgba(254, 242, 242, 0.86);
+}
+
+.daily-checkin-traffic-red strong {
+  background: rgba(163, 61, 68, 0.12);
+  color: #a33d44;
+}
+
 .daily-checkin-emotions {
   display: grid;
   gap: 9px;
+}
+
+.daily-checkin-support-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 10px;
+}
+
+.daily-checkin-support-card,
+.daily-checkin-minimum-action {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #e6ebf1;
+  border-radius: 16px;
+  background: #fbfcfd;
+}
+
+.daily-checkin-support-card .daily-checkin-chip {
+  justify-self: start;
 }
 
 .daily-checkin-label-row {
@@ -5282,6 +5398,10 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .daily-checkin-support-grid {
+    grid-template-columns: 1fr;
+  }
+
   .daily-checkin-head {
     gap: 8px;
     margin-bottom: 10px;
@@ -5308,6 +5428,13 @@ button {
 
   .daily-checkin-gratitude {
     gap: 8px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .daily-checkin-traffic,
+  .daily-checkin-support-card,
+  .daily-checkin-minimum-action {
     padding: 10px;
     border-radius: 14px;
   }

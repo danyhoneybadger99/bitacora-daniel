@@ -20,18 +20,44 @@ export const kravCategoryLabels = {
   'armas-bate': 'Armas - bate',
   'armas-cuchillo-frontal': 'Armas - cuchillo frontal',
   'armas-pistola-frontal': 'Armas - pistola frontal',
+  'armas-cuchillo-espalda': 'Armas - cuchillo espalda',
+  'armas-cuchillo-rehen': 'Armas - cuchillo rehén',
+  'armas-pistola-espalda': 'Armas - pistola espalda',
+  'armas-pistola-rehen': 'Armas - pistola rehén',
+  'armas-pistola-lateral': 'Armas - pistola lateral',
+  'full-nelson': 'Full Nelson',
   lucha: 'Lucha',
   'romper-caida-piso': 'Defensa personal piso - romper caída',
   'guardia-piso': 'Guardia de piso',
   'patada-frontal-piso': 'Patada frontal de piso',
   'movimientos-fundamentales': 'Movimientos fundamentales',
   flujo: 'Flujo',
+  'barridos-piso': 'Barridos piso',
+  'pase-guardia-cerrada': 'Pase de guardia cerrada',
   'stiff-arm': 'Stiff arm',
+  'control-lateral': 'Control lateral',
+  montado: 'Montado',
+  'guardia-completa': 'Guardia completa',
+  'ahorcamiento-lateral': 'Ahorcamiento lateral',
+  'seat-belt': 'Seat-belt',
+  bufanda: 'Bufanda',
+  pisotones: 'Pisotones',
+  'vs-patada-futbol': 'VS patada de futbol',
+  'vs-patada-circular': 'VS patada circular',
+  'llaves-montado': 'Llaves - montado',
+  'llaves-full-guard': 'Llaves - full guard',
+  'llaves-seat-belt': 'Llaves - seat belt',
+  'llaves-control-lateral': 'Llaves - control lateral',
   llaves: 'Llaves',
   'striking-sombra': 'Striking - sombra',
   'golpeo-1-10': 'Golpeo 1-10',
   combos: 'Combos',
+  kyokushin: 'Kyokushin',
+  kamman: 'Kamman',
   'sparring-kick-boxing': 'Sparring - kick boxing',
+  'sparring-street-fight': 'Sparring - Krav Maga street fight',
+  'lucha-sparring': 'Lucha - sparring',
+  'grappling-sparring': 'Grappling - sparring',
 };
 
 export const kravStageLabels = {
@@ -39,6 +65,8 @@ export const kravStageLabels = {
   etapa2: 'Etapa 2',
   etapa3: 'Etapa 3',
   etapa4: 'Etapa 4',
+  etapa5: 'Etapa 5',
+  etapa6: 'Etapa 6',
 };
 
 export const kravCoachOptions = [
@@ -63,16 +91,42 @@ const kravProgressCategoryMap = {
   'ahorcamiento-espalda': 'defensa-personal',
   'armas-bate': 'defensa-personal',
   'armas-cuchillo-frontal': 'defensa-personal',
+  'armas-cuchillo-espalda': 'defensa-personal',
+  'armas-cuchillo-rehen': 'defensa-personal',
   'armas-pistola-frontal': 'defensa-personal',
+  'armas-pistola-espalda': 'defensa-personal',
+  'armas-pistola-rehen': 'defensa-personal',
+  'armas-pistola-lateral': 'defensa-personal',
+  'full-nelson': 'defensa-personal',
   lucha: 'grappling',
   'romper-caida-piso': 'grappling',
   'guardia-piso': 'grappling',
   'patada-frontal-piso': 'grappling',
   'movimientos-fundamentales': 'grappling',
   flujo: 'grappling',
+  'barridos-piso': 'grappling',
+  'pase-guardia-cerrada': 'grappling',
   'stiff-arm': 'grappling',
+  'control-lateral': 'grappling',
+  montado: 'grappling',
+  'guardia-completa': 'grappling',
+  'ahorcamiento-lateral': 'grappling',
+  'seat-belt': 'grappling',
+  bufanda: 'grappling',
+  pisotones: 'grappling',
+  'vs-patada-futbol': 'grappling',
+  'vs-patada-circular': 'grappling',
+  'llaves-montado': 'grappling',
+  'llaves-full-guard': 'grappling',
+  'llaves-seat-belt': 'grappling',
+  'llaves-control-lateral': 'grappling',
   llaves: 'grappling',
+  kyokushin: 'striking',
+  kamman: 'striking',
   'sparring-kick-boxing': 'sparring',
+  'sparring-street-fight': 'sparring',
+  'lucha-sparring': 'sparring',
+  'grappling-sparring': 'sparring',
 };
 
 function getKravProgressCategory(category = '') {
@@ -119,6 +173,27 @@ function createGreenTechnique({ name, category, stage }) {
     id: `krav-verde-${stage}-${category}-${slugify(name)}`,
     targetBelt: 'verde',
     status: 'pending',
+    seededAt: '2026-05-11',
+  };
+}
+
+function createBrownTechnique({ name, category, stage }) {
+  const categoryLabel = kravCategoryLabels[category] || category;
+  return {
+    ...createTechnique({
+      name,
+      category,
+      stage,
+      curriculumBelt: 'cafe',
+      description: `Currículo café adultos 360 · ${categoryLabel}.`,
+      tips: '',
+    }),
+    id: `krav-brown-${stage}-${category}-${slugify(name)}`,
+    curriculumKey: 'brown-adults-360',
+    targetBelt: 'cafe',
+    status: 'pending',
+    relevantForExam: true,
+    sourceLabel: '360 Company - Brown Belt Adultos',
     seededAt: '2026-05-11',
   };
 }
@@ -219,6 +294,63 @@ const greenCurriculumSeed = greenCurriculumGroups.flatMap((group) =>
   group.names.map((name) => createGreenTechnique({ name, category: group.category, stage: group.stage }))
 );
 
+const brownAdults360CurriculumGroups = [
+  { stage: 'etapa1', category: 'warm-up-360', names: ['Guardia con golpeo 1-2', 'Guardia con desplaces y golpeo 1-2 frente', 'Guardia con desplaces y golpeo 1-2 espalda', 'Codazos ambos brazos', 'Rodilla frontal ambas piernas', 'Patada frontal ambas piernas', 'Romper caída frente', 'Romper caída espalda suave', 'Romper caída espalda duro', 'Puentes', 'Camarones'] },
+  { stage: 'etapa1', category: 'herramientas', names: ['Arm drag', 'Pummeling', 'Codazos horizontales frontal', 'Codazos horizontales lateral', 'Codazos horizontales trasero', 'Codazos verticales abajo atrás', 'Codazos verticales arriba atrás', 'Codazos verticales atrás', 'Codazos verticales ascendente', 'Codazos verticales descendente', '360 con contraataque'] },
+  { stage: 'etapa2', category: 'defensa-interna', names: ['Defensa interna simultáneo arriba', 'Defensa interna simultáneo abajo', 'Defensa interna uno y medio', 'Defensa interna esquivando', 'Defensa interna izquierda vs izquierda'] },
+  { stage: 'etapa2', category: 'distancias', names: ['Empujando', 'Uno y medio', 'Doble under-hook', 'Derribo de una pierna'] },
+  { stage: 'etapa2', category: 'golpes-curvos', names: ['Defensa de casco', 'Abajo', 'Esquivando'] },
+  { stage: 'etapa2', category: 'abrazo-oso-frente', names: ['Brazos atrapados', 'Brazos libres', 'Cargado atrapado', 'Cargado libre'] },
+  { stage: 'etapa2', category: 'abrazo-oso-espalda', names: ['Brazos atrapados arriba/abajo', 'Brazos libres codos/nudillos', 'Cargado atrapado/libre', 'Kimura'] },
+  { stage: 'etapa2', category: 'candados-cuello', names: ['Intento de mata-león', 'Guillotina', 'Guillotina con caída'] },
+  { stage: 'etapa2', category: 'candado-lateral-cuello', names: ['A tiempo', 'Tardío', 'Rodando adelante'] },
+  { stage: 'etapa2', category: 'ahorcamiento-frente', names: ['Media distancia', 'Corta distancia', 'Muy corta distancia', 'Empujando', 'Contra la pared'] },
+  { stage: 'etapa2', category: 'ahorcamiento-espalda', names: ['Jalando', 'Empujando', 'VS pared dinámico pierna', 'VS pared dinámico palmas', 'VS pared dinámico antebrazos', 'VS pared dinámico codos', 'VS pared estático'] },
+  { stage: 'etapa2', category: 'full-nelson', names: ['A tiempo', 'Tardío'] },
+  { stage: 'etapa3', category: 'armas-bate', names: ['Descendente lado vivo/lado muerto', 'Cuerpo una mano/dos manos', 'Cara a tiempo/tardío', 'Garganta', 'Culata lado vivo/lado muerto'] },
+  { stage: 'etapa3', category: 'armas-cuchillo-frontal', names: ['Amenaza', 'Descendente', 'Uno y medio', 'Ascendente vertical/diagonal', 'Slash', 'Counter slash con desarme/sin desarme'] },
+  { stage: 'etapa3', category: 'armas-cuchillo-espalda', names: ['Amenaza múltiples alturas'] },
+  { stage: 'etapa3', category: 'armas-cuchillo-rehen', names: ['Espalda', 'Cuello', 'Con desarme/sin desarme'] },
+  { stage: 'etapa3', category: 'armas-pistola-frontal', names: ['Barril', 'Antebrazo', 'Uno y medio', 'Control de dos manos', 'Frente', 'Empujón lado vivo/lado muerto'] },
+  { stage: 'etapa3', category: 'armas-pistola-espalda', names: ['Lado vivo', 'Lado muerto', 'Media distancia', 'Corta distancia', 'Machine gun take-down'] },
+  { stage: 'etapa3', category: 'armas-pistola-rehen', names: ['Frontal', 'Sien', 'Nuca'] },
+  { stage: 'etapa3', category: 'armas-pistola-lateral', names: ['Arriba lado vivo/lado muerto'] },
+  { stage: 'etapa4', category: 'lucha', names: ['Sprawl frontal', 'Sprawl derecha', 'Sprawl izquierda', 'Sprawl vs derribo de dos piernas', 'Derribo frente O Soto Gari', 'Derribo frente dos piernas', 'Derribo frente una pierna', 'Derribo espalda Tani Otoshi', 'Derribo espalda barrido de rodilla'] },
+  { stage: 'etapa4', category: 'romper-caida-piso', names: ['Encuadre', 'Guardia sentado', 'Levantarse'] },
+  { stage: 'etapa4', category: 'guardia-piso', names: ['Boca arriba', 'Sentado'] },
+  { stage: 'etapa4', category: 'patada-frontal-piso', names: ['Derecha', 'Izquierda'] },
+  { stage: 'etapa4', category: 'movimientos-fundamentales', names: ['Puente', 'Camarón', 'Guardia sentado', 'Stiff arm'] },
+  { stage: 'etapa4', category: 'flujo', names: ['Bravo series', 'Kimura series', 'Guillotine series'] },
+  { stage: 'etapa4', category: 'barridos-piso', names: ['Tripié', 'Tobillo', 'Tijera'] },
+  { stage: 'etapa4', category: 'pase-guardia-cerrada', names: ['Knee slide', 'Double under', 'Back step'] },
+  { stage: 'etapa4', category: 'stiff-arm', names: ['Dos piernas', 'Una pierna', 'Guardia completa'] },
+  { stage: 'etapa4', category: 'control-lateral', names: ['Escape fantasma', 'Retomando guardia completa', 'Derribo de una pierna'] },
+  { stage: 'etapa4', category: 'montado', names: ['Puente y giro', 'Puerta trasera', 'Escape de codo'] },
+  { stage: 'etapa4', category: 'guardia-completa', names: ['Etapa 1 vs golpes', 'Ahorcamiento RTP/triángulo', 'Codo a cuello D’Arce choke', 'Barrido a montado', 'Barrido de tijera corbata', 'Barrido de tijera piernas levantadas'] },
+  { stage: 'etapa4', category: 'ahorcamiento-lateral', names: ['Con patada', 'Arm bar'] },
+  { stage: 'etapa4', category: 'seat-belt', names: ['Lado vivo', 'Lado muerto'] },
+  { stage: 'etapa4', category: 'bufanda', names: ['Brazo atrapado', 'Brazos libres', 'Cabeza abajo atrapado/libre'] },
+  { stage: 'etapa4', category: 'pisotones', names: ['Cara', 'Cuerpo'] },
+  { stage: 'etapa4', category: 'vs-patada-futbol', names: ['Check', 'Check contraataque', 'Check derribo'] },
+  { stage: 'etapa4', category: 'vs-patada-circular', names: ['Sentado derecha/izquierda', 'Hincado derecha/izquierda'] },
+  { stage: 'etapa4', category: 'llaves-montado', names: ['Armbar', 'Americana', 'D’Arce choke'] },
+  { stage: 'etapa4', category: 'llaves-full-guard', names: ['Guillotina', 'Triángulo', 'Arm bar', 'Kimura'] },
+  { stage: 'etapa4', category: 'llaves-seat-belt', names: ['Mata-león'] },
+  { stage: 'etapa4', category: 'llaves-control-lateral', names: ['Americana', 'Kimura'] },
+  { stage: 'etapa5', category: 'striking-sombra', names: ['Ofensivo', 'Defensivo', 'Foot work'] },
+  { stage: 'etapa5', category: 'golpeo-1-10', names: ['Slips', 'Unders', 'Covers', 'Parrys', 'Leanings'] },
+  { stage: 'etapa5', category: 'combos', names: ['Combo holandés', 'Serie de codos 1', 'Serie de codos 2', 'Breed', 'Combo sensei etapa 1', 'Combo sensei etapa 2', 'Combo sensei etapa 3', 'Combo Dekker general', 'Combo Dekker progresivo 1', 'Combo Dekker progresivo 2'] },
+  { stage: 'etapa5', category: 'kyokushin', names: ['Simple', 'Compuesto'] },
+  { stage: 'etapa5', category: 'kamman', names: ['VOS 1', 'VOS 2', 'VOS combinado', 'Boxing 8'] },
+  { stage: 'etapa6', category: 'sparring-street-fight', names: ['Sparring', 'Con derribos', 'Sumisiones con golpeo', 'Codos y rodillas ligeras', 'Múltiples oponentes'] },
+  { stage: 'etapa6', category: 'lucha-sparring', names: ['Sweeps', 'Take-downs'] },
+  { stage: 'etapa6', category: 'grappling-sparring', names: ['Sumisiones', 'Sumisiones con golpeo ligero mano abierta'] },
+];
+
+const brownAdults360CurriculumSeed = brownAdults360CurriculumGroups.flatMap((group) =>
+  group.names.map((name) => createBrownTechnique({ name, category: group.category, stage: group.stage }))
+);
+
 const danielFirstOrangePracticeDate = '2026-05-11';
 const danielFirstOrangePracticeTechniqueIds = [
   'krav-verde-etapa3-combos-combo-dekker-progresivo-1',
@@ -254,6 +386,10 @@ export function createOrangeKravCurriculum() {
 
 export function createGreenKravCurriculum() {
   return greenCurriculumSeed.map((item) => ({ ...item }));
+}
+
+export function createBrownAdults360KravCurriculum() {
+  return brownAdults360CurriculumSeed.map((item) => ({ ...item }));
 }
 
 export function mergeOrangeKravCurriculum(existing = []) {
@@ -339,6 +475,58 @@ export function mergeGreenKravCurriculum(existing = []) {
   return merged;
 }
 
+export function mergeBrownAdults360KravCurriculum(existing = []) {
+  const current = Array.isArray(existing) ? existing : [];
+  const seeded = createBrownAdults360KravCurriculum();
+  const merged = [...current];
+
+  seeded.forEach((seedTechnique) => {
+    const seedKey = [
+      seedTechnique.curriculumKey,
+      seedTechnique.curriculumBelt,
+      seedTechnique.stage,
+      seedTechnique.category,
+      slugify(seedTechnique.name),
+    ].join('|');
+    const existingIndex = merged.findIndex((item) => {
+      const itemKey = [
+        item?.curriculumKey,
+        item?.curriculumBelt,
+        item?.stage,
+        item?.category,
+        slugify(item?.name || ''),
+      ].join('|');
+      return item?.id === seedTechnique.id || itemKey === seedKey;
+    });
+
+    if (existingIndex >= 0) {
+      const currentTechnique = merged[existingIndex];
+      merged[existingIndex] = {
+        ...seedTechnique,
+        ...currentTechnique,
+        id: currentTechnique.id || seedTechnique.id,
+        curriculumKey: currentTechnique.curriculumKey || seedTechnique.curriculumKey,
+        curriculumBelt: currentTechnique.curriculumBelt || seedTechnique.curriculumBelt,
+        targetBelt: currentTechnique.targetBelt || seedTechnique.targetBelt,
+        status: currentTechnique.status || seedTechnique.status,
+        sourceLabel: currentTechnique.sourceLabel || seedTechnique.sourceLabel,
+        seededAt: currentTechnique.seededAt || seedTechnique.seededAt,
+        level: Number.isFinite(Number(currentTechnique.level)) ? Number(currentTechnique.level) : seedTechnique.level,
+        lastPracticedAt: normalizeDateString(currentTechnique.lastPracticedAt) || seedTechnique.lastPracticedAt,
+        isExamRelevant:
+          typeof currentTechnique.isExamRelevant === 'boolean' ? currentTechnique.isExamRelevant : seedTechnique.isExamRelevant,
+        relevantForExam:
+          typeof currentTechnique.relevantForExam === 'boolean' ? currentTechnique.relevantForExam : seedTechnique.relevantForExam,
+      };
+      return;
+    }
+
+    merged.push(seedTechnique);
+  });
+
+  return merged;
+}
+
 export function mergeDanielKravCurriculum(existing = []) {
   return mergeGreenKravCurriculum(mergeOrangeKravCurriculum(existing));
 }
@@ -410,6 +598,9 @@ export function createEmptyKravSettings() {
     currentBelt: 'naranja',
     targetBelt: 'verde',
     activeCurriculumBelt: 'verde',
+    activeCurriculumKey: '',
+    activeCurriculumLabel: '',
+    sourceLabel: '',
     examDate: '',
     forgottenThresholdDays: '5',
   };
