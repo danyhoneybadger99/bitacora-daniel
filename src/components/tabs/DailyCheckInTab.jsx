@@ -1,6 +1,23 @@
 import SectionCard from '../SectionCard';
+import { getDailyCheckInTrafficLight } from '../../utils/domain/checkIn';
 
 const scaleOptions = Array.from({ length: 10 }, (_, index) => String(index + 1));
+
+function ScaleField({ label, name, value, onChange, optional = false }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select name={name} value={value || ''} onChange={onChange}>
+        {optional ? <option value="">Sin registrar</option> : null}
+        {scaleOptions.map((optionValue) => (
+          <option key={`${name}-${optionValue}`} value={optionValue}>
+            {optionValue}/10
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 async function shareReflection(text) {
   const reflection = text.trim();
@@ -35,6 +52,7 @@ export default function DailyCheckInTab({
   const selectedEmotions = Array.isArray(checkInForm.emotions) ? checkInForm.emotions : [];
   const gratitudeText = checkInForm.gratitudeText || '';
   const hasReflection = gratitudeText.trim().length > 0;
+  const trafficLight = getDailyCheckInTrafficLight(checkInForm);
 
   return (
     <SectionCard
@@ -55,38 +73,32 @@ export default function DailyCheckInTab({
 
       <form className="daily-checkin-form" onSubmit={onSubmit}>
         <div className="daily-checkin-scale-grid">
-          <label className="field">
-            <span>Estado general</span>
-            <select name="generalState" value={checkInForm.generalState} onChange={onFieldChange}>
-              {scaleOptions.map((value) => (
-                <option key={`general-${value}`} value={value}>
-                  {value}/10
-                </option>
-              ))}
-            </select>
-          </label>
+          <ScaleField label="Estado general" name="generalState" value={checkInForm.generalState} onChange={onFieldChange} />
+          <ScaleField label="Energía" name="energy" value={checkInForm.energy} onChange={onFieldChange} />
+          <ScaleField label="Calidad de sueño" name="sleepQuality" value={checkInForm.sleepQuality} onChange={onFieldChange} />
+          <ScaleField
+            label="Estrés / tensión"
+            name="stressLevel"
+            value={checkInForm.stressLevel}
+            onChange={onFieldChange}
+            optional
+          />
+          <ScaleField
+            label="Preparación física"
+            name="physicalReadiness"
+            value={checkInForm.physicalReadiness}
+            onChange={onFieldChange}
+            optional
+          />
+        </div>
 
-          <label className="field">
-            <span>Energía</span>
-            <select name="energy" value={checkInForm.energy} onChange={onFieldChange}>
-              {scaleOptions.map((value) => (
-                <option key={`energy-${value}`} value={value}>
-                  {value}/10
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field">
-            <span>Calidad de sueño</span>
-            <select name="sleepQuality" value={checkInForm.sleepQuality} onChange={onFieldChange}>
-              {scaleOptions.map((value) => (
-                <option key={`sleep-${value}`} value={value}>
-                  {value}/10
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className={`daily-checkin-traffic daily-checkin-traffic-${trafficLight.status}`}>
+          <div>
+            <span>Semáforo personal</span>
+            <strong>{trafficLight.label}</strong>
+          </div>
+          <p>{trafficLight.summary}</p>
+          <small>Esto es una herramienta de seguimiento personal; no sustituye orientación profesional.</small>
         </div>
 
         <div className="daily-checkin-emotions">
@@ -124,6 +136,54 @@ export default function DailyCheckInTab({
           />
           <small className="field-hint">{checkInForm.note.length}/220 caracteres</small>
         </label>
+
+        <div className="daily-checkin-support-grid">
+          <div className="daily-checkin-support-card">
+            <div className="daily-checkin-label-row">
+              <strong>Dolor o lesión</strong>
+              <small>Opcional</small>
+            </div>
+            <button
+              className={`daily-checkin-chip ${checkInForm.painOrInjury ? 'daily-checkin-chip-active' : ''}`}
+              type="button"
+              aria-pressed={Boolean(checkInForm.painOrInjury)}
+              onClick={() =>
+                onFieldChange({
+                  target: {
+                    name: 'painOrInjury',
+                    value: !checkInForm.painOrInjury,
+                  },
+                })
+              }
+            >
+              Dolor o lesión
+            </button>
+            <label className="field field-full">
+              <span>Detalle breve</span>
+              <input
+                type="text"
+                name="painOrInjuryNote"
+                value={checkInForm.painOrInjuryNote || ''}
+                onChange={onFieldChange}
+                maxLength={120}
+                placeholder="Ej: rodilla sensible, hombro cargado."
+              />
+            </label>
+          </div>
+
+          <label className="field field-full daily-checkin-minimum-action">
+            <span>Mínimo del día</span>
+            <textarea
+              name="minimumAction"
+              value={checkInForm.minimumAction || ''}
+              onChange={onFieldChange}
+              maxLength={140}
+              placeholder="Ej: caminar 20 min, tomar agua, repasar una técnica."
+              rows="2"
+            />
+            <small className="field-hint">{(checkInForm.minimumAction || '').length}/140 caracteres</small>
+          </label>
+        </div>
 
         <div className="daily-checkin-gratitude">
           <div className="daily-checkin-label-row">

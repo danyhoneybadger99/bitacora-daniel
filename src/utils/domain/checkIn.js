@@ -18,8 +18,13 @@ export function createEmptyDailyCheckIn(date = getToday()) {
     generalState: '7',
     energy: '7',
     sleepQuality: '7',
+    stressLevel: '',
+    physicalReadiness: '',
     emotions: [],
     note: '',
+    painOrInjury: false,
+    painOrInjuryNote: '',
+    minimumAction: '',
     gratitudeDone: false,
     gratitudeText: '',
     confessionReady: false,
@@ -37,6 +42,9 @@ export function normalizeDailyCheckIn(item = {}) {
     generalState: String(source.generalState ?? source.state ?? base.generalState),
     energy: String(source.energy ?? base.energy),
     sleepQuality: String(source.sleepQuality ?? source.sleep ?? base.sleepQuality),
+    stressLevel: source.stressLevel === undefined || source.stressLevel === null ? '' : String(source.stressLevel),
+    physicalReadiness:
+      source.physicalReadiness === undefined || source.physicalReadiness === null ? '' : String(source.physicalReadiness),
     emotions: Array.isArray(source.emotions)
       ? source.emotions.filter(Boolean)
       : String(source.emotions || '')
@@ -44,9 +52,48 @@ export function normalizeDailyCheckIn(item = {}) {
           .map((emotion) => emotion.trim())
           .filter(Boolean),
     note: source.note ?? source.notes ?? '',
+    painOrInjury: Boolean(source.painOrInjury),
+    painOrInjuryNote: source.painOrInjuryNote ?? '',
+    minimumAction: source.minimumAction ?? '',
     gratitudeDone: Boolean(source.gratitudeDone),
     gratitudeText: source.gratitudeText ?? '',
     confessionReady: Boolean(source.confessionReady),
+  };
+}
+
+export function getDailyCheckInTrafficLight(checkIn = {}) {
+  const generalState = Number(checkIn.generalState);
+  const energy = Number(checkIn.energy);
+  const sleepQuality = Number(checkIn.sleepQuality);
+  const stressLevel = Number(checkIn.stressLevel);
+  const hasStress = Number.isFinite(stressLevel) && stressLevel > 0;
+
+  if (
+    checkIn.painOrInjury ||
+    generalState <= 4 ||
+    energy <= 4 ||
+    sleepQuality <= 4 ||
+    (hasStress && stressLevel >= 8)
+  ) {
+    return {
+      status: 'red',
+      label: 'Rojo',
+      summary: 'Baja carga y cuida recuperación.',
+    };
+  }
+
+  if (generalState >= 7 && energy >= 7 && sleepQuality >= 7 && hasStress && stressLevel <= 4) {
+    return {
+      status: 'green',
+      label: 'Verde',
+      summary: 'Buen estado para avanzar con intención.',
+    };
+  }
+
+  return {
+    status: 'yellow',
+    label: 'Amarillo',
+    summary: 'Mantén el día simple y controlado.',
   };
 }
 
