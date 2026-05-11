@@ -1193,7 +1193,7 @@ function App() {
     }
   }
 
-  async function pullRemoteSnapshotAndHydrate({ reason = 'manual', force = false } = {}) {
+  async function pullRemoteSnapshotAndHydrate({ reason = 'manual', force = false, preferRemote = false } = {}) {
     if (!remoteSyncEnabled || !syncUser || !isOnline) return { status: 'skipped', winner: 'local' };
     if (syncRefreshInFlightRef.current) return { status: 'busy', winner: 'local' };
 
@@ -1220,6 +1220,10 @@ function App() {
       if (!remoteSnapshot?.payload) {
         logSyncDebug('reconcile:no-remote', { reason });
         return { status: 'no-remote', winner: 'local', localSnapshot };
+      }
+
+      if (remoteSnapshot.user_id && remoteSnapshot.user_id !== syncUser.id) {
+        throw new Error('El snapshot remoto no pertenece a esta cuenta.');
       }
 
       if (isDevMode) {
@@ -1252,12 +1256,12 @@ function App() {
         remoteValue: decision.remoteValue,
       });
 
-      if (shouldForceRemoteWinner || decision.winner === 'remote') {
+      if (preferRemote || shouldForceRemoteWinner || decision.winner === 'remote') {
         applyHydratedSnapshot(mergedRemoteData);
         return {
           status: 'hydrated-remote',
           winner: 'remote',
-          reason: shouldForceRemoteWinner ? 'daniel-remote-profile-guard' : decision.reason,
+          reason: preferRemote ? 'manual-force-remote' : shouldForceRemoteWinner ? 'daniel-remote-profile-guard' : decision.reason,
           remoteSnapshot: mergedRemoteData,
         };
       }
@@ -4077,6 +4081,54 @@ function lockPrivateModule(feedbackText = '') {
     }
   }
 
+  async function handleForceRemoteRefresh() {
+    if (!remoteSyncEnabled) {
+      setSyncFeedback({ type: 'error', text: 'Faltan las variables de entorno de Supabase.' });
+      return;
+    }
+
+    if (!syncUser) {
+      setSyncFeedback({ type: 'error', text: 'Inicia sesion para actualizar desde la nube.' });
+      return;
+    }
+
+    if (!isOnline) {
+      setSyncStatus('offline');
+      setSyncFeedback({ type: 'info', text: 'Sin conexion. No se pudo leer la nube.' });
+      return;
+    }
+
+    try {
+      setSyncStatus('syncing');
+      const result = await pullRemoteSnapshotAndHydrate({
+        reason: 'manual-force-remote',
+        force: true,
+        preferRemote: true,
+      });
+
+      if (result.status === 'hydrated-remote') {
+        setSyncStatus('synced');
+        setSyncFeedback({ type: 'success', text: 'Datos actualizados desde la nube.' });
+        return;
+      }
+
+      if (result.status === 'no-remote') {
+        setSyncStatus('synced');
+        setSyncFeedback({ type: 'info', text: 'No hay snapshot remoto para esta cuenta todavia.' });
+        return;
+      }
+
+      setSyncStatus('synced');
+      setSyncFeedback({ type: 'success', text: 'Datos actualizados desde la nube.' });
+    } catch (error) {
+      setSyncStatus(isOnline ? 'error' : 'offline');
+      setSyncFeedback({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'No se pudieron actualizar los datos desde la nube.',
+      });
+    }
+  }
+
   function handlePrivateEntrySubmit(event) {
     event.preventDefault();
     if (!activePrivateCycle) {
@@ -5851,6 +5903,9 @@ function toggleRecommendedSupplement(itemConfig) {
                   </div>
 
                   <div className="settings-account-actions">
+                    <button className="button button-primary" type="button" onClick={handleForceRemoteRefresh}>
+                      Actualizar datos desde la nube
+                    </button>
                     <button className="button button-secondary" type="button" onClick={handleSyncSignOut}>
                       Cerrar sesión / Cambiar cuenta
                     </button>
@@ -5860,7 +5915,7 @@ function toggleRecommendedSupplement(itemConfig) {
                   </div>
 
                   <p className="helper-text">
-                    Cerrar sesión no borra tus datos guardados.
+                    Actualizar desde la nube reemplaza esta cache local con el snapshot remoto de esta misma cuenta. Cerrar sesión no borra tus datos guardados.
                   </p>
                 </div>
               </SectionCard>
