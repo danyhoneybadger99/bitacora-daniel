@@ -3209,6 +3209,89 @@ button {
   border: 1px solid #dde5df;
 }
 
+.private-cycle-admin-card {
+  display: grid;
+  gap: 14px;
+}
+
+.private-cycle-admin-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.private-cycle-admin-total {
+  background: linear-gradient(180deg, rgba(248, 251, 248, 0.99), rgba(235, 245, 239, 0.94));
+  border-color: #cbded2;
+}
+
+.private-cycle-admin-alert {
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(162, 103, 46, 0.22);
+  background: rgba(255, 247, 237, 0.86);
+  color: #704214;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.private-cycle-admin-details {
+  display: grid;
+  gap: 8px;
+}
+
+.private-cycle-admin-details details {
+  min-width: 0;
+  padding: 11px 12px;
+  border-radius: 16px;
+  border: 1px solid #dfe7e1;
+  background: #f8faf7;
+}
+
+.private-cycle-admin-details summary {
+  cursor: pointer;
+  color: #1f2c35;
+  font-weight: 800;
+}
+
+.private-cycle-admin-list,
+.private-cycle-admin-pending {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.private-cycle-admin-list div,
+.private-cycle-admin-pending span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 0;
+  border-top: 1px solid #e6ece6;
+}
+
+.private-cycle-admin-pending span {
+  grid-template-columns: 1fr;
+  color: #465763;
+  font-weight: 650;
+}
+
+.private-cycle-admin-list span,
+.private-cycle-admin-list strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.private-cycle-admin-list span {
+  color: #465763;
+  font-weight: 650;
+}
+
+.private-cycle-admin-list strong {
+  color: #1f2c35;
+}
+
 .objective-progress-summary-card {
   background: linear-gradient(180deg, rgba(247, 251, 248, 0.99), rgba(234, 244, 238, 0.94));
   border-color: #cbded2;
@@ -5367,6 +5450,7 @@ button {
   .supplement-routines-grid,
   .supplement-adherence-grid,
   .supplement-moment-grid,
+  .private-cycle-admin-summary,
   .dashboard-main-grid,
   .weekly-detail-grid,
   .weekly-executive-grid,
@@ -5537,6 +5621,7 @@ button {
   .supplement-summary-grid,
   .supplement-adherence-grid,
   .supplement-moment-grid,
+  .private-cycle-admin-summary,
   .exercise-summary-grid,
   .backup-meta-grid,
   .private-summary-grid,
@@ -5594,9 +5679,15 @@ button {
 
   .supplement-adherence-main,
   .supplement-adherence-side,
-  .supplement-moment-card {
+  .supplement-moment-card,
+  .private-cycle-admin-details details {
     padding: 11px;
     border-radius: 16px;
+  }
+
+  .private-cycle-admin-list div {
+    grid-template-columns: 1fr;
+    gap: 3px;
   }
 
   .supplement-moment-grid {

@@ -338,6 +338,7 @@ function normalizePrivateProducts(items) {
         supplier: item.supplier ?? '',
         purchaseDate: normalizeDateString(item.purchaseDate),
         status: item.status ?? 'pendiente',
+        financialBlock: item.financialBlock ?? '',
         notes: item.notes ?? '',
       }))
     : [];
@@ -353,6 +354,7 @@ function normalizePrivatePayments(items) {
         amount: item.amount ?? '',
         method: item.method ?? '',
         status: item.status ?? 'pagado',
+        financialBlock: item.financialBlock ?? '',
         notes: item.notes ?? '',
       }))
     : [];

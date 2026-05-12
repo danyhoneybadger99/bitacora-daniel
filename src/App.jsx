@@ -2375,6 +2375,53 @@ function App() {
     () => getPrivateCycleFinancialSummary(activePrivateCycle?.id || '', privateProducts, privatePayments),
     [activePrivateCycle, privateProducts, privatePayments]
   );
+  const privateCycle2AdminSummary = useMemo(() => {
+    const cycle =
+      privateCycles.find((item) => item.id === 'private-cycle-2-2026') ||
+      privateCycles.find((item) => String(item.name || '').toLowerCase().includes('ciclo #2'));
+
+    if (!cycle) return null;
+
+    const toAmount = (value) => {
+      const parsed = Number(value || 0);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const cycleProducts = privateProducts.filter((item) => item.cycleId === cycle.id);
+    const cyclePayments = privatePayments.filter((item) => item.cycleId === cycle.id);
+    const byBlock = (block) => (item) => item.financialBlock === block;
+    const protectorsProducts = cycleProducts.filter(byBlock('protectors'));
+    const mainProducts = cycleProducts.filter(byBlock('cycle-main'));
+    const protectorsPayments = cyclePayments.filter(byBlock('protectors'));
+    const mainPayments = cyclePayments.filter(byBlock('cycle-main'));
+    const sumCost = (items) => items.reduce((sum, item) => sum + toAmount(item.totalCost), 0);
+    const sumPaid = (items) =>
+      items.filter((item) => item.status === 'pagado').reduce((sum, item) => sum + toAmount(item.amount), 0);
+    const protectorsTotal = sumCost(protectorsProducts);
+    const protectorsPaid = sumPaid(protectorsPayments);
+    const mainTotal = sumCost(mainProducts);
+    const mainPaid = sumPaid(mainPayments);
+    const unresolvedProducts = cycleProducts.filter((item) => !String(item.totalCost || '').trim());
+
+    return {
+      cycle,
+      totalKnown: protectorsTotal + mainTotal,
+      totalPaid: protectorsPaid + mainPaid,
+      pendingTotal: Math.max(protectorsTotal + mainTotal - protectorsPaid - mainPaid, 0),
+      protectorsProducts,
+      protectorsPayments,
+      protectorsTotal,
+      protectorsPaid,
+      protectorsPending: Math.max(protectorsTotal - protectorsPaid, 0),
+      mainProducts,
+      mainPayments,
+      mainTotal,
+      mainPaid,
+      mainPending: Math.max(mainTotal - mainPaid, 0),
+      unresolvedProducts,
+      nextPendingLabel: unresolvedProducts[0]?.name || 'Precio Tesamorelin',
+      estimatedPaymentEndLabel: cycle.estimatedEndDate ? `${formatPrivateDate(cycle.estimatedEndDate)} aprox.` : '2026-06-24 aprox.',
+    };
+  }, [privateCycles, privatePayments, privateProducts]);
   const activeCycleProducts = useMemo(
     () => (activePrivateCycle ? privateProducts.filter((item) => item.cycleId === activePrivateCycle.id) : []),
     [activePrivateCycle, privateProducts]
@@ -9016,6 +9063,99 @@ function toggleRecommendedSupplement(itemConfig) {
                     )}
                   </SectionCard>
                   </div>
+
+                  {privateCycle2AdminSummary ? (
+                    <SectionCard
+                      title="Ciclo #2 - 2026"
+                      subtitle="Control privado administrativo, financiero e inventario. No representa recomendación médica ni protocolo de uso."
+                      className="card-soft private-cycle-admin-card"
+                    >
+                      <div className="private-cycle-admin-summary">
+                        <div className="backup-meta-card private-cycle-admin-total">
+                          <span>Total conocido</span>
+                          <strong>{formatCurrencyMx(privateCycle2AdminSummary.totalKnown)}</strong>
+                        </div>
+                        <div className="backup-meta-card">
+                          <span>Pagado</span>
+                          <strong>{formatCurrencyMx(privateCycle2AdminSummary.totalPaid)}</strong>
+                        </div>
+                        <div className="backup-meta-card private-financial-card-alert">
+                          <span>Pendiente</span>
+                          <strong>{formatCurrencyMx(privateCycle2AdminSummary.pendingTotal)}</strong>
+                        </div>
+                        <div className="backup-meta-card">
+                          <span>Próximo dato pendiente</span>
+                          <strong>{privateCycle2AdminSummary.nextPendingLabel}</strong>
+                        </div>
+                      </div>
+
+                      <div className="private-cycle-admin-alert">
+                        Revisar diferencia en protectores: nota original dice $940, cálculo da $1,040.
+                      </div>
+
+                      <div className="private-cycle-admin-details">
+                        <details>
+                          <summary>Protectores</summary>
+                          <div className="private-cycle-admin-list">
+                            {privateCycle2AdminSummary.protectorsProducts.map((item) => (
+                              <div key={item.id}>
+                                <span>{item.name}</span>
+                                <strong>{formatCurrencyMx(item.totalCost)}</strong>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="section-helper">
+                            Total {formatCurrencyMx(privateCycle2AdminSummary.protectorsTotal)} · Pagado{' '}
+                            {formatCurrencyMx(privateCycle2AdminSummary.protectorsPaid)} · Pendiente{' '}
+                            {formatCurrencyMx(privateCycle2AdminSummary.protectorsPending)}
+                          </p>
+                        </details>
+
+                        <details>
+                          <summary>Ciclo principal</summary>
+                          <div className="private-cycle-admin-list">
+                            {privateCycle2AdminSummary.mainProducts.map((item) => (
+                              <div key={item.id}>
+                                <span>
+                                  {item.name}
+                                  {item.status === 'pendiente' ? ' · pendiente' : ''}
+                                </span>
+                                <strong>{item.totalCost ? formatCurrencyMx(item.totalCost) : 'Pendiente'}</strong>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="section-helper">
+                            Total conocido {formatCurrencyMx(privateCycle2AdminSummary.mainTotal)} · Pagado{' '}
+                            {formatCurrencyMx(privateCycle2AdminSummary.mainPaid)} · Pendiente{' '}
+                            {formatCurrencyMx(privateCycle2AdminSummary.mainPending)}
+                          </p>
+                        </details>
+
+                        <details>
+                          <summary>Pagos</summary>
+                          <div className="private-cycle-admin-list">
+                            {[...privateCycle2AdminSummary.protectorsPayments, ...privateCycle2AdminSummary.mainPayments]
+                              .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+                              .map((item) => (
+                                <div key={item.id}>
+                                  <span>{item.date ? formatPrivateDate(item.date) : 'Sin fecha'} · {item.concept || 'Pago'}</span>
+                                  <strong>{formatCurrencyMx(item.amount)}</strong>
+                                </div>
+                              ))}
+                          </div>
+                        </details>
+
+                        <details>
+                          <summary>Pendientes</summary>
+                          <div className="private-cycle-admin-pending">
+                            <span>Precio pendiente: {privateCycle2AdminSummary.nextPendingLabel}</span>
+                            <span>Fecha estimada de término de pago: {privateCycle2AdminSummary.estimatedPaymentEndLabel}</span>
+                            <span>Revisar diferencia de $100 en protectores.</span>
+                          </div>
+                        </details>
+                      </div>
+                    </SectionCard>
+                  ) : null}
 
                   <SectionCard
                     title="Resumen operativo"

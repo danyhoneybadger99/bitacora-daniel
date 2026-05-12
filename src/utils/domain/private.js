@@ -17,6 +17,9 @@ export const privateCategoryLabels = {
   wistrol: 'Winstrol',
   winstrol: 'Winstrol',
   clembuterol: 'Clembuterol',
+  'eje-hormonal': 'Eje hormonal',
+  tesamorelin: 'Tesamorelin',
+  'oxandrolona-mayo': 'Oxandrolona mayo',
   hcg: 'HCG',
   ia: 'IA',
   peptidos: 'Peptidos',
@@ -108,7 +111,7 @@ export const privateDailyScaleOptions = [
   { value: '5', label: '5 · Muy bueno' },
 ];
 
-export const PRIVATE_CYCLE_2026_SEED_VERSION = 6;
+export const PRIVATE_CYCLE_2026_SEED_VERSION = 7;
 const PRIVATE_CYCLE_2026_MEDICATION_CORRECTION_DATE = '2026-04-16';
 
 export function createEmptyPrivateCycle() {
@@ -315,6 +318,11 @@ export function getPrivateCanonicalCategory(value) {
     'hormona-diaria': 'hormona-diaria',
     'hormona diaria': 'hormona-diaria',
     primobolan: 'primobolan',
+    'eje-hormonal': 'eje-hormonal',
+    'eje hormonal': 'eje-hormonal',
+    tesamorelin: 'tesamorelin',
+    'oxandrolona-mayo': 'oxandrolona-mayo',
+    'oxandrolona mayo': 'oxandrolona-mayo',
     envio: 'envio',
     'cobro de envio': 'envio',
     wistrol: 'winstrol',
@@ -725,7 +733,7 @@ export function createPrivateCycle2026SeedData(cycleId = 'private-cycle-2026') {
   };
 }
 
-export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', status = 'planeado') {
+export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', status = 'activo') {
   return {
     privateSeedVersion: PRIVATE_CYCLE_2026_SEED_VERSION,
     privateCycles: [
@@ -734,11 +742,11 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         name: 'Ciclo #2 - 2026',
         type: 'personalizado',
         startDate: '2026-04-14',
-        estimatedEndDate: '',
+        estimatedEndDate: '2026-06-24',
         status,
-        objective: '',
+        objective: 'Seguimiento administrativo, financiero e inventario privado.',
         notes:
-          'Ciclo con protectores, compuestos y pagos confirmados. Sustanón sigue pendiente por confirmar y no entra al total confirmado. BPC-157 queda fuera de compras activas y totales.',
+          'Registro privado. No representa recomendación médica ni protocolo de uso. Control administrativo, financiero y de seguimiento personal.',
       },
     ],
     privateProducts: [
@@ -754,7 +762,8 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '2026-04-15',
         status: 'comprado',
-        notes: 'Protector confirmado para el ciclo.',
+        financialBlock: 'protectors',
+        notes: 'Bloque protectores. Compra confirmada.',
       },
       {
         id: 'private-product-cycle2-tamoxifeno-2026-04-15',
@@ -768,7 +777,8 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '2026-04-15',
         status: 'comprado',
-        notes: 'Protector confirmado para el ciclo.',
+        financialBlock: 'protectors',
+        notes: 'Bloque protectores. Compra confirmada.',
       },
       {
         id: 'private-product-cycle2-oxandrolona-2026-04-15',
@@ -782,7 +792,8 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '2026-04-15',
         status: 'comprado',
-        notes: 'Protector / oral confirmado para el ciclo.',
+        financialBlock: 'protectors',
+        notes: 'Bloque protectores. Compra confirmada.',
       },
       {
         id: 'private-product-cycle2-liver-cleanse-2026-04-15',
@@ -796,12 +807,13 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '2026-04-15',
         status: 'comprado',
-        notes: 'Protector confirmado para el ciclo.',
+        financialBlock: 'protectors',
+        notes: 'Bloque protectores. Compra confirmada.',
       },
       {
         id: 'private-product-cycle2-envio-2026-04-15',
         cycleId,
-        name: 'Cobro de envío',
+        name: 'Envío',
         category: 'envio',
         presentation: '',
         purchasedQuantity: '',
@@ -810,12 +822,13 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '2026-04-15',
         status: 'comprado',
-        notes: 'Cargo logístico confirmado para el ciclo.',
+        financialBlock: 'protectors',
+        notes: 'Cargo logístico confirmado para protectores.',
       },
       {
         id: 'private-product-cycle2-trembo-2026',
         cycleId,
-        name: 'Trembo',
+        name: 'Trembolona',
         category: 'trembolona',
         presentation: '',
         purchasedQuantity: '',
@@ -824,13 +837,14 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '',
         status: 'comprado',
-        notes: 'Compuesto TRT confirmado.',
+        financialBlock: 'cycle-main',
+        notes: 'Bloque TRT / ciclo principal confirmado.',
       },
       {
         id: 'private-product-cycle2-wistrol-2026',
         cycleId,
-        name: 'Wistrol',
-        category: 'wistrol',
+        name: 'Winstrol',
+        category: 'winstrol',
         presentation: '',
         purchasedQuantity: '',
         unit: '',
@@ -838,7 +852,8 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '',
         status: 'comprado',
-        notes: 'Compuesto TRT confirmado.',
+        financialBlock: 'cycle-main',
+        notes: 'Bloque TRT / ciclo principal confirmado.',
       },
       {
         id: 'private-product-cycle2-hormona-diaria-2026',
@@ -852,7 +867,8 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '',
         status: 'comprado',
-        notes: 'Monto confirmado para el bloque TRT.',
+        financialBlock: 'cycle-main',
+        notes: 'Bloque TRT / ciclo principal confirmado.',
       },
       {
         id: 'private-product-cycle2-primobolan-2026',
@@ -866,7 +882,8 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '',
         status: 'comprado',
-        notes: 'Compuesto TRT confirmado.',
+        financialBlock: 'cycle-main',
+        notes: 'Bloque TRT / ciclo principal confirmado.',
       },
       {
         id: 'private-product-cycle2-clembuterol-2026',
@@ -880,7 +897,8 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         supplier: '',
         purchaseDate: '',
         status: 'comprado',
-        notes: 'Compuesto TRT confirmado.',
+        financialBlock: 'cycle-main',
+        notes: 'Bloque TRT / ciclo principal confirmado.',
       },
       {
         id: 'private-product-cycle2-sustanon-2026',
@@ -890,43 +908,125 @@ export function createPrivateCycle2SeedData(cycleId = 'private-cycle-2-2026', st
         presentation: '',
         purchasedQuantity: '',
         unit: '',
+        totalCost: '4200',
+        supplier: '',
+        purchaseDate: '',
+        status: 'comprado',
+        financialBlock: 'cycle-main',
+        notes: 'Bloque TRT / ciclo principal confirmado.',
+      },
+      {
+        id: 'private-product-cycle2-eje-hormonal-2026',
+        cycleId,
+        name: 'Eje hormonal',
+        category: 'eje-hormonal',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '10500',
+        supplier: '',
+        purchaseDate: '',
+        status: 'comprado',
+        financialBlock: 'cycle-main',
+        notes: 'Bloque TRT / ciclo principal confirmado.',
+      },
+      {
+        id: 'private-product-cycle2-tesamorelin-2026',
+        cycleId,
+        name: 'Péptido Tesamorelin',
+        category: 'tesamorelin',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
         totalCost: '',
         supplier: '',
         purchaseDate: '',
         status: 'pendiente',
-        notes: 'Costo pendiente por confirmar. No incluido en el total confirmado.',
+        financialBlock: 'cycle-main',
+        notes: 'Precio pendiente por confirmar. No incluido en el total conocido.',
+      },
+      {
+        id: 'private-product-cycle2-oxandrolona-mayo-2026',
+        cycleId,
+        name: 'Oxandrolona mayo',
+        category: 'oxandrolona-mayo',
+        presentation: '',
+        purchasedQuantity: '',
+        unit: '',
+        totalCost: '1250',
+        supplier: '',
+        purchaseDate: '',
+        status: 'pendiente',
+        financialBlock: 'cycle-main',
+        notes: 'Bloque TRT / ciclo principal. Estado pendiente con monto conocido.',
       },
     ],
     privatePayments: [
       {
         id: 'private-payment-cycle2-2026-04-14',
         cycleId,
-        concept: 'Pago ciclo #2 - 2026',
+        concept: 'Pago protectores #2 - 2026',
         date: '2026-04-14',
         amount: '950',
         method: '',
         status: 'pagado',
-        notes: '',
+        financialBlock: 'protectors',
+        notes: 'Pago protectores.',
       },
       {
         id: 'private-payment-cycle2-2026-04-15',
         cycleId,
-        concept: 'Pago ciclo #2 - 2026',
+        concept: 'Pago protectores #2 - 2026',
         date: '2026-04-15',
         amount: '3000',
         method: '',
         status: 'pagado',
-        notes: '',
+        financialBlock: 'protectors',
+        notes: 'Pago protectores.',
       },
       {
         id: 'private-payment-cycle2-2026-04-22',
         cycleId,
-        concept: 'Pago ciclo #2 - 2026',
+        concept: 'Pago ciclo principal #2 - 2026',
         date: '2026-04-22',
         amount: '5000',
         method: '',
         status: 'pagado',
-        notes: '',
+        financialBlock: 'cycle-main',
+        notes: 'Pago ciclo principal.',
+      },
+      {
+        id: 'private-payment-cycle2-2026-04-29',
+        cycleId,
+        concept: 'Pago ciclo principal #2 - 2026',
+        date: '2026-04-29',
+        amount: '4000',
+        method: '',
+        status: 'pagado',
+        financialBlock: 'cycle-main',
+        notes: 'Pago ciclo principal.',
+      },
+      {
+        id: 'private-payment-cycle2-2026-05-06',
+        cycleId,
+        concept: 'Pago ciclo principal #2 - 2026',
+        date: '2026-05-06',
+        amount: '4000',
+        method: '',
+        status: 'pagado',
+        financialBlock: 'cycle-main',
+        notes: 'Pago ciclo principal.',
+      },
+      {
+        id: 'private-payment-cycle2-2026-05-13',
+        cycleId,
+        concept: 'Pago ciclo principal #2 - 2026',
+        date: '2026-05-13',
+        amount: '4000',
+        method: '',
+        status: 'pagado',
+        financialBlock: 'cycle-main',
+        notes: 'Pago ciclo principal.',
       },
     ],
     privateHormonalEntries: [],
@@ -955,6 +1055,10 @@ function applyPrivateCycleSeedBundle(
       normalizePrivateSeedKey(item.id) === normalizePrivateSeedKey(seedCycle.id)
   );
   const resolvedCycleId = existingCycle?.id || seedCycle.id;
+  const shouldPromoteCycle2ToActive =
+    normalizePrivateSeedKey(seedCycle.id) === normalizePrivateSeedKey('private-cycle-2-2026') &&
+    normalizePrivateSeedKey(existingCycle?.status) === 'planeado' &&
+    Number(privateSeedVersion || 0) < PRIVATE_CYCLE_2026_SEED_VERSION;
 
   const repairedCycle = {
     ...seedCycle,
@@ -964,7 +1068,7 @@ function applyPrivateCycleSeedBundle(
     type: existingCycle?.type || seedCycle.type,
     startDate: existingCycle?.startDate || seedCycle.startDate,
     estimatedEndDate: existingCycle?.estimatedEndDate || seedCycle.estimatedEndDate,
-    status: existingCycle?.status || seedCycle.status,
+    status: shouldPromoteCycle2ToActive ? seedCycle.status : existingCycle?.status || seedCycle.status,
     objective: existingCycle?.objective || seedCycle.objective,
     notes: mergePrivateNotes(existingCycle?.notes, seedCycle.notes),
   };
@@ -977,16 +1081,23 @@ function applyPrivateCycleSeedBundle(
   seed.privateProducts.forEach((seedProduct) => {
     const existingProductIndex = nextProducts.findIndex(
       (item) =>
-        normalizePrivateSeedKey(item.name) === normalizePrivateSeedKey(seedProduct.name) &&
+        (normalizePrivateSeedKey(item.id) === normalizePrivateSeedKey(seedProduct.id) ||
+          normalizePrivateSeedKey(item.name) === normalizePrivateSeedKey(seedProduct.name)) &&
         canReusePrivateCycleRecord(item.cycleId, resolvedCycleId, seedProduct.id)
     );
 
     if (existingProductIndex >= 0) {
       const currentProduct = nextProducts[existingProductIndex];
+      const currentProductNameKey = normalizePrivateSeedKey(currentProduct.name);
+      const shouldUseUpdatedSeedName = ['trembo', 'wistrol', 'cobro de envio'].includes(currentProductNameKey);
+      const shouldUseUpdatedSeedStatus =
+        normalizePrivateSeedKey(seedProduct.id) === normalizePrivateSeedKey('private-product-cycle2-sustanon-2026') &&
+        normalizePrivateSeedKey(currentProduct.status) === 'pendiente' &&
+        Number(privateSeedVersion || 0) < PRIVATE_CYCLE_2026_SEED_VERSION;
       nextProducts[existingProductIndex] = {
         ...currentProduct,
         cycleId: resolvedCycleId,
-        name: currentProduct.name || seedProduct.name,
+        name: shouldUseUpdatedSeedName ? seedProduct.name : currentProduct.name || seedProduct.name,
         category: currentProduct.category || seedProduct.category,
         purchasedQuantity: isBlankValue(currentProduct.purchasedQuantity)
           ? seedProduct.purchasedQuantity
@@ -999,7 +1110,8 @@ function applyPrivateCycleSeedBundle(
             : currentProduct.totalCost,
         supplier: currentProduct.supplier || seedProduct.supplier,
         purchaseDate: currentProduct.purchaseDate || seedProduct.purchaseDate,
-        status: currentProduct.status || seedProduct.status,
+        status: shouldUseUpdatedSeedStatus ? seedProduct.status : currentProduct.status || seedProduct.status,
+        financialBlock: currentProduct.financialBlock || seedProduct.financialBlock || '',
         notes: mergePrivateNotes(currentProduct.notes, seedProduct.notes),
       };
       return;
@@ -1019,7 +1131,8 @@ function applyPrivateCycleSeedBundle(
   seed.privatePayments.forEach((seedPayment) => {
     const existingPaymentIndex = nextPayments.findIndex(
       (item) =>
-        matchPrivatePaymentSeed(item, seedPayment) &&
+        (normalizePrivateSeedKey(item.id) === normalizePrivateSeedKey(seedPayment.id) ||
+          matchPrivatePaymentSeed(item, seedPayment)) &&
         canReusePrivateCycleRecord(item.cycleId, resolvedCycleId, seedPayment.id)
     );
 
@@ -1031,6 +1144,7 @@ function applyPrivateCycleSeedBundle(
         concept: currentPayment.concept || seedPayment.concept,
         method: currentPayment.method || seedPayment.method,
         status: currentPayment.status || seedPayment.status,
+        financialBlock: currentPayment.financialBlock || seedPayment.financialBlock || '',
         notes: mergePrivateNotes(currentPayment.notes, seedPayment.notes),
       };
       return;
@@ -1245,11 +1359,9 @@ export function repairPrivateCycle2026Data({
     }
   );
 
-  const shouldCreateCycle2AsActive = !cycle1State.privateCycles.some((item) => item.status === 'activo');
-
   return applyPrivateCycleSeedBundle(
     cycle1State,
-    createPrivateCycle2SeedData('private-cycle-2-2026', shouldCreateCycle2AsActive ? 'activo' : 'planeado')
+    createPrivateCycle2SeedData('private-cycle-2-2026', 'activo')
   );
 }
 
@@ -1260,6 +1372,10 @@ export function getPrivateCycleFinancialSummary(cycleId, privateProducts = [], p
   const getFinancialBucket = (item) => {
     const normalizedName = normalizePrivateSeedKey(item?.name);
     const normalizedCategory = getPrivateCanonicalCategory(item?.category);
+    const normalizedFinancialBlock = normalizePrivateSeedKey(item?.financialBlock);
+
+    if (normalizedFinancialBlock === 'protectors') return 'protectors';
+    if (normalizedFinancialBlock === 'cycle-main') return 'trt';
 
     if (
       normalizedCategory === 'tamoxifeno' ||
@@ -1284,6 +1400,9 @@ export function getPrivateCycleFinancialSummary(cycleId, privateProducts = [], p
       normalizedCategory === 'hormona-diaria' ||
       normalizedCategory === 'primo' ||
       normalizedCategory === 'primobolan' ||
+      normalizedCategory === 'eje-hormonal' ||
+      normalizedCategory === 'tesamorelin' ||
+      normalizedCategory === 'oxandrolona-mayo' ||
       normalizedCategory === 'trembolona' ||
       normalizedCategory === 'winstrol' ||
       normalizedCategory === 'clembuterol' ||
@@ -1291,6 +1410,9 @@ export function getPrivateCycleFinancialSummary(cycleId, privateProducts = [], p
       normalizedName.includes('hormona diaria') ||
       normalizedName.includes('primob') ||
       normalizedName.includes('primo') ||
+      normalizedName.includes('eje hormonal') ||
+      normalizedName.includes('tesamorelin') ||
+      normalizedName.includes('oxandrolona mayo') ||
       normalizedName.includes('trembo') ||
       normalizedName.includes('wistrol') ||
       normalizedName.includes('winstrol') ||
