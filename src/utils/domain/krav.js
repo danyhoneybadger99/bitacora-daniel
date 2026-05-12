@@ -356,6 +356,24 @@ const danielFirstOrangePracticeTechniqueIds = [
   'krav-verde-etapa3-combos-combo-dekker-progresivo-1',
   'krav-verde-etapa2-armas-cuchillo-frontal-amenaza',
 ];
+const danielOseasPracticeDate = '2026-05-12';
+const danielOseasPracticeTechniqueIds = [
+  'krav-verde-etapa1-warm-up-360-guardia-con-golpeo-1-2',
+  'krav-verde-etapa1-warm-up-360-guardia-con-desplaces-y-golpeo-1-2-frente',
+  'krav-verde-etapa1-warm-up-360-guardia-con-desplaces-y-golpeo-1-2-espalda',
+  'krav-verde-etapa1-warm-up-360-codazos-ambos-brazos',
+  'krav-verde-etapa1-warm-up-360-rodilla-frontal-ambas-piernas',
+  'krav-verde-etapa1-warm-up-360-patada-frontal-ambas-piernas',
+  'krav-verde-etapa1-warm-up-360-romper-caida-frente',
+  'krav-verde-etapa1-warm-up-360-romper-caida-espalda-suave',
+  'krav-verde-etapa1-warm-up-360-romper-caida-espalda-duro',
+  'krav-verde-etapa1-warm-up-360-puentes',
+  'krav-verde-etapa1-warm-up-360-camarones',
+  'krav-verde-etapa1-herramientas-360-con-contraataque',
+  'krav-verde-etapa2-armas-cuchillo-frontal-amenaza',
+  'krav-verde-etapa3-combos-serie-de-codos-1',
+  'krav-verde-etapa3-combos-serie-de-codos-2',
+];
 
 export function createDanielFirstOrangePracticeLog() {
   return {
@@ -377,6 +395,30 @@ export function createDanielFirstOrangePracticeLog() {
     reviewNeeded:
       'Repasar entradas del Combo Dekker 1, fluidez entre golpes y reacción inicial ante amenaza con cuchillo. Priorizar control, distancia y ejecución segura antes de subir nivel.',
     seededAt: danielFirstOrangePracticeDate,
+  };
+}
+
+export function createDanielOseasPracticeLog() {
+  return {
+    id: 'krav-practice-daniel-oseas-tonche-2026-05-12',
+    date: danielOseasPracticeDate,
+    startTime: '08:00',
+    endTime: '09:00',
+    coach: 'oseas-tonche',
+    coachCustomName: '',
+    techniqueIds: [...danielOseasPracticeTechniqueIds],
+    sparring: 'no',
+    currentBelt: 'naranja',
+    targetBelt: 'verde',
+    type: 'Krav Maga / técnica',
+    description: 'Sesión Krav Maga - 360, contraataque y cuchillo ascendente',
+    observations:
+      'Primera mitad de la sesión enfocada en acondicionamiento y técnica base: rodillas sin clinch, Serie de Codos #1, Kickushing, Serie de Codos #2, Defensa de Golpes Rectos, Vos Combinado, sentadillas, abdominales completos, lagartijas, burpees, desplantes y squats. Segunda mitad enfocada en 360, 360 con contraataque y defensa de cuchillo ascendente.',
+    mistakes:
+      'Revisar precisión en la transición entre 360 con contraataque y defensa de cuchillo ascendente. Cuidar timing, distancia y salida segura después del contraataque.',
+    reviewNeeded:
+      '360 con contraataque, defensa de cuchillo ascendente, defensa de golpes rectos, series de codos, vos combinado y lectura de amenaza.',
+    seededAt: danielOseasPracticeDate,
   };
 }
 
@@ -531,52 +573,81 @@ export function mergeDanielKravCurriculum(existing = []) {
   return mergeGreenKravCurriculum(mergeOrangeKravCurriculum(existing));
 }
 
-export function applyDanielFirstOrangePracticeToCurriculum(curriculum = []) {
-  const targetIds = new Set(danielFirstOrangePracticeTechniqueIds);
+function getLatestPracticeDate(currentDate = '', seedDate = '') {
+  const normalizedCurrent = normalizeDateString(currentDate);
+  const normalizedSeed = normalizeDateString(seedDate);
+  if (!normalizedCurrent) return normalizedSeed;
+  if (!normalizedSeed) return normalizedCurrent;
+  return normalizedCurrent >= normalizedSeed ? normalizedCurrent : normalizedSeed;
+}
+
+export function applyDanielPracticeSeedsToCurriculum(curriculum = []) {
+  const practiceSeedMap = new Map();
+
+  [
+    { date: danielFirstOrangePracticeDate, techniqueIds: danielFirstOrangePracticeTechniqueIds },
+    { date: danielOseasPracticeDate, techniqueIds: danielOseasPracticeTechniqueIds },
+  ].forEach((seed) => {
+    seed.techniqueIds.forEach((techniqueId) => {
+      practiceSeedMap.set(techniqueId, getLatestPracticeDate(practiceSeedMap.get(techniqueId), seed.date));
+    });
+  });
+
   return (Array.isArray(curriculum) ? curriculum : []).map((item) => {
-    if (!targetIds.has(item?.id)) return item;
+    const practiceDate = practiceSeedMap.get(item?.id);
+    if (!practiceDate) return item;
 
     return {
       ...item,
-      lastPracticedAt: normalizeDateString(item.lastPracticedAt) || danielFirstOrangePracticeDate,
+      lastPracticedAt: getLatestPracticeDate(item.lastPracticedAt, practiceDate),
     };
   });
 }
 
-function hasDanielFirstOrangePracticeLog(logs = []) {
-  const seedLog = createDanielFirstOrangePracticeLog();
+function hasDanielPracticeLog(logs = [], seedLog, seedTechniqueIds = []) {
   return (Array.isArray(logs) ? logs : []).some((item) => {
     if (item?.id === seedLog.id) return true;
     const itemTechniqueIds = Array.isArray(item?.techniqueIds) ? item.techniqueIds : [];
     return (
       normalizeDateString(item?.date) === seedLog.date &&
-      danielFirstOrangePracticeTechniqueIds.every((techniqueId) => itemTechniqueIds.includes(techniqueId))
+      item?.coach === seedLog.coach &&
+      seedTechniqueIds.every((techniqueId) => itemTechniqueIds.includes(techniqueId))
     );
   });
 }
 
-export function mergeDanielFirstOrangePracticeLog(existing = []) {
+function mergeDanielPracticeLog(existing = [], createSeedLog, seedTechniqueIds = []) {
   const current = Array.isArray(existing) ? existing : [];
-  if (hasDanielFirstOrangePracticeLog(current)) {
+  const seedLog = createSeedLog();
+
+  if (hasDanielPracticeLog(current, seedLog, seedTechniqueIds)) {
     return current.map((item) => {
-      if (item?.id !== 'krav-practice-daniel-orange-first-2026-05-11') return item;
+      if (item?.id !== seedLog.id) return item;
       return {
-        ...createDanielFirstOrangePracticeLog(),
+        ...seedLog,
         ...item,
         techniqueIds: Array.isArray(item.techniqueIds) && item.techniqueIds.length > 0
           ? item.techniqueIds
-          : [...danielFirstOrangePracticeTechniqueIds],
+          : [...seedTechniqueIds],
       };
     });
   }
 
-  return [createDanielFirstOrangePracticeLog(), ...current];
+  return [seedLog, ...current];
+}
+
+export function mergeDanielPracticeLogs(existing = []) {
+  return mergeDanielPracticeLog(
+    mergeDanielPracticeLog(existing, createDanielFirstOrangePracticeLog, danielFirstOrangePracticeTechniqueIds),
+    createDanielOseasPracticeLog,
+    danielOseasPracticeTechniqueIds
+  );
 }
 
 export function applyDanielKravPracticeSeed({ curriculum = [], practiceLogs = [] } = {}) {
   return {
-    curriculum: applyDanielFirstOrangePracticeToCurriculum(curriculum),
-    practiceLogs: mergeDanielFirstOrangePracticeLog(practiceLogs),
+    curriculum: applyDanielPracticeSeedsToCurriculum(curriculum),
+    practiceLogs: mergeDanielPracticeLogs(practiceLogs),
   };
 }
 

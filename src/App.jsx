@@ -2235,6 +2235,29 @@ function App() {
     },
     [kravCurriculum]
   );
+  const kravWarmUp360TechniqueIds = useMemo(
+    () => kravCurriculum.filter((item) => item.category === 'warm-up-360').map((item) => item.id).filter(Boolean),
+    [kravCurriculum]
+  );
+  const kravWarmUp360TechniqueIdsKey = kravWarmUp360TechniqueIds.join('|');
+  const isKravWarmUp360Included =
+    kravWarmUp360TechniqueIds.length > 0 &&
+    kravWarmUp360TechniqueIds.every((techniqueId) => (kravPracticeForm.techniqueIds || []).includes(techniqueId));
+
+  useEffect(() => {
+    if (!showKravPracticeBuilder || editingKravPracticeId || kravWarmUp360TechniqueIds.length === 0) return;
+
+    setKravPracticeForm((current) => {
+      const currentIds = Array.isArray(current.techniqueIds) ? current.techniqueIds : [];
+      if (currentIds.length > 0) return current;
+
+      return {
+        ...current,
+        techniqueIds: [...kravWarmUp360TechniqueIds],
+      };
+    });
+  }, [editingKravPracticeId, kravWarmUp360TechniqueIdsKey, showKravPracticeBuilder]);
+
   const kravPriorityReason = useMemo(() => {
     if (!nextKravTechnique) return '';
 
@@ -3467,6 +3490,7 @@ function lockPrivateModule(feedbackText = '') {
     setKravPracticeForm({
       ...createEmptyKravPracticeLog(),
       date: currentDate,
+      techniqueIds: [...kravWarmUp360TechniqueIds],
     });
   }
 
@@ -5095,6 +5119,23 @@ function lockPrivateModule(feedbackText = '') {
       return {
         ...current,
         techniqueIds: alreadySelected ? currentIds.filter((item) => item !== techniqueId) : [...currentIds, techniqueId],
+      };
+    });
+  }
+
+  function toggleKravWarmUp360Selection() {
+    if (kravWarmUp360TechniqueIds.length === 0) return;
+
+    setKravPracticeForm((current) => {
+      const currentIds = Array.isArray(current.techniqueIds) ? current.techniqueIds : [];
+      const warmUpSet = new Set(kravWarmUp360TechniqueIds);
+      const hasFullWarmUp = kravWarmUp360TechniqueIds.every((techniqueId) => currentIds.includes(techniqueId));
+
+      return {
+        ...current,
+        techniqueIds: hasFullWarmUp
+          ? currentIds.filter((techniqueId) => !warmUpSet.has(techniqueId))
+          : [...new Set([...currentIds, ...kravWarmUp360TechniqueIds])],
       };
     });
   }
@@ -8034,6 +8075,24 @@ function toggleRecommendedSupplement(itemConfig) {
                         <option value="si">Sí</option>
                       </select>
                     </label>
+                    {kravWarmUp360TechniqueIds.length > 0 ? (
+                      <div className="field field-full krav-warmup-toggle-card">
+                        <div>
+                          <span>Warm Up 360</span>
+                          <strong>Incluir Warm Up 360</strong>
+                          <small>Preselecciona la categoría completa; puedes quitar técnicas manualmente si hace falta.</small>
+                        </div>
+                        <button
+                          className={`krav-warmup-switch ${isKravWarmUp360Included ? 'krav-warmup-switch-active' : ''}`}
+                          type="button"
+                          role="switch"
+                          aria-checked={isKravWarmUp360Included}
+                          onClick={toggleKravWarmUp360Selection}
+                        >
+                          {isKravWarmUp360Included ? 'Incluido' : 'No incluido'}
+                        </button>
+                      </div>
+                    ) : null}
                     <label className="field field-full">
                       <span>Técnicas practicadas</span>
                       <div className="krav-selector-groups">
@@ -8063,7 +8122,7 @@ function toggleRecommendedSupplement(itemConfig) {
                     </label>
                     <label className="field field-full">
                       <span>Observaciones</span>
-                      <textárea
+                      <textarea
                         name="observations"
                         rows="3"
                         value={kravPracticeForm.observations}
@@ -8073,7 +8132,7 @@ function toggleRecommendedSupplement(itemConfig) {
                     </label>
                     <label className="field field-full">
                       <span>Qué salió mal</span>
-                      <textárea
+                      <textarea
                         name="mistakes"
                         rows="2"
                         value={kravPracticeForm.mistakes}
@@ -8083,12 +8142,12 @@ function toggleRecommendedSupplement(itemConfig) {
                     </label>
                     <label className="field field-full">
                       <span>Qué debo repasar</span>
-                      <textárea
+                      <textarea
                         name="reviewNeeded"
                         rows="2"
                         value={kravPracticeForm.reviewNeeded}
                         onChange={handleKravPracticeFieldChange}
-                        placeholder="Táreas claras para la próxima sesión o para repasar en casa..."
+                        placeholder="Tareas claras para la próxima sesión o para repasar en casa..."
                       />
                     </label>
                   </div>

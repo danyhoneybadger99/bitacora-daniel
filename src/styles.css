@@ -5051,15 +5051,72 @@ button {
   gap: 16px;
 }
 
+.krav-warmup-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(126, 56, 65, 0.16);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fffefe 0%, #fbf8f8 100%);
+}
+
+.krav-warmup-toggle-card div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.krav-warmup-toggle-card span {
+  color: #667684;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.krav-warmup-toggle-card strong {
+  color: #182229;
+  font-size: 0.96rem;
+}
+
+.krav-warmup-toggle-card small {
+  color: #64727d;
+  line-height: 1.35;
+}
+
+.krav-warmup-switch {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 7px 13px;
+  border: 1px solid #dce4ec;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4a5963;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.krav-warmup-switch-active {
+  border-color: rgba(126, 56, 65, 0.32);
+  background: rgba(126, 56, 65, 0.1);
+  color: #7e3841;
+}
+
 .krav-selector-groups {
   display: grid;
   gap: 8px;
 }
 
 .krav-selector-group {
+  min-width: 0;
   border: 1px solid #e2e8ef;
   border-radius: 14px;
   background: #fbfcfe;
+  overflow: hidden;
 }
 
 .krav-selector-group summary {
@@ -5072,6 +5129,15 @@ button {
   padding: 10px 12px;
   color: #1f2a33;
   font-weight: 600;
+}
+
+.krav-selector-group summary span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.krav-selector-group summary small {
+  flex: 0 0 auto;
 }
 
 .krav-selector-group summary::-webkit-details-marker {
@@ -5087,18 +5153,52 @@ button {
   display: grid;
   gap: 8px;
   padding: 0 12px 12px;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .krav-selector-item {
-  display: flex;
-  gap: 9px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
   align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(226, 232, 239, 0.8);
+  border-radius: 12px;
+  background: #ffffff;
   color: #42515f;
   line-height: 1.35;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .krav-selector-item input {
-  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  flex: 0 0 auto;
+  accent-color: #7e3841;
+}
+
+.krav-selector-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.krav-practice-form textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.krav-practice-form label,
+.krav-practice-form .field,
+.krav-practice-form .field-full {
+  min-width: 0;
 }
 
 .krav-empty-state-card {
@@ -5893,6 +5993,38 @@ button {
 
   .krav-selector-group summary {
     padding: 9px 10px;
+  }
+
+  .krav-warmup-toggle-card {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .krav-warmup-switch {
+    width: 100%;
+  }
+
+  .krav-selector-list {
+    padding: 0 10px 10px;
+    gap: 7px;
+  }
+
+  .krav-selector-item {
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+    font-size: 0.86rem;
+  }
+
+  .krav-selector-item input {
+    width: 18px;
+    height: 18px;
+  }
+
+  .krav-practice-form textarea {
+    min-height: 104px;
   }
 
   .krav-technique-card .entry-actions .button,
