@@ -2191,6 +2191,141 @@ button {
   font-size: 1.7rem;
 }
 
+.supplement-summary-grid-operational {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.supplement-today-card,
+.supplement-week-card,
+.supplement-moment-section,
+.supplement-tools-card {
+  margin-top: 14px;
+}
+
+.supplement-progress-line {
+  width: 100%;
+  height: 8px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7ede7;
+}
+
+.supplement-progress-line span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #58745f, #8b3f47);
+}
+
+.supplement-summary-message {
+  margin: 10px 0 0;
+  color: #34424d;
+  font-weight: 700;
+}
+
+.supplement-adherence-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(160px, 0.6fr);
+  gap: 12px;
+}
+
+.supplement-adherence-main,
+.supplement-adherence-side {
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid #dfe7e1;
+  background: #f8faf7;
+}
+
+.supplement-adherence-main span,
+.supplement-adherence-side span,
+.supplement-adherence-main small {
+  display: block;
+  color: #63717d;
+  font-size: 0.86rem;
+}
+
+.supplement-adherence-main strong,
+.supplement-adherence-side strong {
+  display: block;
+  margin: 5px 0;
+  color: #1f2c35;
+  font-size: 1.55rem;
+}
+
+.supplement-moment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.supplement-moment-card {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid #dfe7e1;
+  background: #f8faf7;
+}
+
+.supplement-moment-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.supplement-moment-title strong {
+  color: #1f2c35;
+  font-size: 0.95rem;
+}
+
+.supplement-moment-title span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #63717d;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.supplement-moment-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.supplement-moment-list li {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.supplement-moment-list span,
+.supplement-moment-list small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.supplement-moment-list span {
+  color: #22313b;
+  font-weight: 750;
+  font-size: 0.9rem;
+}
+
+.supplement-moment-list small {
+  color: #667684;
+  font-size: 0.78rem;
+}
+
 .fasting-summary-primary-card {
   grid-column: span 2;
   background: linear-gradient(180deg, rgba(250, 253, 251, 0.98), rgba(235, 244, 239, 0.95));
@@ -2262,6 +2397,7 @@ button {
 .supplement-checklist-copy {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 
 .supplement-checklist-copy strong {
@@ -5229,6 +5365,8 @@ button {
   .hydration-mini-grid,
   .foods-layout,
   .supplement-routines-grid,
+  .supplement-adherence-grid,
+  .supplement-moment-grid,
   .dashboard-main-grid,
   .weekly-detail-grid,
   .weekly-executive-grid,
@@ -5397,6 +5535,8 @@ button {
   .metrics-summary-grid,
   .metrics-trend-grid,
   .supplement-summary-grid,
+  .supplement-adherence-grid,
+  .supplement-moment-grid,
   .exercise-summary-grid,
   .backup-meta-grid,
   .private-summary-grid,
@@ -5423,6 +5563,48 @@ button {
   .private-agenda-summary-card {
     padding: 14px;
     border-radius: 18px;
+  }
+
+  .supplement-checklist-grid {
+    gap: 8px;
+  }
+
+  .supplement-checklist-item {
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 16px;
+  }
+
+  .supplement-summary-grid-operational {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .supplement-summary-grid-operational .supplement-summary-card {
+    padding: 11px;
+  }
+
+  .supplement-summary-grid-operational .supplement-summary-card span {
+    font-size: 0.75rem;
+  }
+
+  .supplement-summary-grid-operational .supplement-summary-card strong {
+    font-size: 1.25rem;
+  }
+
+  .supplement-adherence-main,
+  .supplement-adherence-side,
+  .supplement-moment-card {
+    padding: 11px;
+    border-radius: 16px;
+  }
+
+  .supplement-moment-grid {
+    gap: 8px;
+  }
+
+  .supplement-moment-list {
+    gap: 6px;
   }
 
   .split-layout,

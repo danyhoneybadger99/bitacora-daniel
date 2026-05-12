@@ -925,7 +925,8 @@ function App() {
   const [showAllRecentFoods, setShowAllRecentFoods] = useState(false);
   const [showHydrationHistory, setShowHydrationHistory] = useState(false);
   const [showFoodTemplateBuilder, setShowFoodTemplateBuilder] = useState(true);
-  const [showRoutineBuilder, setShowRoutineBuilder] = useState(true);
+  const [showRoutineBuilder, setShowRoutineBuilder] = useState(false);
+  const [showSupplementRoutineTools, setShowSupplementRoutineTools] = useState(false);
   const [showFastingProtocolBuilder, setShowFastingProtocolBuilder] = useState(false);
   const [showFastingManualForm, setShowFastingManualForm] = useState(false);
   const [showKravPracticeBuilder, setShowKravPracticeBuilder] = useState(false);
@@ -3113,33 +3114,123 @@ function lockPrivateModule(feedbackText = '') {
       }),
     [todaysSupplements]
   );
-  const visibleChecklistSupplements = useMemo(() => {
-    if (supplementFilter === 'todos') return dailySupplementChecklist;
-    return dailySupplementChecklist.filter((item) => item.category === supplementFilter);
-  }, [dailySupplementChecklist, supplementFilter]);
   const checklistSupplementKeySet = useMemo(
     () => new Set(recommendedSupplementChecklist.map((item) => normalizeTextToken(item.name))),
     []
   );
-  const visibleSupplementRecordsOutsideChecklist = useMemo(
-    () =>
-      visibleSupplements.filter((item) => !checklistSupplementKeySet.has(normalizeTextToken(item.name))),
-    [checklistSupplementKeySet, visibleSupplements]
+  const supplementRecordsOutsideChecklist = useMemo(
+    () => todaysSupplements.filter((item) => !checklistSupplementKeySet.has(normalizeTextToken(item.name))),
+    [checklistSupplementKeySet, todaysSupplements]
   );
-  const visibleSupplementSummary = useMemo(() => {
-    const total = visibleChecklistSupplements.length + visibleSupplementRecordsOutsideChecklist.length;
-    const taken =
-      visibleChecklistSupplements.filter((item) => item.checked).length +
-      visibleSupplementRecordsOutsideChecklist.filter((item) => item.taken === 'si').length;
-    const pending =
-      visibleChecklistSupplements.filter((item) => !item.checked).length +
-      visibleSupplementRecordsOutsideChecklist.filter((item) => item.taken !== 'si').length;
-    const medications =
-      visibleChecklistSupplements.filter((item) => item.category === 'medicamento').length +
-      visibleSupplementRecordsOutsideChecklist.filter((item) => item.category === 'medicamento').length;
 
-    return { total, taken, pending, medications };
-  }, [visibleChecklistSupplements, visibleSupplementRecordsOutsideChecklist]);
+  const supplementDailySummary = useMemo(() => {
+    const total = dailySupplementChecklist.length + supplementRecordsOutsideChecklist.length;
+    const taken =
+      dailySupplementChecklist.filter((item) => item.checked).length +
+      supplementRecordsOutsideChecklist.filter((item) => item.taken === 'si').length;
+    const pending = Math.max(0, total - taken);
+    const percent = total > 0 ? Math.round((taken / total) * 100) : 0;
+    const message =
+      percent === 100
+        ? 'Rutina completa.'
+        : percent >= 60
+          ? 'Buen avance, faltan pendientes.'
+          : 'Rutina incompleta.';
+
+    return { total, taken, pending, percent, message };
+  }, [dailySupplementChecklist, supplementRecordsOutsideChecklist]);
+
+  const weeklySupplementAdherence = useMemo(() => {
+    const elapsedDates = [];
+    let cursorDate = currentWeekStart;
+
+    while (cursorDate <= currentDate && cursorDate <= currentWeekEnd) {
+      elapsedDates.push(cursorDate);
+      cursorDate = shiftDateByDays(cursorDate, 1);
+    }
+
+    const daySummaries = elapsedDates.map((date) => {
+      const dayRecords = (diaryData.supplements || []).filter((item) => isSameDate(item.date, date));
+      const dayChecklistTaken = recommendedSupplementChecklist.filter((item) =>
+        dayRecords.some((entry) => normalizeTextToken(entry.name) === normalizeTextToken(item.name) && entry.taken === 'si')
+      ).length;
+      const dayRecordsOutsideChecklist = dayRecords.filter(
+        (item) => !checklistSupplementKeySet.has(normalizeTextToken(item.name))
+      );
+      const expected = recommendedSupplementChecklist.length + dayRecordsOutsideChecklist.length;
+      const completed =
+        dayChecklistTaken + dayRecordsOutsideChecklist.filter((item) => item.taken === 'si').length;
+
+      return {
+        date,
+        expected,
+        completed,
+        isComplete: expected > 0 && completed >= expected,
+      };
+    });
+
+    const expected = daySummaries.reduce((total, day) => total + day.expected, 0);
+    const completed = daySummaries.reduce((total, day) => total + day.completed, 0);
+    const completeDays = daySummaries.filter((day) => day.isComplete).length;
+    const percent = expected > 0 ? Math.round((completed / expected) * 100) : 0;
+
+    return {
+      completed,
+      expected,
+      completeDays,
+      trackedDays: daySummaries.length,
+      percent,
+    };
+  }, [checklistSupplementKeySet, currentDate, currentWeekEnd, currentWeekStart, diaryData.supplements]);
+
+  const supplementMomentGroups = useMemo(() => {
+    const momentOrder = [
+      { key: 'manana', label: 'Mañana' },
+      { key: 'comida', label: 'Con comida / OMAD' },
+      { key: 'pre-entreno', label: 'Pre-entreno' },
+      { key: 'noche', label: 'Noche' },
+      { key: 'ayuno', label: 'Ayuno / electrolitos' },
+      { key: 'sin-horario', label: 'Sin horario definido' },
+    ];
+    const groups = Object.fromEntries(momentOrder.map((item) => [item.key, []]));
+    const seen = new Set();
+
+    const getMomentKey = (item) => {
+      const normalizedName = normalizeTextToken(item.name || '');
+      if (item.category === 'pre-entreno') return 'pre-entreno';
+      if (item.foodRelation === 'ayuno' || normalizedName.includes('electrolito')) return 'ayuno';
+      if (item.daytime === 'manana') return 'manana';
+      if (item.daytime === 'noche') return 'noche';
+      if (item.foodRelation === 'con-comida' || item.daytime === 'mediodia' || item.daytime === 'tarde') return 'comida';
+      return 'sin-horario';
+    };
+
+    const addMomentItem = (item, sourceLabel) => {
+      const name = item.name?.trim();
+      if (!name) return;
+
+      const momentKey = getMomentKey(item);
+      const dedupeKey = `${momentKey}:${normalizeTextToken(name)}`;
+      if (seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
+
+      groups[momentKey].push({
+        ...item,
+        sourceLabel,
+      });
+    };
+
+    recommendedSupplementChecklist.forEach((item) => addMomentItem(item, 'Checklist base'));
+    (diaryData.routines || []).forEach((routine) => {
+      (routine.items || []).forEach((item) => addMomentItem(item, routine.name || 'Rutina guardada'));
+    });
+    supplementRecordsOutsideChecklist.forEach((item) => addMomentItem(item, 'Registro de hoy'));
+
+    return momentOrder.map((moment) => ({
+      ...moment,
+      items: groups[moment.key],
+    }));
+  }, [diaryData.routines, supplementRecordsOutsideChecklist]);
 
   const visibleExercises = useMemo(() => {
     const sorted = sortExercises(diaryData.exercises);
@@ -6906,28 +6997,9 @@ function toggleRecommendedSupplement(itemConfig) {
         ) : null}
         {safeActiveTab === 'supplements' ? (<SupplementsTab>
           <>
-            <div className="supplement-summary-grid">
-              <div className="supplement-summary-card">
-                <span>Total visible hoy</span>
-                <strong>{visibleSupplementSummary.total}</strong>
-              </div>
-              <div className="supplement-summary-card">
-                <span>Tomados hoy</span>
-                <strong>{visibleSupplementSummary.taken}</strong>
-              </div>
-              <div className="supplement-summary-card">
-                <span>Pendientes hoy</span>
-                <strong>{visibleSupplementSummary.pending}</strong>
-              </div>
-              <div className="supplement-summary-card">
-                <span>Medicamentos hoy</span>
-                <strong>{visibleSupplementSummary.medications}</strong>
-              </div>
-            </div>
-
             <SectionCard
               title="Checklist base del día"
-              subtitle="Recordatorio rápido para suplementos recomendados y marcación ligera del día."
+              subtitle="Marca rápido las tomas principales de hoy."
               className="card-soft supplement-checklist-card"
             >
               <div className="supplement-checklist-grid">
@@ -6956,13 +7028,105 @@ function toggleRecommendedSupplement(itemConfig) {
               </div>
             </SectionCard>
 
+            <SectionCard
+              title="Resumen de hoy"
+              subtitle="Lectura rápida de tu adherencia del día."
+              className="supplement-section-card supplement-today-card"
+            >
+              <div className="supplement-summary-grid supplement-summary-grid-operational">
+                <div className="supplement-summary-card">
+                  <span>Tomados hoy</span>
+                  <strong>{supplementDailySummary.taken}/{supplementDailySummary.total}</strong>
+                </div>
+                <div className="supplement-summary-card">
+                  <span>Pendientes</span>
+                  <strong>{supplementDailySummary.pending}</strong>
+                </div>
+                <div className="supplement-summary-card">
+                  <span>Cumplimiento</span>
+                  <strong>{supplementDailySummary.percent}%</strong>
+                </div>
+              </div>
+              <div className="supplement-progress-line" aria-hidden="true">
+                <span style={{ width: `${Math.min(100, supplementDailySummary.percent)}%` }} />
+              </div>
+              <p className="supplement-summary-message">{supplementDailySummary.message}</p>
+            </SectionCard>
+
+            <SectionCard
+              title="Adherencia semanal"
+              subtitle="Consistencia semanal con base en las tomas esperadas hasta hoy."
+              className="supplement-section-card supplement-week-card"
+            >
+              <div className="supplement-adherence-grid">
+                <div className="supplement-adherence-main">
+                  <span>Consistencia semanal</span>
+                  <strong>{weeklySupplementAdherence.percent}%</strong>
+                  <small>
+                    {weeklySupplementAdherence.completed}/{weeklySupplementAdherence.expected} tomas completadas
+                  </small>
+                </div>
+                <div className="supplement-adherence-side">
+                  <span>Días completos</span>
+                  <strong>{weeklySupplementAdherence.completeDays}/{weeklySupplementAdherence.trackedDays}</strong>
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Rutina por momento"
+              subtitle="Vista rápida para ubicar qué va en cada parte del día."
+              className="supplement-section-card supplement-moment-section"
+            >
+              <div className="supplement-moment-grid">
+                {supplementMomentGroups.map((group) => (
+                  <article className="supplement-moment-card" key={group.key}>
+                    <div className="supplement-moment-title">
+                      <strong>{group.label}</strong>
+                      <span>{group.items.length}</span>
+                    </div>
+                    {group.items.length > 0 ? (
+                      <ul className="supplement-moment-list">
+                        {group.items.map((item) => (
+                          <li key={`${group.key}-${normalizeTextToken(item.name)}-${item.sourceLabel}`}>
+                            <span>{item.name}</span>
+                            <small>
+                              {item.dose ? `${item.dose} ${item.unit || ''}`.trim() : supplementCategoryLabels[item.category] || item.category}
+                            </small>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="empty-state">Sin suplementos asignados.</p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </SectionCard>
+
             {todaySummary.supplementsPendingToday > 0 ? (
               <div className="alert-banner">
                 <strong>Pendientes del día:</strong> tienes {todaySummary.supplementsPendingToday} suplemento(s) o medicamento(s) aún sin marcar como tomados.
               </div>
             ) : null}
 
-            <div className="supplement-routines-grid">
+            <SectionCard
+              title="Editar rutina"
+              subtitle="Herramientas avanzadas para crear o aplicar plantillas. Colapsado para no estorbar el uso diario."
+              className="supplement-section-card supplement-tools-card"
+            >
+              <div className="section-inline-actions section-inline-actions-tight">
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => setShowSupplementRoutineTools((current) => !current)}
+                >
+                  {showSupplementRoutineTools ? 'Ocultar constructor' : 'Mostrar constructor'}
+                </button>
+              </div>
+
+              {showSupplementRoutineTools ? (
+                <div className="supplement-routines-grid">
               <SectionCard title="Rutinas de suplementos" subtitle="Plantillas base para aplicar rapido durante el día." className="supplement-section-card">
                 <div className="section-inline-actions section-inline-actions-tight">
                   <button className="button button-secondary" type="button" onClick={() => setShowRoutineBuilder((current) => !current)}>
@@ -7052,7 +7216,7 @@ function toggleRecommendedSupplement(itemConfig) {
 
                         <label className="field field-full">
                           <span>Notas</span>
-                          <textárea
+                          <textarea
                             name="notes"
                             value={routineItemForm.notes}
                             onChange={handleFormChange(setRoutineItemForm)}
@@ -7124,7 +7288,11 @@ function toggleRecommendedSupplement(itemConfig) {
                   ))}
                 </div>
               </SectionCard>
-            </div>
+                </div>
+              ) : (
+                <p className="section-helper">El constructor queda oculto para que el checklist y el seguimiento diario sean lo primero.</p>
+              )}
+            </SectionCard>
 
             <div className="split-layout supplement-layout">
               <SectionCard title="Registro de suplementos" subtitle="Guarda suplementos, vitaminas, medicamentos y apoyo de entrenamiento.">
@@ -7194,7 +7362,7 @@ function toggleRecommendedSupplement(itemConfig) {
                         { value: 'no', label: 'No' },
                       ],
                     },
-                    { name: 'notes', label: 'Notas', type: 'textárea', placeholder: 'Efecto, observaciones o recordatorios...' },
+                    { name: 'notes', label: 'Notas', type: 'textarea', placeholder: 'Efecto, observaciones o recordatorios...' },
                   ]}
                   formData={supplementForm}
                   onChange={handleFormChange(setSupplementForm)}
