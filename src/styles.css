@@ -2679,6 +2679,71 @@ button {
   gap: 12px;
 }
 
+.newsletter-editorial-card {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid #dce8df;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f8fbf7, #edf5ef);
+}
+
+.newsletter-status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #5e6870;
+  background: #eef2f4;
+  border: 1px solid #d9e0e4;
+}
+
+.newsletter-status-ready {
+  color: #2f7d4f;
+  background: #edf8f0;
+  border-color: #cde8d5;
+}
+
+.newsletter-status-manually_sent {
+  color: #315f8c;
+  background: #edf5ff;
+  border-color: #cce0f5;
+}
+
+.newsletter-editorial-reminder {
+  display: grid;
+  gap: 4px;
+}
+
+.newsletter-editorial-reminder p,
+.newsletter-editorial-reminder small {
+  margin: 0;
+  color: #60707a;
+  line-height: 1.35;
+}
+
+.newsletter-editorial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.newsletter-editorial-actions .button {
+  flex: 1 1 190px;
+}
+
+.newsletter-editorial-alert {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fff8ef, #f7ead8);
+  border-color: #e0c6a4;
+  color: #7a4c1e;
+}
+
 .newsletter-manual-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2957,6 +3022,8 @@ button {
 
 .hydration-layout {
   align-items: start;
+  scroll-margin-top: 88px;
+  scroll-margin-bottom: 160px;
 }
 
 .fasting-columns {

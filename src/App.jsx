@@ -132,6 +132,7 @@ import {
   isSupabaseEmailNotConfirmedError,
   requestSupabasePasswordReset,
   resendSupabaseSignupConfirmation,
+  sendNewsletterTestEmail,
   signInWithSupabasePassword,
   signOutFromSupabase,
   signUpWithSupabasePassword,
@@ -178,6 +179,11 @@ import {
   sumBy,
 } from './utils/domain/shared';
 import { renderNewsletterHtml, renderNewsletterPreview, renderNewsletterText } from './utils/newsletterRenderer';
+import {
+  NEWSLETTER_ADMIN_STATUS_LABELS,
+  isNewsletterEditorialAlertDue,
+  normalizeNewsletterAdmin,
+} from './utils/newsletterAdmin';
 import {
   calculateMassAttendanceStreak,
   checkInEmotionOptions,
@@ -249,12 +255,7 @@ function formatNewsletterWhatsApp(newsletter = {}) {
 }
 
 function formatNewsletterManualEmail(newsletter = {}) {
-  return [
-    `Asunto: ${newsletter.subject || 'Newsletter Bitacora Daniel'}`,
-    `Preheader: ${newsletter.preheader || ''}`,
-    '',
-    renderNewsletterText(newsletter),
-  ].join('\n').trim();
+  return renderNewsletterText(newsletter);
 }
 
 const privateLocalStateCollections = [
@@ -964,6 +965,7 @@ function App() {
   const [kravCategoryShowAll, setKravCategoryShowAll] = useState({});
   const [selectedNewsletterPreviewId, setSelectedNewsletterPreviewId] = useState('welcome');
   const [newsletterPreviewFeedback, setNewsletterPreviewFeedback] = useState('');
+  const [isSendingNewsletterTest, setIsSendingNewsletterTest] = useState(false);
   const [fastingNow, setFastingNow] = useState(() => Date.now());
   const [backupInputKey, setBackupInputKey] = useState(0);
   const [backupFeedback, setBackupFeedback] = useState({ type: '', text: '' });
@@ -1994,6 +1996,18 @@ function App() {
     [selectedNewsletterPreviewOption]
   );
   const newsletterPrompt = selectedNewsletterPreviewOption.newsletter.bitacoraPrompt || '';
+  const newsletterAdmin = useMemo(
+    () => normalizeNewsletterAdmin(diaryData.newsletterAdmin),
+    [diaryData.newsletterAdmin]
+  );
+  const selectedNewsletterStatus =
+    newsletterAdmin.currentIssueId === selectedNewsletterPreviewId ? newsletterAdmin.status : 'draft';
+  const selectedNewsletterStatusLabel = NEWSLETTER_ADMIN_STATUS_LABELS[selectedNewsletterStatus] || 'Borrador';
+  const shouldShowNewsletterEditorialAlert = isNewsletterEditorialAlertDue(
+    newsletterAdmin,
+    selectedNewsletterPreviewId,
+    new Date()
+  );
   const shouldShowUserOnboarding = Boolean(
     syncUser?.id && diaryData.profileId === 'clean' && !userSettings.onboardingCompleted
   );
@@ -2023,6 +2037,7 @@ function App() {
       const quantityInput = section.querySelector('input[name="quantity"]');
 
       if (quantityInput && typeof quantityInput.focus === 'function') {
+        quantityInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
         try {
           quantityInput.focus({ preventScroll: true });
         } catch {
@@ -3572,6 +3587,52 @@ function lockPrivateModule(feedbackText = '') {
       }
     } catch (_error) {
       setNewsletterPreviewFeedback(`No se pudo copiar ${label}. Puedes seleccionarlo manualmente.`);
+    }
+  }
+
+  function updateNewsletterAdminStatus(status) {
+    const timestamp = new Date().toISOString();
+
+    markPersistenceReason(`newsletter-admin:${status}`);
+    setDiaryData((current) => {
+      const currentAdmin = normalizeNewsletterAdmin(current.newsletterAdmin);
+
+      return {
+        ...current,
+        newsletterAdmin: normalizeNewsletterAdmin({
+          ...currentAdmin,
+          currentIssueId: selectedNewsletterPreviewId,
+          status,
+          readyAt: status === 'ready' ? timestamp : currentAdmin.readyAt,
+          manuallySentAt: status === 'manually_sent' ? timestamp : currentAdmin.manuallySentAt,
+        }),
+      };
+    });
+
+    setNewsletterPreviewFeedback(
+      status === 'ready'
+        ? 'Newsletter marcado como listo. No se envió ningún correo.'
+        : 'Newsletter marcado como enviado manualmente. No se usó Resend.'
+    );
+  }
+
+  async function handleSendNewsletterTest() {
+    if (!isDanielFullProfile) return;
+
+    setIsSendingNewsletterTest(true);
+    setNewsletterPreviewFeedback('');
+
+    try {
+      await sendNewsletterTestEmail({ issueId: selectedNewsletterPreviewId });
+      setNewsletterPreviewFeedback('Correo de prueba enviado a tu correo. No se envió a usuarios.');
+    } catch (error) {
+      setNewsletterPreviewFeedback(
+        error instanceof Error
+          ? `No se pudo enviar la prueba: ${error.message}`
+          : 'No se pudo enviar la prueba.'
+      );
+    } finally {
+      setIsSendingNewsletterTest(false);
     }
   }
 
@@ -6337,6 +6398,55 @@ function toggleRecommendedSupplement(itemConfig) {
                       <div className="backup-meta-card">
                         <span>Preheader</span>
                         <strong>{newsletterPreview.preheader || 'Sin preheader'}</strong>
+                      </div>
+                    </div>
+
+                    <div className="newsletter-editorial-card">
+                      <div className="daily-checkin-label-row">
+                        <div>
+                          <strong>Estado editorial</strong>
+                          <small>{selectedNewsletterPreviewOption.label}</small>
+                        </div>
+                        <span className={`newsletter-status-chip newsletter-status-${selectedNewsletterStatus}`}>
+                          {selectedNewsletterStatusLabel}
+                        </span>
+                      </div>
+
+                      <div className="newsletter-editorial-reminder">
+                        <strong>Recordatorio editorial</strong>
+                        <p>Envío sugerido: miércoles 12:00 p.m. Preparar contenido mínimo 24 h antes.</p>
+                        <small>{`Zona horaria: ${newsletterAdmin.timezone}`}</small>
+                      </div>
+
+                      {shouldShowNewsletterEditorialAlert ? (
+                        <div className="alert-banner alert-banner-warning newsletter-editorial-alert">
+                          Este newsletter todavía no está listo para la ventana editorial de la semana.
+                        </div>
+                      ) : null}
+
+                      <div className="newsletter-editorial-actions">
+                        <button
+                          className="button button-secondary"
+                          type="button"
+                          onClick={() => updateNewsletterAdminStatus('ready')}
+                        >
+                          Marcar como listo
+                        </button>
+                        <button
+                          className="button button-secondary"
+                          type="button"
+                          onClick={() => updateNewsletterAdminStatus('manually_sent')}
+                        >
+                          Marcar como enviado manualmente
+                        </button>
+                        <button
+                          className="button button-primary"
+                          type="button"
+                          onClick={handleSendNewsletterTest}
+                          disabled={isSendingNewsletterTest || !syncUser?.id}
+                        >
+                          {isSendingNewsletterTest ? 'Enviando prueba...' : 'Enviar prueba a mi correo'}
+                        </button>
                       </div>
                     </div>
 

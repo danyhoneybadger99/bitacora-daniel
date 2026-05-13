@@ -2,6 +2,7 @@ import { repairPrivateCycle2026Data } from '../utils/domain/private';
 import { applyDanielKravPracticeSeed, createEmptyKravSettings, mergeDanielKravCurriculum } from '../utils/domain/krav';
 import { createInitialMetricSeed, createRecentManualMetricSeed } from '../utils/domain/metrics';
 import { createDanielSpiritualWeeklySeeds } from '../utils/domain/checkIn';
+import { createDefaultNewsletterAdmin } from '../utils/newsletterAdmin';
 import { getToday } from '../utils/date';
 
 const defaultFastingProtocols = [
@@ -285,6 +286,7 @@ export function createCleanDefaultState() {
     objectives: [],
     goals: createEmptyGoals(),
     userSettings: createUserSettings('fitness-basic', null, { onboardingCompleted: false }),
+    newsletterAdmin: createDefaultNewsletterAdmin(),
     syncMeta: createDefaultSyncMeta(),
     backupMeta: createBackupMeta(),
   };
@@ -325,6 +327,7 @@ export function createDanielDefaultState() {
     objectives: [createDefaultObjective()],
     goals: createDanielGoals(),
     userSettings: createUserSettings('daniel-full', null, { onboardingCompleted: true }),
+    newsletterAdmin: createDefaultNewsletterAdmin(),
     syncMeta: createDefaultSyncMeta(),
     backupMeta: createBackupMeta(),
   };

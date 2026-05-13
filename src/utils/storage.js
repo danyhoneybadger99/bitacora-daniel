@@ -3,6 +3,7 @@ import { mergeDanielSpiritualWeeklySeeds, normalizeDailyCheckIn, normalizeSpirit
 import { applyDanielKravPracticeSeed, createEmptyKravSettings, mergeDanielKravCurriculum } from './domain/krav';
 import { mergeInitialMetricSeed } from './domain/metrics';
 import { repairPrivateCycle2026Data } from './domain/private';
+import { normalizeNewsletterAdmin } from './newsletterAdmin';
 import { normalizeDateString } from './date';
 
 export const APP_STORAGE_KEYS = [STORAGE_KEY];
@@ -47,6 +48,7 @@ function getCollectionCounts(data = {}) {
     bodyMetrics: Array.isArray(data.bodyMetrics) ? data.bodyMetrics.length : 0,
     objectives: Array.isArray(data.objectives) ? data.objectives.length : 0,
     kravSettings: data.kravSettings ? 1 : 0,
+    newsletterAdmin: data.newsletterAdmin ? 1 : 0,
   };
 }
 
@@ -652,6 +654,7 @@ export function migrateAppData(parsed = {}, options = {}) {
     objectives: normalizeObjectives(parsed.objectives, fallbackState),
     goals: normalizeGoals(parsed.goals, fallbackState),
     userSettings: normalizeUserSettings(parsed.userSettings, fallbackState),
+    newsletterAdmin: normalizeNewsletterAdmin(parsed.newsletterAdmin || fallbackState.newsletterAdmin),
     syncMeta: normalizeSyncMeta(parsed.syncMeta, fallbackState),
     backupMeta: normalizeBackupMeta(parsed.backupMeta, fallbackState),
   };

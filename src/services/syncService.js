@@ -394,6 +394,26 @@ export async function upsertAppUser({ userId, email, profileType, newsletterOptI
   return data;
 }
 
+export async function sendNewsletterTestEmail({ issueId }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase no esta configurado.');
+  }
+
+  const normalizedIssueId = String(issueId || '').trim();
+  if (!normalizedIssueId) throw new Error('Selecciona un newsletter para enviar prueba.');
+
+  const { data, error } = await supabase.functions.invoke('send-newsletter-test', {
+    body: {
+      issueId: normalizedIssueId,
+    },
+  });
+
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+
+  return data;
+}
+
 export async function signOutFromSupabase() {
   if (!isSupabaseConfigured || !supabase) return;
   const { error } = await supabase.auth.signOut();
