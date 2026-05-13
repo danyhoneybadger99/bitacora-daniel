@@ -2736,6 +2736,30 @@ button {
   flex: 1 1 190px;
 }
 
+.newsletter-recipient-summary {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(49, 95, 140, 0.12);
+}
+
+.newsletter-recipient-summary strong {
+  color: #23313b;
+}
+
+.newsletter-recipient-summary span {
+  color: #60707a;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.newsletter-real-send-warning {
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
 .newsletter-editorial-alert {
   padding: 10px 12px;
   border-radius: 14px;

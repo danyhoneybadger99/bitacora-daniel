@@ -414,6 +414,27 @@ export async function sendNewsletterTestEmail({ issueId }) {
   return data;
 }
 
+export async function sendNewsletterManual({ issueId, dryRun = false }) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase no esta configurado.');
+  }
+
+  const normalizedIssueId = String(issueId || '').trim();
+  if (!normalizedIssueId) throw new Error('Selecciona un newsletter.');
+
+  const { data, error } = await supabase.functions.invoke('send-newsletter-manual', {
+    body: {
+      issueId: normalizedIssueId,
+      dryRun: Boolean(dryRun),
+    },
+  });
+
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+
+  return data;
+}
+
 export async function signOutFromSupabase() {
   if (!isSupabaseConfigured || !supabase) return;
   const { error } = await supabase.auth.signOut();

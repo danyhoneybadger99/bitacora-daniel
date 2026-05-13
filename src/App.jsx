@@ -132,6 +132,7 @@ import {
   isSupabaseEmailNotConfirmedError,
   requestSupabasePasswordReset,
   resendSupabaseSignupConfirmation,
+  sendNewsletterManual,
   sendNewsletterTestEmail,
   signInWithSupabasePassword,
   signOutFromSupabase,
@@ -966,6 +967,9 @@ function App() {
   const [selectedNewsletterPreviewId, setSelectedNewsletterPreviewId] = useState('welcome');
   const [newsletterPreviewFeedback, setNewsletterPreviewFeedback] = useState('');
   const [isSendingNewsletterTest, setIsSendingNewsletterTest] = useState(false);
+  const [isSendingNewsletterManual, setIsSendingNewsletterManual] = useState(false);
+  const [isLoadingNewsletterRecipients, setIsLoadingNewsletterRecipients] = useState(false);
+  const [newsletterManualSummary, setNewsletterManualSummary] = useState(null);
   const [fastingNow, setFastingNow] = useState(() => Date.now());
   const [backupInputKey, setBackupInputKey] = useState(0);
   const [backupFeedback, setBackupFeedback] = useState({ type: '', text: '' });
@@ -2003,6 +2007,7 @@ function App() {
   const selectedNewsletterStatus =
     newsletterAdmin.currentIssueId === selectedNewsletterPreviewId ? newsletterAdmin.status : 'draft';
   const selectedNewsletterStatusLabel = NEWSLETTER_ADMIN_STATUS_LABELS[selectedNewsletterStatus] || 'Borrador';
+  const isSelectedNewsletterReady = selectedNewsletterStatus === 'ready';
   const shouldShowNewsletterEditorialAlert = isNewsletterEditorialAlertDue(
     newsletterAdmin,
     selectedNewsletterPreviewId,
@@ -2022,6 +2027,41 @@ function App() {
     if (enabledTabIds.includes(activeTab)) return;
     setActiveTab('dashboard');
   }, [activeTab, enabledTabsKey, enabledTabIds]);
+
+  useEffect(() => {
+    if (!isDanielFullProfile || !syncUser?.id) {
+      setNewsletterManualSummary(null);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsLoadingNewsletterRecipients(true);
+
+    sendNewsletterManual({ issueId: selectedNewsletterPreviewId, dryRun: true })
+      .then((summary) => {
+        if (!isCancelled) {
+          setNewsletterManualSummary(summary);
+        }
+      })
+      .catch((error) => {
+        if (!isCancelled) {
+          setNewsletterManualSummary({
+            candidateCount: null,
+            sendableCount: null,
+            error: error instanceof Error ? error.message : 'No se pudo calcular destinatarios.',
+          });
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoadingNewsletterRecipients(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isDanielFullProfile, selectedNewsletterPreviewId, syncUser?.id]);
 
   useEffect(() => {
     if (safeActiveTab !== 'foods' || pendingFocusSection !== 'hydration') return;
@@ -3633,6 +3673,37 @@ function lockPrivateModule(feedbackText = '') {
       );
     } finally {
       setIsSendingNewsletterTest(false);
+    }
+  }
+
+  async function handleSendNewsletterManual() {
+    if (!isDanielFullProfile) return;
+
+    if (!isSelectedNewsletterReady) {
+      setNewsletterPreviewFeedback('Marca este newsletter como listo antes de enviarlo a usuarios opt-in.');
+      return;
+    }
+
+    setIsSendingNewsletterManual(true);
+    setNewsletterPreviewFeedback('');
+
+    try {
+      const result = await sendNewsletterManual({ issueId: selectedNewsletterPreviewId, dryRun: false });
+      setNewsletterManualSummary(result);
+
+      if (Number(result?.sentCount || 0) > 0) {
+        updateNewsletterAdminStatus('manually_sent');
+      } else {
+        setNewsletterPreviewFeedback('No se enviaron correos nuevos. Revisa duplicados, confirmación u opt-ins.');
+      }
+    } catch (error) {
+      setNewsletterPreviewFeedback(
+        error instanceof Error
+          ? `No se pudo enviar el newsletter: ${error.message}`
+          : 'No se pudo enviar el newsletter.'
+      );
+    } finally {
+      setIsSendingNewsletterManual(false);
     }
   }
 
@@ -6447,6 +6518,39 @@ function toggleRecommendedSupplement(itemConfig) {
                         >
                           {isSendingNewsletterTest ? 'Enviando prueba...' : 'Enviar prueba a mi correo'}
                         </button>
+                        <button
+                          className="button button-danger"
+                          type="button"
+                          onClick={handleSendNewsletterManual}
+                          disabled={isSendingNewsletterManual || !syncUser?.id || !isSelectedNewsletterReady}
+                        >
+                          {isSendingNewsletterManual ? 'Enviando a opt-ins...' : 'Enviar newsletter a opt-ins'}
+                        </button>
+                      </div>
+
+                      <div className="newsletter-recipient-summary">
+                        <strong>
+                          Destinatarios opt-in:{' '}
+                          {isLoadingNewsletterRecipients
+                            ? 'calculando...'
+                            : newsletterManualSummary?.candidateCount ?? 'no disponible'}
+                        </strong>
+                        <span>
+                          {newsletterManualSummary?.sendableCount !== null && newsletterManualSummary?.sendableCount !== undefined
+                            ? `${newsletterManualSummary.sendableCount} listos para enviar`
+                            : 'El conteo se calcula desde app_users sin mostrar correos.'}
+                        </span>
+                        {newsletterManualSummary?.alreadySentCount ? (
+                          <span>{`${newsletterManualSummary.alreadySentCount} ya enviados para este issue`}</span>
+                        ) : null}
+                        {newsletterManualSummary?.skippedUnconfirmedCount ? (
+                          <span>{`${newsletterManualSummary.skippedUnconfirmedCount} omitidos por correo no confirmado`}</span>
+                        ) : null}
+                        {newsletterManualSummary?.error ? <span>{newsletterManualSummary.error}</span> : null}
+                      </div>
+
+                      <div className="alert-banner newsletter-real-send-warning">
+                        Esto enviará el correo real a usuarios con opt-in. No es prueba y solo funciona si el newsletter está listo.
                       </div>
                     </div>
 

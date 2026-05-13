@@ -76,3 +76,23 @@ for update
 to authenticated
 using (auth.uid() is not null and user_id = auth.uid())
 with check (auth.uid() is not null and user_id = auth.uid());
+
+create table if not exists public.newsletter_send_log (
+  id uuid primary key default gen_random_uuid(),
+  issue_id text not null,
+  recipient_email text not null,
+  status text not null check (status in ('sent', 'failed', 'skipped')),
+  provider_message_id text,
+  error_message text,
+  sent_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists newsletter_send_log_sent_once_idx
+on public.newsletter_send_log (issue_id, lower(recipient_email))
+where status = 'sent';
+
+create index if not exists newsletter_send_log_issue_idx
+on public.newsletter_send_log (issue_id, created_at desc);
+
+alter table public.newsletter_send_log enable row level security;
