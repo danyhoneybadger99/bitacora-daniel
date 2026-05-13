@@ -2755,6 +2755,20 @@ button {
   line-height: 1.35;
 }
 
+.newsletter-recipient-summary small {
+  color: #6d7780;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.newsletter-sent-notice {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #eef7f0, #f7fbf4);
+  border-color: rgba(83, 132, 91, 0.3);
+  color: #2d5f3a;
+}
+
 .newsletter-real-send-warning {
   padding: 10px 12px;
   border-radius: 14px;

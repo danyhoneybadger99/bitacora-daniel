@@ -242,13 +242,13 @@ const newsletterPreviewOptions = [
 
 function formatNewsletterWhatsApp(newsletter = {}) {
   const sections = [
-    `*${newsletter.title || newsletter.subject || 'Bitacora Daniel'}*`,
+    `*${newsletter.title || newsletter.subject || 'Bitácora Daniel'}*`,
     newsletter.preheader,
     newsletter.intro ? `\n*Intro*\n${newsletter.intro}` : '',
     newsletter.aiTip ? `\n*Tip de IA*\n${newsletter.aiTip}` : '',
-    newsletter.personalReflection ? `\n*Reflexion personal*\n${newsletter.personalReflection}` : '',
-    newsletter.actionStep ? `\n*Accion de la semana*\n${newsletter.actionStep}` : '',
-    newsletter.bitacoraPrompt ? `\n*Prompt para copiar*\n${newsletter.bitacoraPrompt}` : '',
+    newsletter.personalReflection ? `\n*Reflexión personal*\n${newsletter.personalReflection}` : '',
+    newsletter.actionStep ? `\n*Acción de la semana*\n${newsletter.actionStep}` : '',
+    newsletter.bitacoraPrompt ? `\n*Prompt para copiar a la bitácora*\n${newsletter.bitacoraPrompt}` : '',
     newsletter.disclaimerNote ? `\n*Nota*\n${newsletter.disclaimerNote}` : '',
   ];
 
@@ -2008,6 +2008,12 @@ function App() {
     newsletterAdmin.currentIssueId === selectedNewsletterPreviewId ? newsletterAdmin.status : 'draft';
   const selectedNewsletterStatusLabel = NEWSLETTER_ADMIN_STATUS_LABELS[selectedNewsletterStatus] || 'Borrador';
   const isSelectedNewsletterReady = selectedNewsletterStatus === 'ready';
+  const hasSelectedNewsletterBeenSent = selectedNewsletterStatus === 'manually_sent';
+  const newsletterSendableCount = Number(newsletterManualSummary?.sendableCount ?? 0);
+  const canSendNewsletterManual =
+    Boolean(syncUser?.id) &&
+    newsletterSendableCount > 0 &&
+    (isSelectedNewsletterReady || hasSelectedNewsletterBeenSent);
   const shouldShowNewsletterEditorialAlert = isNewsletterEditorialAlertDue(
     newsletterAdmin,
     selectedNewsletterPreviewId,
@@ -3679,8 +3685,13 @@ function lockPrivateModule(feedbackText = '') {
   async function handleSendNewsletterManual() {
     if (!isDanielFullProfile) return;
 
-    if (!isSelectedNewsletterReady) {
+    if (!isSelectedNewsletterReady && !hasSelectedNewsletterBeenSent) {
       setNewsletterPreviewFeedback('Marca este newsletter como listo antes de enviarlo a usuarios opt-in.');
+      return;
+    }
+
+    if (newsletterManualSummary && Number(newsletterManualSummary.sendableCount || 0) <= 0) {
+      setNewsletterPreviewFeedback('No hay nuevos destinatarios opt-in pendientes para este issue.');
       return;
     }
 
@@ -6522,11 +6533,21 @@ function toggleRecommendedSupplement(itemConfig) {
                           className="button button-danger"
                           type="button"
                           onClick={handleSendNewsletterManual}
-                          disabled={isSendingNewsletterManual || !syncUser?.id || !isSelectedNewsletterReady}
+                          disabled={isSendingNewsletterManual || !canSendNewsletterManual}
                         >
-                          {isSendingNewsletterManual ? 'Enviando a opt-ins...' : 'Enviar newsletter a opt-ins'}
+                          {isSendingNewsletterManual
+                            ? 'Enviando a opt-ins...'
+                            : hasSelectedNewsletterBeenSent
+                              ? 'Reenviar solo a nuevos opt-ins'
+                              : 'Enviar newsletter a opt-ins'}
                         </button>
                       </div>
+
+                      {hasSelectedNewsletterBeenSent ? (
+                        <div className="alert-banner newsletter-sent-notice">
+                          Este issue ya fue enviado. El sistema evita duplicados por destinatario.
+                        </div>
+                      ) : null}
 
                       <div className="newsletter-recipient-summary">
                         <strong>
@@ -6547,10 +6568,13 @@ function toggleRecommendedSupplement(itemConfig) {
                           <span>{`${newsletterManualSummary.skippedUnconfirmedCount} omitidos por correo no confirmado`}</span>
                         ) : null}
                         {newsletterManualSummary?.error ? <span>{newsletterManualSummary.error}</span> : null}
+                        <small>Revisa newsletter_send_log en Supabase para confirmar envíos.</small>
                       </div>
 
                       <div className="alert-banner newsletter-real-send-warning">
-                        Esto enviará el correo real a usuarios con opt-in. No es prueba y solo funciona si el newsletter está listo.
+                        {hasSelectedNewsletterBeenSent
+                          ? 'Si aparecen nuevos opt-ins pendientes, este botón solo intentará enviar a esos nuevos destinatarios.'
+                          : 'Esto enviará el correo real a usuarios con opt-in. No es prueba y solo funciona si el newsletter está listo.'}
                       </div>
                     </div>
 

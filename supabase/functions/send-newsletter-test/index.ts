@@ -10,22 +10,22 @@ const corsHeaders = {
 };
 
 const standardDisclaimer =
-  'La IA puede ayudarte a estimar y ordenar informacion, pero no da valores exactos ni garantiza resultados. Registra tus datos reales lo mejor posible y, si tienes una condicion medica, consulta a un profesional.';
+  'La IA puede ayudarte a estimar y ordenar información, pero no da valores exactos ni garantiza resultados. Registra tus datos reales lo mejor posible y, si tienes una condición médica, consulta a un profesional.';
 
-const foodMacroEstimationPrompt = `Actua como nutriologo deportivo y experto en composicion corporal. Ayudame a estimar las calorias, proteina, carbohidratos y grasa de esta comida:
+const foodMacroEstimationPrompt = `Actúa como nutriólogo deportivo y experto en composición corporal. Ayúdame a estimar las calorías, proteína, carbohidratos y grasa de esta comida:
 
 Comida: [describe alimentos]
-Porciones aproximadas: [gramos, piezas, tazas, cucharadas o tamano visual]
-Metodo de preparacion: [asado, frito, hervido, con aceite, con mantequilla, etc.]
-Objetivo actual: [perder grasa / mantener / ganar musculo]
+Porciones aproximadas: [gramos, piezas, tazas, cucharadas o tamaño visual]
+Método de preparación: [asado, frito, hervido, con aceite, con mantequilla, etc.]
+Objetivo actual: [perder grasa / mantener / ganar músculo]
 Contexto: [ayuno, entrenamiento, antojo, comida libre, etc.]
 
 Dame:
-1. Estimacion total de calorias.
-2. Macros aproximados: proteina, carbohidratos y grasa.
+1. Estimación total de calorías.
+2. Macros aproximados: proteína, carbohidratos y grasa.
 3. Rango conservador si hay incertidumbre.
-4. Que dato faltaria para hacerlo mas preciso.
-5. Una version lista para copiar a mi bitacora.`;
+4. Qué dato faltaría para hacerlo más preciso.
+5. Una versión lista para copiar a mi bitácora.`;
 
 type Newsletter = {
   subject: string;
@@ -41,83 +41,83 @@ type Newsletter = {
 
 const newsletters: Record<string, Newsletter> = {
   welcome: {
-    subject: 'Bienvenido a Bitacora Daniel',
-    preheader: 'Empieza simple: registra tus habitos y usa IA como apoyo practico.',
+    subject: 'Bienvenido a Bitácora Daniel',
+    preheader: 'Empieza simple: registra tus hábitos y usa IA como apoyo práctico.',
     title: 'Tu progreso empieza con un registro honesto',
     intro:
-      'Bienvenido. Bitacora Daniel esta pensada para ayudarte a ordenar comida, ejercicio, habitos, check-in y progreso fisico desde tu celular. No se trata de hacerlo perfecto; se trata de tener claridad y constancia.',
+      'Bienvenido. Bitácora Daniel está pensada para ayudarte a ordenar comida, ejercicio, hábitos, check-in y progreso físico desde tu celular. No se trata de hacerlo perfecto; se trata de tener claridad y constancia.',
     aiTip:
-      'Usa ChatGPT como apoyo externo antes de registrar. Describe lo que comiste, como entrenaste o como te sentiste, y pide una estimacion simple que puedas pasar a tu bitacora.',
+      'Usa ChatGPT como apoyo externo antes de registrar. Describe lo que comiste, cómo entrenaste o cómo te sentiste, y pide una estimación simple que puedas pasar a tu bitácora.',
     personalReflection:
-      'La disciplina se vuelve mas fuerte cuando tienes evidencia. Registrar tus acciones te ayuda a dejar de depender solo de memoria, culpa o motivacion del momento.',
+      'La disciplina se vuelve más fuerte cuando tienes evidencia. Registrar tus acciones te ayuda a dejar de depender solo de memoria, culpa o motivación del momento.',
     actionStep:
-      'Hoy registra una comida, una actividad fisica y un check-in breve. Con eso ya tienes una base real para empezar a mejorar.',
+      'Hoy registra una comida, una actividad física y un check-in breve. Con eso ya tienes una base real para empezar a mejorar.',
     bitacoraPrompt: foodMacroEstimationPrompt,
     disclaimerNote: standardDisclaimer,
   },
   'week-1': {
     subject: 'Semana 1: estima comida y macros con apoyo de IA',
-    preheader: 'Convierte una comida real en datos utiles para tu registro diario.',
-    title: 'Como usar IA para estimar comida, calorias y macros',
+    preheader: 'Convierte una comida real en datos útiles para tu registro diario.',
+    title: 'Cómo usar IA para estimar comida, calorías y macros',
     intro:
-      'Esta semana el objetivo es aprender a describir mejor lo que comes para registrar con mas claridad. No necesitas pesar todo desde el primer dia; empieza por anotar con honestidad y suficiente detalle.',
+      'Esta semana el objetivo es aprender a describir mejor lo que comes para registrar con más claridad. No necesitas pesar todo desde el primer día; empieza por anotar con honestidad y suficiente detalle.',
     aiTip:
-      'Cuando uses ChatGPT, incluye alimento, cantidad aproximada, metodo de preparacion y extras como aceite, salsas, pan, tortillas, bebidas o postres. Mientras mas contexto des, mas util sera la estimacion.',
+      'Cuando uses ChatGPT, incluye alimento, cantidad aproximada, método de preparación y extras como aceite, salsas, pan, tortillas, bebidas o postres. Mientras más contexto des, más útil será la estimación.',
     personalReflection:
-      'La comida no se controla con culpa; se controla con informacion. Una estimacion imperfecta registrada con constancia vale mas que un dia perfecto que nunca se anota.',
+      'La comida no se controla con culpa; se controla con información. Una estimación imperfecta registrada con constancia vale más que un día perfecto que nunca se anota.',
     actionStep:
-      'Elige una comida de hoy, pide una estimacion de calorias y macros, y registra esos datos en Bitacora Daniel.',
+      'Elige una comida de hoy, pide una estimación de calorías y macros, y registra esos datos en Bitácora Daniel.',
     bitacoraPrompt: foodMacroEstimationPrompt,
     disclaimerNote: standardDisclaimer,
   },
   'week-2': {
-    subject: 'Semana 2: registra tus entrenamientos con mas claridad',
-    preheader: 'Usa IA para ordenar duracion, intensidad y calorias estimadas.',
-    title: 'Como usar IA para registrar ejercicio y calorias quemadas',
+    subject: 'Semana 2: registra tus entrenamientos con más claridad',
+    preheader: 'Usa IA para ordenar duración, intensidad y calorías estimadas.',
+    title: 'Cómo usar IA para registrar ejercicio y calorías quemadas',
     intro:
-      'El ejercicio tambien necesita registro simple. No se trata de adivinar perfecto, sino de capturar que hiciste, cuanto duro, con que intensidad y como respondio tu cuerpo.',
+      'El ejercicio también necesita registro simple. No se trata de adivinar perfecto, sino de capturar qué hiciste, cuánto duró, con qué intensidad y cómo respondió tu cuerpo.',
     aiTip:
-      'Describe tu entrenamiento con duracion, tipo de actividad, intensidad, peso corporal aproximado y pausas. Pide una estimacion conservadora de calorias quemadas y un resumen breve para registrar.',
+      'Describe tu entrenamiento con duración, tipo de actividad, intensidad, peso corporal aproximado y pausas. Pide una estimación conservadora de calorías quemadas y un resumen breve para registrar.',
     personalReflection:
-      'Entrenar se siente bien, pero registrar te permite ver constancia. La bitacora convierte esfuerzo suelto en evidencia acumulada.',
+      'Entrenar se siente bien, pero registrar te permite ver constancia. La bitácora convierte esfuerzo suelto en evidencia acumulada.',
     actionStep:
-      'Registra un entrenamiento esta semana con nombre, duracion, intensidad y calorias estimadas. Si dudas, usa una estimacion conservadora.',
+      'Registra un entrenamiento esta semana con nombre, duración, intensidad y calorías estimadas. Si dudas, usa una estimación conservadora.',
     bitacoraPrompt:
-      'Prompt sugerido: "Peso aproximadamente [peso]. Hice [actividad] durante [minutos] a intensidad [baja/media/alta], con [pausas o detalles]. Estima calorias quemadas de forma conservadora y dame una nota breve para mi registro."',
+      'Prompt sugerido: "Peso aproximadamente [peso]. Hice [actividad] durante [minutos] a intensidad [baja/media/alta], con [pausas o detalles]. Estima calorías quemadas de forma conservadora y dame una nota breve para mi registro."',
     disclaimerNote:
-      'Las calorias quemadas son aproximadas y pueden variar mucho por persona, intensidad, tecnica y dispositivo. Usa la estimacion como referencia, no como verdad exacta.',
+      'Las calorías quemadas son aproximadas y pueden variar mucho por persona, intensidad, técnica y dispositivo. Usa la estimación como referencia, no como verdad exacta.',
   },
   'week-3': {
-    subject: 'Semana 3: entiende peso, grasa, musculo y medidas',
-    preheader: 'Aprende a leer progreso sin depender de un solo numero.',
-    title: 'Como interpretar tus metricas corporales con mejor criterio',
+    subject: 'Semana 3: entiende peso, grasa, músculo y medidas',
+    preheader: 'Aprende a leer progreso sin depender de un solo número.',
+    title: 'Cómo interpretar tus métricas corporales con mejor criterio',
     intro:
-      'El peso importa, pero no cuenta toda la historia. Tambien conviene revisar grasa corporal, masa muscular, cintura, pecho, brazo, pierna y tendencia en el tiempo.',
+      'El peso importa, pero no cuenta toda la historia. También conviene revisar grasa corporal, masa muscular, cintura, pecho, brazo, pierna y tendencia en el tiempo.',
     aiTip:
-      'Puedes pedir a ChatGPT que te ayude a comparar cambios entre dos fechas. Incluye peso, porcentaje de grasa, masa muscular y medidas. Pide una lectura objetiva, sin diagnostico medico ni conclusiones exageradas.',
+      'Puedes pedir a ChatGPT que te ayude a comparar cambios entre dos fechas. Incluye peso, porcentaje de grasa, masa muscular y medidas. Pide una lectura objetiva, sin diagnóstico médico ni conclusiones exageradas.',
     personalReflection:
-      'La paciencia tambien es disciplina. Una semana puede verse rara; varias semanas juntas muestran direccion. No te castigues por una medicion aislada.',
+      'La paciencia también es disciplina. Una semana puede verse rara; varias semanas juntas muestran dirección. No te castigues por una medición aislada.',
     actionStep:
-      'Registra una medicion corporal o revisa tu ultima comparacion. Observa que subio, que bajo y que ajuste pequeno conviene hacer esta semana.',
+      'Registra una medición corporal o revisa tu última comparación. Observa qué subió, qué bajó y qué ajuste pequeño conviene hacer esta semana.',
     bitacoraPrompt:
-      'Prompt sugerido: "Compara estas dos mediciones: [fecha 1 con datos] y [fecha 2 con datos]. Dime cambios principales en peso, grasa, musculo y medidas. No des diagnostico medico; dame una lectura practica para ajustar habitos."',
+      'Prompt sugerido: "Compara estas dos mediciones: [fecha 1 con datos] y [fecha 2 con datos]. Dime cambios principales en peso, grasa, músculo y medidas. No des diagnóstico médico; dame una lectura práctica para ajustar hábitos."',
     disclaimerNote:
-      'Las metricas corporales tienen margen de error. Usa tendencias y registros repetidos; para temas medicos o clinicos consulta a un profesional.',
+      'Las métricas corporales tienen margen de error. Usa tendencias y registros repetidos; para temas médicos o clínicos consulta a un profesional.',
   },
   'week-4': {
     subject: 'Semana 4: disciplina diaria y consistencia real',
-    preheader: 'El progreso se sostiene con habitos pequenos, honestidad y seguimiento.',
-    title: 'Registra aunque el dia no sea perfecto',
+    preheader: 'El progreso se sostiene con hábitos pequeños, honestidad y seguimiento.',
+    title: 'Registra aunque el día no sea perfecto',
     intro:
-      'La bitacora no es para presumir dias perfectos. Es para sostener conciencia, corregir rapido y volver al camino cuando algo se desordena.',
+      'La bitácora no es para presumir días perfectos. Es para sostener conciencia, corregir rápido y volver al camino cuando algo se desordena.',
     aiTip:
-      'Usa ChatGPT para cerrar el dia en pocas lineas: que salio bien, que se puede corregir y cual es la accion simple para manana. No necesitas una respuesta larga.',
+      'Usa ChatGPT para cerrar el día en pocas líneas: qué salió bien, qué se puede corregir y cuál es la acción simple para mañana. No necesitas una respuesta larga.',
     personalReflection:
-      'El testimonio se construye en lo ordinario: comer mejor, moverse, descansar, orar o reflexionar, y volver a intentarlo sin drama. La constancia tambien es una forma de respeto propio.',
+      'El testimonio se construye en lo ordinario: comer mejor, moverse, descansar, orar o reflexionar, y volver a intentarlo sin drama. La constancia también es una forma de respeto propio.',
     actionStep:
-      'Haz tu check-in diario y escribe una nota honesta de una linea: que hiciste bien y que vas a cuidar manana.',
+      'Haz tu check-in diario y escribe una nota honesta de una línea: qué hiciste bien y qué vas a cuidar mañana.',
     bitacoraPrompt:
-      'Prompt sugerido: "Con base en mi dia: [resume comida, ejercicio, energia, sueno y emociones], dame una reflexion breve, una correccion concreta y una accion simple para manana."',
+      'Prompt sugerido: "Con base en mi día: [resume comida, ejercicio, energía, sueño y emociones], dame una reflexión breve, una corrección concreta y una acción simple para mañana."',
     disclaimerNote:
       'La IA puede ayudarte a ordenar ideas, pero tus decisiones y registros reales son la base. No promete resultados garantizados.',
   },
@@ -149,16 +149,16 @@ function renderText(newsletter: Newsletter) {
     '',
     newsletter.title,
     '',
-    'Introduccion:',
+    'Introducción:',
     newsletter.intro,
     '',
     'Tip de IA:',
     newsletter.aiTip,
     '',
-    'Reflexion personal:',
+    'Reflexión personal:',
     newsletter.personalReflection,
     '',
-    'Accion de la semana:',
+    'Acción de la semana:',
     newsletter.actionStep,
     '',
     'Prompt sugerido:',
@@ -204,7 +204,7 @@ function renderHtml(newsletter: Newsletter) {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; max-width: 640px; background: #ffffff; border: 1px solid #dde5df; border-radius: 22px; overflow: hidden;">
             <tr>
               <td style="padding: 28px 26px 16px 26px;">
-                <p style="margin: 0 0 10px 0; color: #60707a; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">Bitacora Daniel</p>
+                <p style="margin: 0 0 10px 0; color: #60707a; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">Bitácora Daniel</p>
                 <h1 style="margin: 0; color: #17212b; font-size: 28px; line-height: 1.15;">${escapeHtml(newsletter.title)}</h1>
                 <p style="margin: 12px 0 0 0; color: #586875; font-size: 15px; line-height: 1.5;">${escapeHtml(newsletter.preheader)}</p>
               </td>
@@ -212,18 +212,18 @@ function renderHtml(newsletter: Newsletter) {
             <tr>
               <td style="padding: 0 26px 10px 26px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
-                  ${renderHtmlSection('Introduccion', newsletter.intro)}
+                  ${renderHtmlSection('Introducción', newsletter.intro)}
                   ${renderHtmlSection('Tip de IA', newsletter.aiTip)}
-                  ${renderHtmlSection('Reflexion personal', newsletter.personalReflection)}
-                  ${renderHtmlSection('Accion de la semana', newsletter.actionStep)}
-                  ${renderHtmlSection('Prompt sugerido', newsletter.bitacoraPrompt, true)}
+                  ${renderHtmlSection('Reflexión personal', newsletter.personalReflection)}
+                  ${renderHtmlSection('Acción de la semana', newsletter.actionStep)}
+                  ${renderHtmlSection('Prompt sugerido para la bitácora', newsletter.bitacoraPrompt, true)}
                   ${renderHtmlSection('Nota final', newsletter.disclaimerNote)}
                 </table>
               </td>
             </tr>
             <tr>
               <td style="padding: 18px 26px 26px 26px; border-top: 1px solid #edf1ee;">
-                <p style="margin: 0; color: #74818a; font-size: 12px; line-height: 1.5;">Correo de prueba interno. No es un envio automatico.</p>
+                <p style="margin: 0; color: #74818a; font-size: 12px; line-height: 1.5;">Correo de prueba interno. No es un envío automático.</p>
               </td>
             </tr>
           </table>
