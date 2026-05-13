@@ -3,7 +3,7 @@ function clampProgress(value) {
   return Math.max(0, Math.min(100, value));
 }
 
-export default function ProgressCard({ title, value, subtitle, progress, tone = 'neutral', helper, className = '' }) {
+export default function ProgressCard({ title, value, subtitle, progress, tone = 'neutral', helper, className = '', children }) {
   const safeProgress = clampProgress(progress);
 
   return (
@@ -17,6 +17,7 @@ export default function ProgressCard({ title, value, subtitle, progress, tone = 
         <div className="progress-fill" style={{ width: `${safeProgress}%` }} />
       </div>
       {helper ? <small>{helper}</small> : null}
+      {children ? <div className="progress-card-actions">{children}</div> : null}
     </article>
   );
 }

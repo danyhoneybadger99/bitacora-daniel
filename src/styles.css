@@ -1821,6 +1821,21 @@ button {
   font-size: 0.78rem;
 }
 
+.progress-card-actions {
+  margin-top: 12px;
+}
+
+.dashboard-card-action {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 0.84rem;
+}
+
+.dashboard-snapshot .dashboard-card-action {
+  margin-top: 10px;
+}
+
 .progress-track {
   width: 100%;
   height: 9px;
@@ -2662,6 +2677,16 @@ button {
 .newsletter-preview-controls {
   display: grid;
   gap: 12px;
+}
+
+.newsletter-manual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.newsletter-manual-actions .button {
+  flex: 1 1 190px;
 }
 
 .newsletter-preview-grid {

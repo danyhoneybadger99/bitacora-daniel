@@ -232,6 +232,31 @@ const newsletterPreviewOptions = [
     newsletter,
   })),
 ];
+
+function formatNewsletterWhatsApp(newsletter = {}) {
+  const sections = [
+    `*${newsletter.title || newsletter.subject || 'Bitacora Daniel'}*`,
+    newsletter.preheader,
+    newsletter.intro ? `\n*Intro*\n${newsletter.intro}` : '',
+    newsletter.aiTip ? `\n*Tip de IA*\n${newsletter.aiTip}` : '',
+    newsletter.personalReflection ? `\n*Reflexion personal*\n${newsletter.personalReflection}` : '',
+    newsletter.actionStep ? `\n*Accion de la semana*\n${newsletter.actionStep}` : '',
+    newsletter.bitacoraPrompt ? `\n*Prompt para copiar*\n${newsletter.bitacoraPrompt}` : '',
+    newsletter.disclaimerNote ? `\n*Nota*\n${newsletter.disclaimerNote}` : '',
+  ];
+
+  return sections.filter(Boolean).join('\n').trim();
+}
+
+function formatNewsletterManualEmail(newsletter = {}) {
+  return [
+    `Asunto: ${newsletter.subject || 'Newsletter Bitacora Daniel'}`,
+    `Preheader: ${newsletter.preheader || ''}`,
+    '',
+    renderNewsletterText(newsletter),
+  ].join('\n').trim();
+}
+
 const privateLocalStateCollections = [
   'privateCycles',
   'privateProducts',
@@ -924,6 +949,7 @@ function App() {
   const [weekReferenceDate, setWeekReferenceDate] = useState(currentDate);
   const [showAllRecentFoods, setShowAllRecentFoods] = useState(false);
   const [showHydrationHistory, setShowHydrationHistory] = useState(false);
+  const [pendingFocusSection, setPendingFocusSection] = useState('');
   const [showFoodTemplateBuilder, setShowFoodTemplateBuilder] = useState(true);
   const [showRoutineBuilder, setShowRoutineBuilder] = useState(false);
   const [showSupplementRoutineTools, setShowSupplementRoutineTools] = useState(false);
@@ -999,6 +1025,7 @@ function App() {
   const privatePaymentSectionRef = useRef(null);
   const privateEventSectionRef = useRef(null);
   const privateFinancialSummaryRef = useRef(null);
+  const hydrationFormSectionRef = useRef(null);
   const kravTechniqueDetailRef = useRef(null);
   const pendingKravDetailScrollRef = useRef(false);
 
@@ -1981,6 +2008,33 @@ function App() {
     if (enabledTabIds.includes(activeTab)) return;
     setActiveTab('dashboard');
   }, [activeTab, enabledTabsKey, enabledTabIds]);
+
+  useEffect(() => {
+    if (safeActiveTab !== 'foods' || pendingFocusSection !== 'hydration') return;
+
+    const timeoutId = window.setTimeout(() => {
+      const section = hydrationFormSectionRef.current;
+      if (!section) {
+        setPendingFocusSection('');
+        return;
+      }
+
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const quantityInput = section.querySelector('input[name="quantity"]');
+
+      if (quantityInput && typeof quantityInput.focus === 'function') {
+        try {
+          quantityInput.focus({ preventScroll: true });
+        } catch {
+          quantityInput.focus();
+        }
+      }
+
+      setPendingFocusSection('');
+    }, 80);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pendingFocusSection, safeActiveTab]);
 
   useEffect(() => {
     const metadataNewsletterOptIn = getNewsletterOptInFromMetadata(syncUser);
@@ -3763,6 +3817,12 @@ function lockPrivateModule(feedbackText = '') {
 
   function handleUserOnboardingDismiss() {
     handleUserOnboardingProfileSelect('fitness-basic');
+  }
+
+  function handleOpenHydrationForm() {
+    if (!enabledTabIds.includes('foods')) return;
+    setPendingFocusSection('hydration');
+    setActiveTab('foods');
   }
 
   function handleObjectiveSubmit(event) {
@@ -6062,6 +6122,7 @@ function toggleRecommendedSupplement(itemConfig) {
             todayDailyCheckIn={todayDailyCheckIn}
             checkInEmotionOptions={checkInEmotionOptions}
             profileType={userSettings.profileType}
+            onOpenHydrationForm={enabledTabIds.includes('foods') ? handleOpenHydrationForm : null}
           />
         ) : null}
 
@@ -6278,6 +6339,36 @@ function toggleRecommendedSupplement(itemConfig) {
                         <strong>{newsletterPreview.preheader || 'Sin preheader'}</strong>
                       </div>
                     </div>
+
+                    <div className="newsletter-manual-actions">
+                      <button
+                        className="button button-primary newsletter-preview-copy-button"
+                        type="button"
+                        onClick={() =>
+                          copyNewsletterPreviewText(
+                            formatNewsletterWhatsApp(selectedNewsletterPreviewOption.newsletter),
+                            'Versión WhatsApp'
+                          )
+                        }
+                      >
+                        Copiar versión WhatsApp
+                      </button>
+                      <button
+                        className="button button-secondary newsletter-preview-copy-button"
+                        type="button"
+                        onClick={() =>
+                          copyNewsletterPreviewText(
+                            formatNewsletterManualEmail(selectedNewsletterPreviewOption.newsletter),
+                            'Asunto + email'
+                          )
+                        }
+                      >
+                        Copiar asunto + email
+                      </button>
+                    </div>
+                    <p className="section-helper">
+                      Copia manual para WhatsApp o email. No se envía nada automáticamente desde esta pantalla.
+                    </p>
                   </div>
 
                   <div className="newsletter-preview-grid">
@@ -6826,7 +6917,12 @@ function toggleRecommendedSupplement(itemConfig) {
               </SectionCard>
             </div>
 
-            <div className="split-layout hydration-layout">
+            <div
+              className="split-layout hydration-layout"
+              id="hydration-form"
+              data-section="hydration-form"
+              ref={hydrationFormSectionRef}
+            >
               <SectionCard title="Hidratación" subtitle="Registra agua, cafe, te y otras bebidas del día.">
                 <RecordForm
                   title="Nueva bebida"

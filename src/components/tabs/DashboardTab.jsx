@@ -142,6 +142,7 @@ export default function DashboardTab(props) {
     todayDailyCheckIn,
     checkInEmotionOptions,
     profileType,
+    onOpenHydrationForm,
   } = props;
   const checkInInsight = getCheckInInsight(todayDailyCheckIn, profileType);
   const checkInTrafficLight = todayDailyCheckIn ? getDailyCheckInTrafficLight(todayDailyCheckIn) : null;
@@ -284,7 +285,13 @@ export default function DashboardTab(props) {
               ? `Alta actividad: ${formatUnitValue(hydrationHighActivityGoal, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}`
               : `${formatUnitValue(Math.max((hydrationBaseGoal || 0) - todaySummary.hydrationMl, 0), 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })} restantes`
           }
-        />
+        >
+          {onOpenHydrationForm ? (
+            <button className="button button-secondary dashboard-card-action" type="button" onClick={onOpenHydrationForm}>
+              Agregar agua
+            </button>
+          ) : null}
+        </ProgressCard>
 
         <ProgressCard
           title="Actividad"
@@ -473,6 +480,11 @@ export default function DashboardTab(props) {
           <div className="dashboard-snapshot">
             <strong>{formatUnitValue(todaySummary.hydrationMl, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}</strong>
             <p>{`Meta ${formatUnitValue(hydrationBaseGoal || 0, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}${todaysExercises.length > 0 && hydrationHighActivityGoal > 0 ? ` · alta ${formatUnitValue(hydrationHighActivityGoal, 'ml', { maximumFractionDigits: 0, fallback: '0 ml' })}` : ''}`}</p>
+            {onOpenHydrationForm ? (
+              <button className="button button-secondary dashboard-card-action" type="button" onClick={onOpenHydrationForm}>
+                Agregar hidratación
+              </button>
+            ) : null}
           </div>
         </SectionCard>
 
