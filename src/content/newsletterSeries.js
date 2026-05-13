@@ -63,21 +63,21 @@ export const firstFourNewsletters = [
   },
   {
     week: 2,
-    subject: 'Semana 2: registra tus entrenamientos con más claridad',
-    preheader: 'Usa IA para ordenar duración, intensidad y calorías estimadas.',
-    title: 'Cómo usar IA para registrar ejercicio y calorías quemadas',
+    subject: 'Semana 2: cómo usar tu Bitácora Daniel sin complicarte',
+    preheader: 'Una guía rápida para entender cada pestaña y registrar mejor tu progreso.',
+    title: 'Tu guía rápida para usar Bitácora Daniel',
     intro:
-      'El ejercicio también necesita registro simple. No se trata de adivinar perfecto, sino de capturar qué hiciste, cuánto duró, con qué intensidad y cómo respondió tu cuerpo.',
+      'Esta semana no se trata de llenar toda la app. Se trata de entender para qué sirve cada pestaña y elegir 2 o 3 registros diarios que sí puedas sostener.',
     aiTip:
-      'Describe tu entrenamiento con duración, tipo de actividad, intensidad, peso corporal aproximado y pausas. Pide una estimación conservadora de calorías quemadas y un resumen breve para registrar.',
+      'Usa IA como apoyo externo cuando no sepas cómo escribir un registro. Puedes describir una comida, entrenamiento, hidratación o check-in, y pedir una versión simple para copiar a tu bitácora.',
     personalReflection:
-      'Entrenar se siente bien, pero registrar te permite ver constancia. La bitácora convierte esfuerzo suelto en evidencia acumulada.',
+      'Dashboard te da la foto rápida del día. Check-in diario registra estado, energía, sueño y emociones. Alimentos e hidratación ordenan comida, agua y café. Ejercicio guarda entrenamientos. Krav Maga ayuda a seguir técnica y práctica. Métricas registra peso, grasa, músculo y medidas. Semanal resume cómo vas. Historial te deja revisar lo que ya registraste.',
     actionStep:
-      'Registra un entrenamiento esta semana con nombre, duración, intensidad y calorías estimadas. Si dudas, usa una estimación conservadora.',
+      'Durante 7 días registra hidratación, check-in diario y una comida o entrenamiento. Con eso basta para empezar a ver patrones sin abrumarte.',
     bitacoraPrompt:
-      'Prompt sugerido: "Peso aproximadamente [peso]. Hice [actividad] durante [minutos] a intensidad [baja/media/alta], con [pausas o detalles]. Estima calorías quemadas de forma conservadora y dame una nota breve para mi registro."',
+      'Ayúdame a convertir este registro en datos claros para mi Bitácora Daniel: [describe comida, entrenamiento, hidratación o check-in]. Dame una versión simple y práctica para registrar.',
     disclaimerNote:
-      'Las calorías quemadas son aproximadas y pueden variar mucho por persona, intensidad, técnica y dispositivo. Usa la estimación como referencia, no como verdad exacta.',
+      'La IA puede ayudarte a ordenar información y estimar datos, pero no calcula perfecto ni sustituye orientación profesional. Úsala como apoyo externo y registra tus datos reales lo mejor posible.',
   },
   {
     week: 3,

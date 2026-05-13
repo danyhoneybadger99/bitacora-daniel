@@ -1022,6 +1022,30 @@ button {
   margin-bottom: 10px;
 }
 
+.dashboard-newsletter-alert {
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.dashboard-newsletter-alert-soft {
+  background: linear-gradient(135deg, #f4f8ef, #fffaf0);
+  border-color: rgba(143, 154, 81, 0.32);
+  color: #5d6128;
+}
+
+.dashboard-newsletter-alert-warning,
+.dashboard-newsletter-alert-ready {
+  background: linear-gradient(135deg, #fff8ef, #f7ead8);
+  border-color: #e0c6a4;
+  color: #7a4c1e;
+}
+
+.dashboard-newsletter-alert-critical {
+  background: linear-gradient(135deg, #fff2f0, #fae0dc);
+  border-color: rgba(175, 88, 79, 0.36);
+  color: #8b312a;
+}
+
 .progress-card-krav,
 .dashboard-krav-card {
   background: linear-gradient(180deg, #fff8ef 0%, #f8ead8 100%);
@@ -2780,6 +2804,18 @@ button {
   background: linear-gradient(135deg, #fff8ef, #f7ead8);
   border-color: #e0c6a4;
   color: #7a4c1e;
+}
+
+.newsletter-editorial-alert-soft {
+  background: linear-gradient(135deg, #f4f8ef, #fffaf0);
+  border-color: rgba(143, 154, 81, 0.32);
+  color: #5d6128;
+}
+
+.newsletter-editorial-alert-critical {
+  background: linear-gradient(135deg, #fff2f0, #fae0dc);
+  border-color: rgba(175, 88, 79, 0.36);
+  color: #8b312a;
 }
 
 .newsletter-manual-actions {

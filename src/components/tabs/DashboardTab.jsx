@@ -143,6 +143,7 @@ export default function DashboardTab(props) {
     checkInEmotionOptions,
     profileType,
     onOpenHydrationForm,
+    newsletterEditorialReminder,
   } = props;
   const checkInInsight = getCheckInInsight(todayDailyCheckIn, profileType);
   const checkInTrafficLight = todayDailyCheckIn ? getDailyCheckInTrafficLight(todayDailyCheckIn) : null;
@@ -164,6 +165,16 @@ export default function DashboardTab(props) {
         <div className="dashboard-alerts-top">
           <div className="alert-banner alert-banner-sunday dashboard-sunday-alert-priority">
             <strong>Domingo con control:</strong> evita azúcar, harina y exceso de calorías. No tires a la basura el esfuerzo de la semana.
+          </div>
+        </div>
+      ) : null}
+
+      {newsletterEditorialReminder?.message ? (
+        <div className="dashboard-alerts-top">
+          <div
+            className={`alert-banner dashboard-newsletter-alert dashboard-newsletter-alert-${newsletterEditorialReminder.editorialReminderLevel}`}
+          >
+            <strong>Newsletter:</strong> {newsletterEditorialReminder.message}
           </div>
         </div>
       ) : null}

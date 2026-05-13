@@ -1,20 +1,20 @@
 const defaultDisclaimer =
-  'Las respuestas de IA son estimaciones. Registra tus datos reales lo mejor posible y usa criterio personal; esto no sustituye consejo medico o nutricional.';
+  'Las respuestas de IA son estimaciones. Registra tus datos reales lo mejor posible y usa criterio personal; esto no sustituye consejo médico o nutricional.';
 
 const sectionLabels = {
-  intro: 'Introduccion',
+  intro: 'Introducción',
   aiTip: 'Tip de IA',
-  personalReflection: 'Reflexion personal',
-  actionStep: 'Accion de la semana',
-  bitacoraPrompt: 'Prompt sugerido',
+  personalReflection: 'Reflexión personal',
+  actionStep: 'Acción de la semana',
+  bitacoraPrompt: 'Prompt sugerido para la bitácora',
   disclaimerNote: 'Nota final',
 };
 
 function normalizeNewsletter(newsletter = {}) {
   return {
-    subject: String(newsletter.subject || 'Newsletter Bitacora Daniel').trim(),
+    subject: String(newsletter.subject || 'Newsletter Bitácora Daniel').trim(),
     preheader: String(newsletter.preheader || '').trim(),
-    title: String(newsletter.title || newsletter.subject || 'Bitacora Daniel').trim(),
+    title: String(newsletter.title || newsletter.subject || 'Bitácora Daniel').trim(),
     intro: String(newsletter.intro || '').trim(),
     aiTip: String(newsletter.aiTip || '').trim(),
     personalReflection: String(newsletter.personalReflection || '').trim(),
@@ -75,7 +75,7 @@ export function renderNewsletterHtml(newsletter) {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; max-width: 640px; background: #ffffff; border: 1px solid #dde5df; border-radius: 22px; overflow: hidden;">
             <tr>
               <td style="padding: 28px 26px 16px 26px;">
-                <p style="margin: 0 0 10px 0; color: #60707a; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">Bitacora Daniel</p>
+                <p style="margin: 0 0 10px 0; color: #60707a; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">Bitácora Daniel</p>
                 <h1 style="margin: 0; color: #17212b; font-size: 28px; line-height: 1.15;">${escapeHtml(normalized.title)}</h1>
                 ${
                   normalized.preheader
@@ -99,7 +99,7 @@ export function renderNewsletterHtml(newsletter) {
             <tr>
               <td style="padding: 18px 26px 26px 26px; border-top: 1px solid #edf1ee;">
                 <p style="margin: 0; color: #74818a; font-size: 12px; line-height: 1.5;">
-                  Recibes este contenido porque aceptaste recibir tips de bienestar, habitos y progreso de Bitacora Daniel.
+                  Recibes este contenido porque aceptaste recibir tips de bienestar, hábitos y progreso de Bitácora Daniel.
                 </p>
               </td>
             </tr>

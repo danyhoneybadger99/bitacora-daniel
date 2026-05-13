@@ -182,7 +182,7 @@ import {
 import { renderNewsletterHtml, renderNewsletterPreview, renderNewsletterText } from './utils/newsletterRenderer';
 import {
   NEWSLETTER_ADMIN_STATUS_LABELS,
-  isNewsletterEditorialAlertDue,
+  getNewsletterEditorialReminder,
   normalizeNewsletterAdmin,
 } from './utils/newsletterAdmin';
 import {
@@ -2014,11 +2014,18 @@ function App() {
     Boolean(syncUser?.id) &&
     newsletterSendableCount > 0 &&
     (isSelectedNewsletterReady || hasSelectedNewsletterBeenSent);
-  const shouldShowNewsletterEditorialAlert = isNewsletterEditorialAlertDue(
+  const newsletterEditorialReminder = getNewsletterEditorialReminder(
     newsletterAdmin,
     selectedNewsletterPreviewId,
     new Date()
   );
+  const shouldShowNewsletterEditorialAlert =
+    isDanielFullProfile &&
+    ['soft', 'warning', 'critical'].includes(newsletterEditorialReminder.editorialReminderLevel);
+  const dashboardNewsletterEditorialReminder =
+    isDanielFullProfile && newsletterEditorialReminder.requiresDashboardAttention
+      ? newsletterEditorialReminder
+      : null;
   const shouldShowUserOnboarding = Boolean(
     syncUser?.id && diaryData.profileId === 'clean' && !userSettings.onboardingCompleted
   );
@@ -6266,6 +6273,7 @@ function toggleRecommendedSupplement(itemConfig) {
             checkInEmotionOptions={checkInEmotionOptions}
             profileType={userSettings.profileType}
             onOpenHydrationForm={enabledTabIds.includes('foods') ? handleOpenHydrationForm : null}
+            newsletterEditorialReminder={dashboardNewsletterEditorialReminder}
           />
         ) : null}
 
@@ -6496,13 +6504,17 @@ function toggleRecommendedSupplement(itemConfig) {
 
                       <div className="newsletter-editorial-reminder">
                         <strong>Recordatorio editorial</strong>
-                        <p>Envío sugerido: miércoles 12:00 p.m. Preparar contenido mínimo 24 h antes.</p>
-                        <small>{`Zona horaria: ${newsletterAdmin.timezone}`}</small>
+                        <p>{newsletterEditorialReminder.message || 'Sin recordatorios activos para este issue.'}</p>
+                        <small>{`Envío objetivo: ${newsletterEditorialReminder.nextSendAt}`}</small>
+                        <small>{`Preparación ideal: ${newsletterEditorialReminder.prepareByAt} · Límite mínimo: ${newsletterEditorialReminder.minimumPrepareByAt}`}</small>
+                        <small>{`Zona horaria: ${newsletterEditorialReminder.timezone}`}</small>
                       </div>
 
                       {shouldShowNewsletterEditorialAlert ? (
-                        <div className="alert-banner alert-banner-warning newsletter-editorial-alert">
-                          Este newsletter todavía no está listo para la ventana editorial de la semana.
+                        <div
+                          className={`alert-banner alert-banner-warning newsletter-editorial-alert newsletter-editorial-alert-${newsletterEditorialReminder.editorialReminderLevel}`}
+                        >
+                          {newsletterEditorialReminder.message}
                         </div>
                       ) : null}
 

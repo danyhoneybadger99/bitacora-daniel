@@ -72,23 +72,122 @@ export function buildNewsletterEmailPayload(newsletter, recipient = {}) {
 
   return {
     to: recipient.email,
-    subject: newsletter.subject || 'Newsletter Bitacora Daniel',
+    subject: newsletter.subject || 'Newsletter Bitácora Daniel',
     preheader: newsletter.preheader || '',
     html: renderNewsletterHtml(newsletter),
     text: renderNewsletterText(newsletter),
   };
 }
 
-export function isNewsletterEditorialAlertDue(newsletterAdmin = {}, issueId = '', now = new Date()) {
+const weekdayIndexByShortName = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+
+function getZonedDateParts(date = new Date(), timezone = NEWSLETTER_ADMIN_DEFAULTS.timezone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
+
+  return {
+    weekday: weekdayIndexByShortName[String(parts.weekday || '').toLowerCase()] ?? date.getDay(),
+    hour: Number(parts.hour || date.getHours()),
+    minute: Number(parts.minute || date.getMinutes()),
+  };
+}
+
+function getSelectedNewsletterStatus(newsletterAdmin = {}, issueId = '') {
   const normalized = normalizeNewsletterAdmin(newsletterAdmin);
-  const selectedIssueStatus = normalized.currentIssueId === issueId ? normalized.status : 'draft';
+  return normalized.currentIssueId === issueId ? normalized.status : 'draft';
+}
 
-  if (selectedIssueStatus === 'ready' || selectedIssueStatus === 'manually_sent') return false;
+export function getNewsletterEditorialReminder(newsletterAdmin = {}, issueId = '', now = new Date()) {
+  const normalized = normalizeNewsletterAdmin(newsletterAdmin);
+  const status = getSelectedNewsletterStatus(normalized, issueId);
+  const timezone = normalized.timezone || NEWSLETTER_ADMIN_DEFAULTS.timezone;
+  const { weekday, hour } = getZonedDateParts(now, timezone);
+  const base = {
+    currentIssue: issueId || normalized.currentIssueId,
+    editorialReminderLevel: 'none',
+    message: '',
+    nextSendAt: 'miércoles 12:00 p.m.',
+    prepareByAt: 'lunes 12:00 p.m.',
+    minimumPrepareByAt: 'martes 12:00 p.m.',
+    timezone,
+    requiresDashboardAttention: false,
+  };
 
-  const day = now.getDay();
-  const hour = now.getHours();
-  const isTuesdayAfterNoon = day === 2 && hour >= 12;
-  const isWednesdayOrLater = day >= 3;
+  if (status === 'manually_sent') {
+    return {
+      ...base,
+      editorialReminderLevel: 'sent',
+      message: 'Newsletter enviado. Revisa newsletter_send_log en Supabase.',
+    };
+  }
 
-  return isTuesdayAfterNoon || isWednesdayOrLater;
+  if (status === 'ready') {
+    return {
+      ...base,
+      editorialReminderLevel: 'ready',
+      message: 'Newsletter listo. Pendiente de envío manual.',
+      requiresDashboardAttention: true,
+    };
+  }
+
+  const isMondayAfterNoon = weekday === 1 && hour >= 12;
+  const isTuesdayAfterNoon = weekday === 2 && hour >= 12;
+  const isWednesdayBeforeNoon = weekday === 3 && hour < 12;
+  const isPastSuggestedSendWindow = weekday === 3 && hour >= 12;
+
+  if (isPastSuggestedSendWindow) {
+    return {
+      ...base,
+      editorialReminderLevel: 'critical',
+      message: 'La ventana sugerida ya pasó. Revisa el contenido y marca el newsletter como listo.',
+      requiresDashboardAttention: true,
+    };
+  }
+
+  if (isWednesdayBeforeNoon) {
+    return {
+      ...base,
+      editorialReminderLevel: 'critical',
+      message: 'Hoy se envía el newsletter. Revisa el contenido antes de las 12:00 p.m.',
+      requiresDashboardAttention: true,
+    };
+  }
+
+  if (isTuesdayAfterNoon) {
+    return {
+      ...base,
+      editorialReminderLevel: 'warning',
+      message: 'Faltan 24 h para el envío. Marca el newsletter como listo.',
+      requiresDashboardAttention: true,
+    };
+  }
+
+  if (isMondayAfterNoon) {
+    return {
+      ...base,
+      editorialReminderLevel: 'soft',
+      message: 'Preparar newsletter semanal. Faltan 48 h para el envío sugerido.',
+      requiresDashboardAttention: true,
+    };
+  }
+
+  return base;
+}
+
+export function isNewsletterEditorialAlertDue(newsletterAdmin = {}, issueId = '', now = new Date()) {
+  return getNewsletterEditorialReminder(newsletterAdmin, issueId, now).requiresDashboardAttention;
 }
