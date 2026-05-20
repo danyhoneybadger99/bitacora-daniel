@@ -49,9 +49,24 @@ type AppUserRecord = {
 type RecipientCandidate = {
   userId: string;
   email: string;
+  emailMasked: string;
+  displayName: string;
   profileType: string;
   confirmed: boolean;
   alreadySent: boolean;
+  status: 'sent' | 'pending' | 'unconfirmed' | 'error';
+  reason: 'already_sent' | 'ready_to_send' | 'email_not_confirmed' | 'last_attempt_failed';
+  sentAt: string | null;
+  errorMessage: string | null;
+};
+
+type SendLogRow = {
+  recipient_email: string | null;
+  status: 'sent' | 'failed' | 'skipped';
+  provider_message_id?: string | null;
+  error_message?: string | null;
+  sent_at?: string | null;
+  created_at?: string | null;
 };
 
 const newsletters: Record<string, Newsletter> = {
@@ -159,6 +174,29 @@ function escapeHtml(value = '') {
 
 function normalizeEmail(email = '') {
   return String(email || '').trim().toLowerCase();
+}
+
+function maskEmail(email = '') {
+  const normalized = normalizeEmail(email);
+  const [localPart = '', domain = ''] = normalized.split('@');
+  if (!localPart || !domain) return normalized;
+
+  const visibleLocal = localPart.length <= 2 ? localPart[0] || '*' : localPart.slice(0, 2);
+  return `${visibleLocal}***@${domain}`;
+}
+
+function inferDisplayName(email = '') {
+  const normalized = normalizeEmail(email);
+  if (normalized === 'itsme.daniel0802@gmail.com') return 'Daniel';
+  if (normalized === 'jfloresm1994@gmail.com') return 'Jesús';
+
+  const [localPart = 'Usuario'] = normalized.split('@');
+  return localPart
+    .split(/[._+-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ') || 'Usuario';
 }
 
 function getRealSubject(subject = '') {
@@ -313,15 +351,28 @@ async function getRecipientCandidates(serviceClient: ReturnType<typeof createCli
 
   if (appUsersError) throw appUsersError;
 
-  const { data: sentRows, error: sentError } = await serviceClient
+  const { data: logRows, error: logError } = await serviceClient
     .from('newsletter_send_log')
-    .select('recipient_email')
+    .select('recipient_email, status, provider_message_id, error_message, sent_at, created_at')
     .eq('issue_id', issueId)
-    .eq('status', 'sent');
+    .order('created_at', { ascending: false });
 
-  if (sentError) throw sentError;
+  if (logError) throw logError;
 
-  const alreadySentEmails = new Set((sentRows || []).map((item) => normalizeEmail(item.recipient_email)));
+  const alreadySentEmails = new Set(
+    ((logRows || []) as SendLogRow[])
+      .filter((item) => item.status === 'sent')
+      .map((item) => normalizeEmail(item.recipient_email || ''))
+      .filter(Boolean)
+  );
+  const latestLogByEmail = new Map<string, SendLogRow>();
+
+  for (const logRow of ((logRows || []) as SendLogRow[])) {
+    const email = normalizeEmail(logRow.recipient_email || '');
+    if (!email || latestLogByEmail.has(email)) continue;
+    latestLogByEmail.set(email, logRow);
+  }
+
   const candidates: RecipientCandidate[] = [];
 
   for (const appUser of (appUsers || []) as AppUserRecord[]) {
@@ -330,13 +381,37 @@ async function getRecipientCandidates(serviceClient: ReturnType<typeof createCli
 
     const { data: authUserData, error: authUserError } = await serviceClient.auth.admin.getUserById(appUser.user_id);
     const authUser = authUserData?.user as Record<string, unknown> | undefined;
+    const confirmed = !authUserError && isConfirmedAuthUser(authUser);
+    const alreadySent = alreadySentEmails.has(email);
+    const latestLog = latestLogByEmail.get(email);
+    const hasLatestError = latestLog?.status === 'failed';
+    const status = alreadySent
+      ? 'sent'
+      : !confirmed
+        ? 'unconfirmed'
+        : hasLatestError
+          ? 'error'
+          : 'pending';
+    const reason = alreadySent
+      ? 'already_sent'
+      : !confirmed
+        ? 'email_not_confirmed'
+        : hasLatestError
+          ? 'last_attempt_failed'
+          : 'ready_to_send';
 
     candidates.push({
       userId: appUser.user_id,
       email,
+      emailMasked: maskEmail(email),
+      displayName: inferDisplayName(email),
       profileType: appUser.profile_type || 'fitness-basic',
-      confirmed: !authUserError && isConfirmedAuthUser(authUser),
-      alreadySent: alreadySentEmails.has(email),
+      confirmed,
+      alreadySent,
+      status,
+      reason,
+      sentAt: alreadySent ? latestLog?.sent_at || latestLog?.created_at || null : null,
+      errorMessage: hasLatestError ? String(latestLog?.error_message || '').slice(0, 160) : null,
     });
   }
 
@@ -349,8 +424,25 @@ function summarizeCandidates(candidates: RecipientCandidate[]) {
     confirmedCount: candidates.filter((item) => item.confirmed).length,
     alreadySentCount: candidates.filter((item) => item.alreadySent).length,
     skippedUnconfirmedCount: candidates.filter((item) => !item.confirmed).length,
-    sendableCount: candidates.filter((item) => item.confirmed && !item.alreadySent).length,
+    errorCount: candidates.filter((item) => item.status === 'error').length,
+    pendingToSendCount: candidates.filter((item) => item.status === 'pending').length,
+    sendableCount: candidates.filter((item) => item.status === 'pending').length,
   };
+}
+
+function buildRecipientDiagnostics(candidates: RecipientCandidate[]) {
+  return candidates.map((candidate) => ({
+    displayName: candidate.displayName,
+    emailMasked: candidate.emailMasked,
+    profileType: candidate.profileType,
+    confirmed: candidate.confirmed,
+    alreadySent: candidate.alreadySent,
+    sendable: candidate.status === 'pending',
+    status: candidate.status,
+    sentAt: candidate.sentAt,
+    errorMessage: candidate.errorMessage,
+    reason: candidate.reason,
+  }));
 }
 
 async function insertSendLog(
@@ -422,9 +514,10 @@ Deno.serve(async (request) => {
 
   const candidates = await getRecipientCandidates(serviceClient, issueId);
   const summary = summarizeCandidates(candidates);
+  const recipientDiagnostics = buildRecipientDiagnostics(candidates);
 
   if (dryRun) {
-    return jsonResponse({ ok: true, issueId, dryRun: true, ...summary });
+    return jsonResponse({ ok: true, issueId, dryRun: true, ...summary, recipientDiagnostics });
   }
 
   const status = await getNewsletterStatus(serviceClient, user.id, issueId);
@@ -450,6 +543,11 @@ Deno.serve(async (request) => {
         status: 'skipped',
         error_message: 'Email not confirmed',
       });
+      continue;
+    }
+
+    if (candidate.status === 'error') {
+      skippedCount += 1;
       continue;
     }
 
@@ -514,6 +612,7 @@ Deno.serve(async (request) => {
     issueId,
     dryRun: false,
     ...summary,
+    recipientDiagnostics,
     sentCount,
     failedCount,
     skippedCount,

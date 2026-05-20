@@ -259,6 +259,28 @@ function formatNewsletterManualEmail(newsletter = {}) {
   return renderNewsletterText(newsletter);
 }
 
+const newsletterRecipientStatusLabels = {
+  sent: 'Enviado',
+  pending: 'Pendiente',
+  unconfirmed: 'No confirmado',
+  error: 'Error',
+};
+
+function formatNewsletterRecipientStatus(status = '') {
+  return newsletterRecipientStatusLabels[status] || 'Pendiente';
+}
+
+function formatNewsletterSentAt(value = '') {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('es-MX', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
 const privateLocalStateCollections = [
   'privateCycles',
   'privateProducts',
@@ -2009,10 +2031,16 @@ function App() {
   const selectedNewsletterStatusLabel = NEWSLETTER_ADMIN_STATUS_LABELS[selectedNewsletterStatus] || 'Borrador';
   const isSelectedNewsletterReady = selectedNewsletterStatus === 'ready';
   const hasSelectedNewsletterBeenSent = selectedNewsletterStatus === 'manually_sent';
-  const newsletterSendableCount = Number(newsletterManualSummary?.sendableCount ?? 0);
+  const newsletterRecipientDiagnostics = Array.isArray(newsletterManualSummary?.recipientDiagnostics)
+    ? newsletterManualSummary.recipientDiagnostics
+    : [];
+  const newsletterPendingToSendCount = Number(
+    newsletterManualSummary?.pendingToSendCount ?? newsletterManualSummary?.sendableCount ?? 0
+  );
+  const newsletterErrorCount = Number(newsletterManualSummary?.errorCount ?? 0);
   const canSendNewsletterManual =
     Boolean(syncUser?.id) &&
-    newsletterSendableCount > 0 &&
+    newsletterPendingToSendCount > 0 &&
     (isSelectedNewsletterReady || hasSelectedNewsletterBeenSent);
   const newsletterEditorialReminder = getNewsletterEditorialReminder(
     newsletterAdmin,
@@ -3697,7 +3725,7 @@ function lockPrivateModule(feedbackText = '') {
       return;
     }
 
-    if (newsletterManualSummary && Number(newsletterManualSummary.sendableCount || 0) <= 0) {
+    if (newsletterManualSummary && newsletterPendingToSendCount <= 0) {
       setNewsletterPreviewFeedback('No hay nuevos destinatarios opt-in pendientes para este issue.');
       return;
     }
@@ -3707,7 +3735,9 @@ function lockPrivateModule(feedbackText = '') {
 
     try {
       const result = await sendNewsletterManual({ issueId: selectedNewsletterPreviewId, dryRun: false });
-      setNewsletterManualSummary(result);
+      const refreshedSummary = await sendNewsletterManual({ issueId: selectedNewsletterPreviewId, dryRun: true })
+        .catch(() => result);
+      setNewsletterManualSummary(refreshedSummary);
 
       if (Number(result?.sentCount || 0) > 0) {
         updateNewsletterAdminStatus('manually_sent');
@@ -6570,7 +6600,7 @@ function toggleRecommendedSupplement(itemConfig) {
                         </strong>
                         <span>
                           {newsletterManualSummary?.sendableCount !== null && newsletterManualSummary?.sendableCount !== undefined
-                            ? `${newsletterManualSummary.sendableCount} listos para enviar`
+                            ? `${newsletterPendingToSendCount} pendientes por enviar`
                             : 'El conteo se calcula desde app_users sin mostrar correos.'}
                         </span>
                         {newsletterManualSummary?.alreadySentCount ? (
@@ -6579,8 +6609,64 @@ function toggleRecommendedSupplement(itemConfig) {
                         {newsletterManualSummary?.skippedUnconfirmedCount ? (
                           <span>{`${newsletterManualSummary.skippedUnconfirmedCount} omitidos por correo no confirmado`}</span>
                         ) : null}
+                        {newsletterErrorCount ? (
+                          <span>{`${newsletterErrorCount} con error en el último intento`}</span>
+                        ) : null}
                         {newsletterManualSummary?.error ? <span>{newsletterManualSummary.error}</span> : null}
                         <small>Revisa newsletter_send_log en Supabase para confirmar envíos.</small>
+                      </div>
+
+                      <div className="newsletter-send-status-card">
+                        <div className="daily-checkin-label-row">
+                          <div>
+                            <strong>Estado de envío de este newsletter</strong>
+                            <small>Diagnóstico seguro del issue seleccionado.</small>
+                          </div>
+                        </div>
+
+                        <div className="newsletter-send-status-metrics">
+                          <div>
+                            <span>Destinatarios opt-in</span>
+                            <strong>{newsletterManualSummary?.candidateCount ?? '—'}</strong>
+                          </div>
+                          <div>
+                            <span>Enviados</span>
+                            <strong>{newsletterManualSummary?.alreadySentCount ?? 0}</strong>
+                          </div>
+                          <div>
+                            <span>Pendientes</span>
+                            <strong>{newsletterPendingToSendCount}</strong>
+                          </div>
+                          <div>
+                            <span>Errores</span>
+                            <strong>{newsletterErrorCount}</strong>
+                          </div>
+                        </div>
+
+                        {isLoadingNewsletterRecipients ? (
+                          <p className="section-helper">Calculando estado de envío...</p>
+                        ) : newsletterRecipientDiagnostics.length > 0 ? (
+                          <div className="newsletter-recipient-list">
+                            {newsletterRecipientDiagnostics.map((recipient, index) => (
+                              <div
+                                className="newsletter-recipient-row"
+                                key={`${recipient.emailMasked || recipient.displayName || 'recipient'}-${index}`}
+                              >
+                                <div className="newsletter-recipient-main">
+                                  <strong>{recipient.displayName || 'Usuario'}</strong>
+                                  <span>{recipient.emailMasked || 'Correo oculto'}</span>
+                                  {recipient.sentAt ? <small>{formatNewsletterSentAt(recipient.sentAt)}</small> : null}
+                                  {recipient.errorMessage ? <small>{recipient.errorMessage}</small> : null}
+                                </div>
+                                <span className={`newsletter-recipient-status newsletter-recipient-status-${recipient.status || 'pending'}`}>
+                                  {formatNewsletterRecipientStatus(recipient.status)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="section-helper">No hay destinatarios opt-in para este newsletter.</p>
+                        )}
                       </div>
 
                       <div className="alert-banner newsletter-real-send-warning">

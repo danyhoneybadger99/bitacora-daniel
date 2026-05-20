@@ -47,6 +47,27 @@ Conteo sin enviar:
 }
 ```
 
+La respuesta de `dryRun` incluye resumen y `recipientDiagnostics` para la vista interna de Daniel:
+
+```json
+{
+  "candidateCount": 2,
+  "alreadySentCount": 1,
+  "pendingToSendCount": 1,
+  "errorCount": 0,
+  "recipientDiagnostics": [
+    {
+      "displayName": "Daniel",
+      "emailMasked": "it***@gmail.com",
+      "status": "sent",
+      "sentAt": "2026-05-20T18:00:00.000Z"
+    }
+  ]
+}
+```
+
+Estados posibles por destinatario: `sent`, `pending`, `unconfirmed`, `error`.
+
 Envío real:
 
 ```json
