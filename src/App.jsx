@@ -28,6 +28,16 @@ import {
 import { isSupabaseConfigured } from './lib/supabase';
 import { buildTodaySummary } from './utils/domain/dashboardSummary';
 import {
+  buildDailyShareSummary,
+  buildExerciseShareSummaryGroup,
+  buildFoodShareSummaryGroup,
+  buildKravMagaShareSummary,
+  buildMonthlyShareSummary,
+  buildPhysicalMilestoneSummary,
+  buildSobrietyShareSummary,
+  canShowSobrietyCard,
+} from './utils/domain/shareProgress';
+import {
   calculateFastingDurationHours,
   calculateLiveElapsedHours,
   createEmptyFastingLog,
@@ -974,6 +984,7 @@ function App() {
   const [showAllRecentFoods, setShowAllRecentFoods] = useState(false);
   const [showHydrationHistory, setShowHydrationHistory] = useState(false);
   const [pendingFocusSection, setPendingFocusSection] = useState('');
+  const [shareProgressLaunchRequest, setShareProgressLaunchRequest] = useState(null);
   const [showFoodTemplateBuilder, setShowFoodTemplateBuilder] = useState(true);
   const [showRoutineBuilder, setShowRoutineBuilder] = useState(false);
   const [showSupplementRoutineTools, setShowSupplementRoutineTools] = useState(false);
@@ -2339,8 +2350,15 @@ function App() {
     [kravCurriculum, kravSettings, currentDate]
   );
   const kravDashboardSnapshot = useMemo(() => {
-    const currentBelt = formatKravBeltLabel(kravSettings.currentBelt || 'naranja');
-    const targetBelt = formatKravBeltLabel(kravSettings.targetBelt || 'verde');
+    const hasKravProfileData = Boolean(
+      kravSettings.currentBelt ||
+      kravSettings.targetBelt ||
+      kravSettings.activeCurriculumBelt ||
+      kravSettings.activeCurriculumKey ||
+      kravCurriculum.length > 0
+    );
+    const currentBelt = kravSettings.currentBelt ? formatKravBeltLabel(kravSettings.currentBelt) : '';
+    const targetBelt = kravSettings.targetBelt ? formatKravBeltLabel(kravSettings.targetBelt) : '';
     const normalizedExamDate = normalizeDateString(kravSettings.examDate);
     const examDateLabel = normalizedExamDate ? formatPrivateDate(normalizedExamDate) : 'Fecha de examen pendiente';
     let examCountdownLabel = '';
@@ -2355,6 +2373,7 @@ function App() {
     return {
       currentBelt,
       targetBelt,
+      hasKravProfileData,
       activeCurriculumLabel: kravSettings.activeCurriculumLabel || '',
       activeCurriculumKey: kravSettings.activeCurriculumKey || '',
       sourceLabel: kravSettings.sourceLabel || '',
@@ -2366,7 +2385,7 @@ function App() {
       nextTechniqueName: nextKravTechnique?.name || 'Sin técnica priorizada',
       examStatusLabel: getKravExamStatusText(kravExamStatus.status),
     };
-  }, [currentDate, isKravCurriculumPending, kravExamStatus.pendingTechniques, kravExamStatus.status, kravProgress.totalProgress, kravSettings.activeCurriculumKey, kravSettings.activeCurriculumLabel, kravSettings.currentBelt, kravSettings.examDate, kravSettings.sourceLabel, kravSettings.targetBelt, nextKravTechnique]);
+  }, [currentDate, isKravCurriculumPending, kravCurriculum.length, kravExamStatus.pendingTechniques, kravExamStatus.status, kravProgress.totalProgress, kravSettings.activeCurriculumBelt, kravSettings.activeCurriculumKey, kravSettings.activeCurriculumLabel, kravSettings.currentBelt, kravSettings.examDate, kravSettings.sourceLabel, kravSettings.targetBelt, nextKravTechnique]);
   const kravCurriculumByCategory = useMemo(
     () => {
       const orderedCategories = [
@@ -3271,6 +3290,93 @@ function lockPrivateModule(feedbackText = '') {
   const dashboardFatSubtitle = hasDailyFatCutRange
     ? `Límite operativo: ${formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })} · Meta corte: ${cutReferenceFatRangeLabel}`
     : `Límite operativo: ${formatUnitValue(dailyFatLimitGrams, 'g', { maximumFractionDigits: 0, fallback: '80 g' })}`;
+  const shareProgressSummaries = useMemo(
+    () => {
+      const kravShareSnapshot = enabledTabIds.includes('krav') ? kravDashboardSnapshot : null;
+      const activeShareProfile = {
+        id: isDanielFullProfile ? 'daniel' : diaryData.profileId,
+        slug: isDanielFullProfile ? 'daniel' : userSettings.profileType,
+        name: isDanielFullProfile ? 'Daniel' : USER_PROFILE_LABELS[userSettings.profileType] || userSettings.profileType,
+        profileId: diaryData.profileId,
+        profileType: userSettings.profileType,
+      };
+      const summaries = {
+        daily: buildDailyShareSummary({
+          date: currentDate,
+          todaySummary,
+          calorieGoal,
+          proteinGoal,
+          dailyFatLimitGrams,
+          hydrationBaseGoal,
+          activeFastingReachedGoal,
+          displayedFastingStatus,
+          activeFastingElapsedHours,
+          profileType: userSettings.profileType,
+        }),
+        physical: buildPhysicalMilestoneSummary({
+          date: currentDate,
+          currentWeight: dashboardCurrentWeight,
+          weightGoal,
+          bodyFatPercentage: metricFieldSnapshots.bodyFat?.rawValue,
+          targetBodyFat: metricCompositionGoal?.targetBodyFat || 10,
+        }),
+        krav: buildKravMagaShareSummary({
+          date: currentDate,
+          kravDashboardSnapshot: kravShareSnapshot,
+        }),
+        monthly: buildMonthlyShareSummary({
+          date: currentDate,
+        }),
+        food: buildFoodShareSummaryGroup({
+          date: currentDate,
+          foods: todaysFoods,
+        }),
+        exercise: buildExerciseShareSummaryGroup({
+          date: currentDate,
+          exercises: todaysExercises,
+        }),
+      };
+
+      if (canShowSobrietyCard(activeShareProfile)) {
+        summaries.sobriety = buildSobrietyShareSummary({
+          date: currentDate,
+        });
+      }
+
+      return summaries;
+    },
+    [
+      activeFastingElapsedHours,
+      activeFastingReachedGoal,
+      calorieGoal,
+      currentDate,
+      dailyFatLimitGrams,
+      dashboardCurrentWeight,
+      diaryData.profileId,
+      displayedFastingStatus,
+      enabledTabsKey,
+      hydrationBaseGoal,
+      isDanielFullProfile,
+      kravDashboardSnapshot,
+      metricCompositionGoal?.targetBodyFat,
+      metricFieldSnapshots.bodyFat?.rawValue,
+      proteinGoal,
+      todaysExercises,
+      todaysFoods,
+      todaySummary,
+      userSettings.profileType,
+      weightGoal,
+    ]
+  );
+  function openShareProgressFromRecord(cardType, itemId) {
+    setShareProgressLaunchRequest({
+      cardType,
+      itemId,
+      nonce: Date.now(),
+    });
+    setActiveTab('dashboard');
+  }
+
   const dashboardCutReferenceMiniLabel =
     cutReferenceCutMin !== null || cutReferenceCutMax !== null
       ? cutReferenceCutRangeLabel
@@ -6304,6 +6410,8 @@ function toggleRecommendedSupplement(itemConfig) {
             profileType={userSettings.profileType}
             onOpenHydrationForm={enabledTabIds.includes('foods') ? handleOpenHydrationForm : null}
             newsletterEditorialReminder={dashboardNewsletterEditorialReminder}
+            shareProgressSummaries={shareProgressSummaries}
+            shareProgressLaunchRequest={shareProgressLaunchRequest}
           />
         ) : null}
 
@@ -7122,9 +7230,17 @@ function toggleRecommendedSupplement(itemConfig) {
                     </>
                   )}
                   renderActions={(item) => (
-                    <button className="button button-secondary" type="button" onClick={() => saveFoodAsTemplate(item.id)}>
-                      Guardar como plantilla
-                    </button>
+                    <>
+                      {isSameDate(item.date, currentDate) && item.mealType !== 'bebida' ? (
+                        <button className="button button-secondary" type="button" onClick={() => openShareProgressFromRecord('food', item.id)}>
+                          <span className="share-action-label-full">Compartir comida</span>
+                          <span className="share-action-label-short">Compartir</span>
+                        </button>
+                      ) : null}
+                      <button className="button button-secondary" type="button" onClick={() => saveFoodAsTemplate(item.id)}>
+                        Guardar como plantilla
+                      </button>
+                    </>
                   )}
                   onEdit={(id) => startEditing('foods', id, setFoodForm, setEditingFoodId, 'foods')}
                   onDelete={(id) => deleteRecord('foods', id, setEditingFoodId, resetFoodForm)}
@@ -8143,6 +8259,12 @@ function toggleRecommendedSupplement(itemConfig) {
                           {item.notes ? <p className="exercise-notes">{item.notes}</p> : null}
 
                           <div className="entry-actions">
+                            {isSameDate(item.date, currentDate) ? (
+                              <button className="button button-secondary" type="button" onClick={() => openShareProgressFromRecord('exercise', item.id)}>
+                                <span className="share-action-label-full">Compartir sesión</span>
+                                <span className="share-action-label-short">Compartir</span>
+                              </button>
+                            ) : null}
                             <button className="button button-primary" type="button" onClick={() => markExerciseAsCompleted(item.id)}>
                               Marcar como completado
                             </button>
@@ -8192,6 +8314,12 @@ function toggleRecommendedSupplement(itemConfig) {
                           {item.notes ? <p className="exercise-notes">{item.notes}</p> : null}
 
                           <div className="entry-actions">
+                            {isSameDate(item.date, currentDate) ? (
+                              <button className="button button-secondary" type="button" onClick={() => openShareProgressFromRecord('exercise', item.id)}>
+                                <span className="share-action-label-full">Compartir sesión</span>
+                                <span className="share-action-label-short">Compartir</span>
+                              </button>
+                            ) : null}
                             <button className="button button-secondary" type="button" onClick={() => duplicateExercise(item.id)}>
                               Duplicar
                             </button>

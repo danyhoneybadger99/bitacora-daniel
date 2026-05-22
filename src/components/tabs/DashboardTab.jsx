@@ -1,6 +1,7 @@
 ﻿import ProgressCard from '../ProgressCard';
 import GoalForm from '../GoalForm';
 import SectionCard from '../SectionCard';
+import ShareProgressCard from '../ShareProgressCard';
 import { getDailyCheckInTrafficLight } from '../../utils/domain/checkIn';
 
 const checkInInsightCopyByProfile = {
@@ -144,6 +145,8 @@ export default function DashboardTab(props) {
     profileType,
     onOpenHydrationForm,
     newsletterEditorialReminder,
+    shareProgressSummaries,
+    shareProgressLaunchRequest,
   } = props;
   const checkInInsight = getCheckInInsight(todayDailyCheckIn, profileType);
   const checkInTrafficLight = todayDailyCheckIn ? getDailyCheckInTrafficLight(todayDailyCheckIn) : null;
@@ -178,6 +181,8 @@ export default function DashboardTab(props) {
           </div>
         </div>
       ) : null}
+
+      <ShareProgressCard summaries={shareProgressSummaries} launchRequest={shareProgressLaunchRequest} />
 
       <div className="progress-card-grid">
         <ProgressCard
