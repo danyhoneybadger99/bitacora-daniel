@@ -1027,8 +1027,12 @@ button {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
-  margin-bottom: 14px;
+  margin: 10px 0 16px;
   padding: 16px;
+  background:
+    radial-gradient(circle at 92% 20%, rgba(215, 180, 106, 0.16), transparent 28%),
+    linear-gradient(135deg, #fffaf0, #f7f3ea);
+  border-color: rgba(215, 180, 106, 0.28);
 }
 
 .share-progress-entry span {
@@ -1250,10 +1254,16 @@ button {
   line-height: 1.4;
 }
 
+.share-story-description {
+  color: rgba(255,255,255,0.74);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
 .share-story-main-metric,
 .share-story-primary span {
   color: #d7b46a;
-  font-size: clamp(2.35rem, 7vw, 4.2rem);
+  font-size: clamp(2.85rem, 8vw, 5rem);
   font-weight: 950;
   line-height: 0.95;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.26);
@@ -1591,7 +1601,7 @@ button {
 
 .share-progress-preview-column .share-story-shell {
   gap: 7px;
-  padding: 9px;
+  padding: 12px;
 }
 
 .share-progress-preview-column .share-story-shell header span {
@@ -1686,50 +1696,70 @@ button {
 }
 
 .share-story-card {
-  background: radial-gradient(circle at 80% 10%, rgba(255,255,255,0.16), transparent 30%), linear-gradient(145deg, #121f26, #27433e);
+  background:
+    radial-gradient(circle at 82% 11%, rgba(255,255,255,0.18), transparent 30%),
+    radial-gradient(circle at 12% 92%, rgba(215,180,106,0.16), transparent 34%),
+    linear-gradient(145deg, #121f26, #27433e);
 }
 
 .share-story-card-completed {
-  background: radial-gradient(circle at 80% 10%, rgba(255,255,255,0.16), transparent 30%), linear-gradient(145deg, #10291f, #2f7d4f);
+  background:
+    radial-gradient(circle at 80% 10%, rgba(255,255,255,0.16), transparent 30%),
+    linear-gradient(145deg, #10291f, #2f7d4f);
 }
 
 .share-story-card-sobriety {
-  background: radial-gradient(circle at 80% 10%, rgba(255,255,255,0.16), transparent 30%), linear-gradient(145deg, #101c2a, #315f8c);
+  background:
+    radial-gradient(circle at 78% 12%, rgba(117, 171, 220, 0.26), transparent 30%),
+    radial-gradient(circle at 15% 84%, rgba(201, 216, 232, 0.14), transparent 38%),
+    linear-gradient(145deg, #071321, #17395b 54%, #0d2135);
 }
 
 .share-story-card-krav {
-  background: radial-gradient(circle at 80% 10%, rgba(255,255,255,0.16), transparent 30%), linear-gradient(145deg, #23150d, #c46d2d);
+  background:
+    radial-gradient(circle at 82% 12%, rgba(255, 177, 85, 0.3), transparent 30%),
+    linear-gradient(145deg, #170f0a, #3b2111 47%, #c46d2d);
 }
 
 .share-story-card-physical {
-  background: radial-gradient(circle at 80% 10%, rgba(255,255,255,0.14), transparent 30%), linear-gradient(145deg, #13232b, #425a55);
+  background:
+    radial-gradient(circle at 80% 10%, rgba(255,255,255,0.14), transparent 30%),
+    linear-gradient(145deg, #13232b, #425a55);
 }
 
 .share-story-card-monthly {
-  background: radial-gradient(circle at 80% 10%, rgba(255,255,255,0.14), transparent 30%), linear-gradient(145deg, #17202a, #614d35);
+  background:
+    radial-gradient(circle at 80% 10%, rgba(255,255,255,0.14), transparent 30%),
+    linear-gradient(145deg, #17202a, #614d35);
 }
 
 .share-story-card-food {
-  background: radial-gradient(circle at 80% 10%, rgba(255,255,255,0.14), transparent 30%), linear-gradient(145deg, #1d2a21, #5c6b3b);
+  background:
+    radial-gradient(circle at 76% 12%, rgba(255, 216, 151, 0.18), transparent 30%),
+    radial-gradient(circle at 16% 90%, rgba(112, 138, 78, 0.22), transparent 38%),
+    linear-gradient(145deg, #172217, #4f6231);
 }
 
 .share-story-card-exercise {
-  background: radial-gradient(circle at 80% 10%, rgba(255,255,255,0.14), transparent 30%), linear-gradient(145deg, #14202b, #2d5f73);
+  background:
+    radial-gradient(circle at 78% 12%, rgba(121, 199, 211, 0.28), transparent 30%),
+    radial-gradient(circle at 14% 90%, rgba(44, 112, 150, 0.28), transparent 36%),
+    linear-gradient(145deg, #08131c, #10283a 48%, #1f5f75);
 }
 
 .share-story-card-with-photo {
   background-image:
-    linear-gradient(rgba(8, 14, 12, 0.36), rgba(8, 14, 12, 0.76)),
+    linear-gradient(180deg, rgba(5, 10, 9, 0.18), rgba(5, 10, 9, 0.56) 44%, rgba(5, 10, 9, 0.86)),
     var(--share-card-photo),
-    radial-gradient(circle at 80% 10%, rgba(255,255,255,0.14), transparent 30%),
     linear-gradient(145deg, #1d2a21, #5c6b3b);
   background-position: center;
   background-size: cover;
 }
 
 .share-story-shell {
-  background: rgba(6, 13, 17, 0.24);
+  background: rgba(6, 13, 17, 0.28);
   border-color: rgba(255,255,255,0.26);
+  backdrop-filter: blur(1px);
 }
 
 .share-story-status strong {
@@ -1745,6 +1775,26 @@ button {
 .share-story-main-metric,
 .share-story-primary span {
   color: #d7b46a;
+}
+
+.share-story-card-sobriety .share-story-primary span {
+  color: #d8ebff;
+}
+
+.share-story-card-food .share-story-primary span {
+  color: #f0c772;
+}
+
+.share-story-card-exercise .share-story-primary span {
+  color: #8be7ff;
+}
+
+.share-story-card-krav .share-story-primary span {
+  color: #ffb45f;
+}
+
+.share-story-card-with-photo .share-story-shell {
+  background: linear-gradient(180deg, rgba(5, 10, 9, 0.14), rgba(5, 10, 9, 0.7));
 }
 
 .share-story-metric {

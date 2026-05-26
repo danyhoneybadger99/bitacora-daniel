@@ -4,6 +4,7 @@ import {
   createShareCardPngBlob,
   defaultTemplateByCardType,
   getShareTemplatesForType,
+  getShareStoryVisual,
   shareAvailabilityLabels,
   shareProgressCardTypes,
 } from '../utils/domain/shareProgress';
@@ -13,6 +14,8 @@ function getBadgeValue(badge, mode) {
 }
 
 function getBadgesForMode(summary, mode, detailLevel = 'discreet') {
+  const badgeLimit = Number.isFinite(Number(summary?.badgeLimit)) ? Number(summary.badgeLimit) : 4;
+
   if (mode === 'personal' && summary?.type === 'food' && Array.isArray(summary?.macroBadges) && summary.macroBadges.length > 0) {
     return summary.macroBadges.slice(0, 4);
   }
@@ -25,12 +28,12 @@ function getBadgesForMode(summary, mode, detailLevel = 'discreet') {
     return summary.macroBadges.slice(0, 4);
   }
 
-  return (summary?.badges || summary?.metrics || []).slice(0, 4);
+  return (summary?.badges || summary?.metrics || []).slice(0, badgeLimit);
 }
 
 function getAvailabilityClass(availability) {
   if (availability === 'ready') return 'share-option-ready';
-  if (availability === 'in_progress') return 'share-option-progress';
+  if (availability === 'in_progress' || availability === 'under_construction') return 'share-option-progress';
   if (availability === 'no_record_today') return 'share-option-empty';
   return 'share-option-missing';
 }
@@ -53,15 +56,31 @@ function getShareOptionDescription(cardType, optionSummary) {
     return availability === 'no_record_today' ? 'Registra una sesion para compartirla' : 'Sesion registrada';
   }
 
+  if (cardType === 'daily' && availability === 'under_construction') {
+    return 'Todavia se esta construyendo el dia';
+  }
+
   return optionSummary?.primaryMetric || optionSummary?.subtitle || 'Pendiente';
 }
 
-function getPrimaryMetricLines(summary) {
+function getPrimaryMetricLines(summary, detailLevel = 'discreet') {
+  if (summary?.type === 'food' && detailLevel === 'macros' && Array.isArray(summary?.macroPrimaryMetricLines)) {
+    return summary.macroPrimaryMetricLines.slice(0, 2);
+  }
+
   if (Array.isArray(summary?.primaryMetricLines) && summary.primaryMetricLines.length > 0) {
     return summary.primaryMetricLines.slice(0, 2);
   }
 
   return [summary?.primaryMetric || ''];
+}
+
+function getShareOptionStatusLabel(cardType, availability) {
+  if ((cardType === 'food' || cardType === 'exercise') && availability === 'ready') {
+    return 'Listo para story';
+  }
+
+  return shareAvailabilityLabels[availability] || 'Pendiente';
 }
 
 export default function ShareProgressCard({ summaries, summary, launchRequest }) {
@@ -95,8 +114,11 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
     () => buildShareCardText(selectedSummary, { mode, templateId: template?.id, detailLevel: nutritionDetail }),
     [mode, nutritionDetail, selectedSummary, template?.id]
   );
-  const primaryMetricLines = useMemo(() => getPrimaryMetricLines(selectedSummary), [selectedSummary]);
-  const canShareSelected = selectedSummary?.availability === 'ready' || selectedSummary?.availability === 'in_progress';
+  const storyVisual = useMemo(
+    () => getShareStoryVisual(selectedSummary, { detailLevel: nutritionDetail }),
+    [nutritionDetail, selectedSummary]
+  );
+  const canShareSelected = selectedSummary?.availability === 'ready';
 
   useEffect(() => {
     const nextTemplateId = defaultTemplateByCardType[cardType] || availableTemplates[0]?.id;
@@ -109,7 +131,7 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
     try {
       setBusyAction('copy');
       await navigator.clipboard.writeText(shareText);
-      setFeedback('Texto copiado.');
+      setFeedback('Caption copiado.');
     } catch {
       setFeedback('No se pudo copiar automaticamente. Puedes seleccionar el texto manualmente.');
     } finally {
@@ -205,6 +227,19 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
 
   const selectedOptions = Array.isArray(selectedGroupSummary?.options) ? selectedGroupSummary.options : [];
   const selectedPhotoUrl = cardType === 'food' ? foodPhotoDataUrl : '';
+  const dailyPostReady = ['food', 'exercise'].some((item) => normalizedSummaries?.[item]?.availability === 'ready');
+  const shareGroupOrder = dailyPostReady
+    ? [
+        ['daily_post', 'Post del dia'],
+        ['achievements', 'Logros y avances'],
+        ['preparation', 'En preparacion'],
+      ]
+    : [
+        ['achievements', 'Logros y avances'],
+        ['daily_post', 'Post del dia'],
+        ['preparation', 'En preparacion'],
+      ];
+  const cardSortOrder = { food: 1, exercise: 2, sobriety: 3, krav: 4, physical: 5, daily: 6, monthly: 7 };
 
   function selectCardType(nextType) {
     setCardType(nextType);
@@ -231,12 +266,12 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
   return (
     <section className="share-progress-entry card-soft">
       <div>
-        <span>Compartir progreso</span>
-        <strong>{selectedSummary.title}</strong>
-        <p>{selectedSummary.primaryMetric} {selectedSummary.primaryLabel}</p>
+        <span>Comparte un avance</span>
+        <strong>Crear tarjeta social</strong>
+        <p>Elige un logro, comida o entrenamiento que valga la pena compartir hoy.</p>
       </div>
       <button className="button button-primary" type="button" onClick={() => setIsOpen(true)}>
-        Ver tarjeta
+        Crear tarjeta
       </button>
 
       {isOpen ? (
@@ -245,7 +280,7 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
             <div className="modal-header">
               <div>
                 <h3>Compartir progreso</h3>
-                <p>Elige que logro quieres compartir. La tarjeta se genera localmente.</p>
+                <p>Elige un avance real para convertirlo en historia.</p>
               </div>
               <button className="button button-secondary share-modal-close" type="button" onClick={() => setIsOpen(false)}>
                 Cerrar
@@ -260,22 +295,23 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                 >
                   <div className="share-story-shell">
                     <header>
-                      <span>{selectedSummary.brand}</span>
+                      <span>{storyVisual.eyebrow}</span>
                       <small>{selectedSummary.dateLabel}</small>
                     </header>
                     <div className="share-story-status">
-                      <strong className={getStoryTextDensityClass(selectedSummary.title, 'share-story-title')}>
-                        {selectedSummary.title}
+                      <strong className={getStoryTextDensityClass(storyVisual.headline, 'share-story-title')}>
+                        {storyVisual.headline}
                       </strong>
                       <div className="share-story-primary">
-                        <span className={getStoryTextDensityClass(primaryMetricLines.join(' '), 'share-story-primary-value')}>
-                          {primaryMetricLines.map((line) => (
-                            <span key={line}>{line}</span>
-                          ))}
+                        <span className={getStoryTextDensityClass(storyVisual.heroValue, 'share-story-primary-value')}>
+                          {storyVisual.heroValue}
                         </span>
-                        <small>{selectedSummary.primaryLabel}</small>
+                        <small>{storyVisual.heroUnit}</small>
                       </div>
-                      <p>{selectedSummary.subtitle}</p>
+                      <p>{storyVisual.contextLine}</p>
+                      {storyVisual.description && storyVisual.description !== storyVisual.contextLine ? (
+                        <p className="share-story-description">{storyVisual.description}</p>
+                      ) : null}
                     </div>
                     <div className="share-story-metrics">
                       {visibleBadges.map((badge) => (
@@ -289,8 +325,8 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                       ))}
                     </div>
                     <footer>
-                      <strong>{template?.phrase || selectedSummary.footerPhrase}</strong>
-                      <span>Generado localmente · Compartir manual</span>
+                      <strong>{storyVisual.storyLine}</strong>
+                      <span>Bitácora Daniel</span>
                     </footer>
                   </div>
                 </article>
@@ -300,13 +336,9 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                 <div className="share-card-picker">
                   <div>
                     <strong>Elige que quieres compartir</strong>
-                    <p>Primero elige el logro o registro que quieres convertir en tarjeta.</p>
+                    <p>Elige un avance real para convertirlo en historia.</p>
                   </div>
-                  {[
-                    ['achievements', 'Logros y avances'],
-                    ['daily_post', 'Post del dia'],
-                    ['preparation', 'En preparacion'],
-                  ].map(([groupId, groupLabel]) => (
+                  {shareGroupOrder.map(([groupId, groupLabel]) => (
                     <div className={`share-card-group ${groupId === 'preparation' ? 'share-card-group-preparation' : ''}`} key={groupId}>
                       <span>{groupLabel}</span>
                       {groupId === 'daily_post' ? (
@@ -323,6 +355,7 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                         {shareProgressCardTypes
                           .filter((item) => item.group === groupId)
                           .filter((item) => Boolean(normalizedSummaries?.[item.id]))
+                          .sort((a, b) => (cardSortOrder[a.id] || 99) - (cardSortOrder[b.id] || 99))
                           .map((item) => {
                             const optionSummary = normalizedSummaries?.[item.id];
                             const availability = optionSummary?.availability || 'missing_data_source';
@@ -335,7 +368,7 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                                 onClick={() => selectCardType(item.id)}
                               >
                                 <span>{item.label}</span>
-                                <strong>{shareAvailabilityLabels[availability]}</strong>
+                                <strong>{getShareOptionStatusLabel(item.id, availability)}</strong>
                                 <small>{getShareOptionDescription(item.id, optionSummary)}</small>
                               </button>
                             );
@@ -460,8 +493,10 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                   {!canShareSelected ? (
                     <div className="alert-banner share-missing-data-note">
                       {selectedSummary?.availability === 'no_record_today'
-                        ? 'Todavia no hay registro hoy para generar esta tarjeta. Copiar texto sigue disponible como recordatorio.'
-                        : 'Tarjeta en preparacion. Falta conectar una fuente real; no es un error.'}
+                        ? 'Todavia no hay registro hoy para generar esta tarjeta. Copiar caption sigue disponible como recordatorio.'
+                        : selectedSummary?.availability === 'under_construction'
+                          ? 'Esta tarjeta se desbloquea cuando el dia llega a 5/6 habitos.'
+                          : 'Tarjeta en preparacion. Falta conectar una fuente real; no es un error.'}
                     </div>
                   ) : null}
                   <div className="entry-actions share-progress-actions">
@@ -472,7 +507,7 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                       {busyAction === 'share' ? 'Preparando...' : 'Compartir'}
                     </button>
                     <button className="button button-secondary" type="button" onClick={copyText} disabled={Boolean(busyAction)}>
-                      {busyAction === 'copy' ? 'Copiando...' : 'Copiar texto'}
+                      {busyAction === 'copy' ? 'Copiando...' : 'Copiar caption'}
                     </button>
                   </div>
                   {feedback ? <p className="form-feedback form-feedback-success">{feedback}</p> : null}

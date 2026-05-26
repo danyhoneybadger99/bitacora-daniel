@@ -3318,6 +3318,7 @@ function lockPrivateModule(feedbackText = '') {
           currentWeight: dashboardCurrentWeight,
           weightGoal,
           bodyFatPercentage: metricFieldSnapshots.bodyFat?.rawValue,
+          skeletalMuscleMass: metricFieldSnapshots.skeletalMuscleMass?.rawValue,
           targetBodyFat: metricCompositionGoal?.targetBodyFat || 10,
         }),
         krav: buildKravMagaShareSummary({

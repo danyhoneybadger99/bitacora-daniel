@@ -1,5 +1,5 @@
 export const shareProgressCardTypes = [
-  { id: 'daily', label: 'Dia de hoy', group: 'achievements' },
+  { id: 'daily', label: 'Disciplina diaria', group: 'achievements' },
   { id: 'physical', label: 'Hito fisico', group: 'achievements' },
   { id: 'krav', label: 'Krav Maga', group: 'achievements' },
   { id: 'sobriety', label: 'Sobriedad', group: 'achievements' },
@@ -9,7 +9,7 @@ export const shareProgressCardTypes = [
 ];
 
 export const SOBRIETY_START_DATE = '2023-12-28';
-export const SOBRIETY_START_LABEL = 'Desde el 28 de diciembre de 2023';
+export const SOBRIETY_START_LABEL = 'Sobrio desde el 28 de diciembre de 2023';
 
 export function canShowSobrietyCard(profile) {
   const identifiers = [
@@ -26,6 +26,7 @@ export function canShowSobrietyCard(profile) {
 export const shareAvailabilityLabels = {
   ready: 'Listo',
   in_progress: 'En progreso',
+  under_construction: 'En construccion',
   no_record_today: 'Sin registro hoy',
   missing_data_source: 'Falta conectar dato',
 };
@@ -65,7 +66,7 @@ export const shareProgressTemplates = [
     id: 'krav-belt-progress',
     cardType: 'krav',
     label: 'Progreso de cinta',
-    phrase: 'Tecnica limpia. Control primero. Progreso real.',
+    phrase: 'Control primero. Progreso real.',
   },
   {
     id: 'monthly-progress',
@@ -113,18 +114,6 @@ const exerciseModalityLabels = {
   movilidad: 'Movilidad',
   recuperacion: 'Recuperacion',
   otro: 'Entrenamiento',
-};
-
-const dailyTitleByReadiness = {
-  completed_day: 'Dia ganado',
-  strong_day: 'Dia fuerte',
-  in_progress: 'Dia en progreso',
-};
-
-const dailyMessageByReadiness = {
-  completed_day: 'Basicos completos. Hoy la disciplina quedo registrada.',
-  strong_day: 'Buen avance. Nutricion, ayuno y disciplina en progreso.',
-  in_progress: 'Dia en progreso. Todavia faltan habitos para cerrarlo.',
 };
 
 function toNumber(value, fallback = 0) {
@@ -319,6 +308,7 @@ function buildCardContract({
   textToCopy,
   defaultTemplateId,
   fallbackNotes = [],
+  badgeLimit = 4,
   metadata = {},
 }) {
   return {
@@ -338,6 +328,7 @@ function buildCardContract({
     message: subtitle,
     badges: badges.slice(0, 4),
     metrics: badges.slice(0, 4),
+    badgeLimit,
     footerPhrase,
     privacyLevel,
     textToCopy,
@@ -345,6 +336,10 @@ function buildCardContract({
     fallbackNotes,
     ...metadata,
   };
+}
+
+function getBeltName(value = '') {
+  return String(value || '').replace(/^cinta\s+/i, '').trim();
 }
 
 export function getShareTemplatesForType(cardType) {
@@ -400,8 +395,16 @@ export function buildDailyShareSummary({
   const completionCount = Object.values(criteria).filter(Boolean).length;
   const completionTotal = Object.keys(criteria).length;
   const fastingHours = toNumber(activeFastingElapsedHours);
-  const title = dailyTitleByReadiness[readiness];
-  const availability = readiness === 'in_progress' ? 'in_progress' : 'ready';
+  const isCompleteDay = completionCount === completionTotal;
+  const isShareReady = completionCount >= 5;
+  const title = isCompleteDay ? 'Dia cumplido' : isShareReady ? 'Dia fuerte' : 'Dia en construccion';
+  const subtitle = isCompleteDay
+    ? 'Disciplina completa.'
+    : isShareReady
+      ? 'Buen avance. El dia ya tiene base para compartirse.'
+      : 'Todavia se esta construyendo el dia.';
+  const availability = isShareReady ? 'ready' : 'under_construction';
+  const primaryLabel = isShareReady ? 'habitos cumplidos' : 'habitos activos';
 
   const badges = [
     buildBadge({
@@ -439,16 +442,23 @@ export function buildDailyShareSummary({
     availability,
     date,
     title,
-    subtitle: dailyMessageByReadiness[readiness],
+    subtitle,
     primaryMetric: `${completionCount}/${completionTotal}`,
     primaryMetricLines: [`${completionCount}/${completionTotal}`],
-    primaryLabel: 'habitos cumplidos',
+    primaryLabel,
     badges,
-    footerPhrase: 'La constancia tambien se entrena.',
+    footerPhrase: isCompleteDay ? 'Disciplina completa.' : isShareReady ? 'La constancia tambien se entrena.' : 'Todavia se esta construyendo el dia.',
     privacyLevel: 'public-safe',
-    textToCopy: `${title} en Bitacora Daniel: ${completionCount}/${completionTotal} habitos cumplidos. ${dailyMessageByReadiness[readiness]} La constancia tambien se entrena.`,
+    textToCopy: `${title} en Bitacora Daniel: ${completionCount}/${completionTotal} ${primaryLabel}. ${subtitle}`,
     defaultTemplateId: defaultTemplateByCardType.daily,
+    fallbackNotes: ['Llega a 5/6 habitos para desbloquear Descargar y Compartir.'],
     metadata: {
+      eyebrow: 'DISCIPLINA DIARIA',
+      headline: title,
+      heroValue: `${completionCount}/${completionTotal}`,
+      heroUnit: isShareReady ? 'HABITOS' : 'HABITOS ACTIVOS',
+      contextLine: subtitle,
+      storyLine: isCompleteDay ? 'Disciplina completa.' : isShareReady ? 'La constancia tambien se entrena.' : 'Todavia se esta construyendo el dia.',
       profileType,
       readiness,
       completionCount,
@@ -479,91 +489,91 @@ export function buildPhysicalMilestoneSummary({
   currentWeight,
   weightGoal,
   bodyFatPercentage,
+  skeletalMuscleMass,
   targetBodyFat = 10,
 } = {}) {
   const safeWeight = toPositiveNumber(currentWeight);
   const safeGoal = toPositiveNumber(weightGoal);
   const safeBodyFat = toPositiveNumber(bodyFatPercentage);
+  const safeMuscleMass = toPositiveNumber(skeletalMuscleMass);
   const weightDelta = safeWeight !== null && safeGoal !== null ? safeWeight - safeGoal : null;
-  const distanceLabel = weightDelta !== null
-    ? `${formatNumber(Math.abs(weightDelta), 1)} kg ${weightDelta > 0 ? 'por ajustar' : 'de margen'}`
-    : 'Sin distancia calculable';
-  const hasPhysicalData = safeWeight !== null || safeGoal !== null || safeBodyFat !== null;
+  const distanceToGoal = weightDelta !== null ? Math.max(weightDelta, 0) : null;
+  const distanceLabel = distanceToGoal !== null ? `${formatNumber(distanceToGoal, 1)} kg` : 'Sin distancia calculable';
+  const hasPhysicalData = safeWeight !== null && safeGoal !== null;
   const availability = hasPhysicalData ? 'ready' : 'missing_data_source';
-
   const badges = [
-    buildBadge({
-      label: 'Peso objetivo',
-      publicValue: 'En seguimiento',
-      personalValue: safeGoal !== null ? `${formatNumber(safeGoal, 1)} kg` : 'Sin objetivo',
-      met: safeGoal !== null,
-      tone: 'neutral',
-    }),
-    buildBadge({
-      label: 'Disciplina',
-      publicValue: 'Activa',
-      personalValue: 'Activa',
+    safeWeight !== null ? buildBadge({
+      label: 'Actual',
+      publicValue: `${formatNumber(safeWeight, 1)} kg actual`,
+      personalValue: `${formatNumber(safeWeight, 1)} kg actual`,
       met: true,
       tone: 'success',
-    }),
-    buildBadge({
-      label: 'Nutricion',
-      publicValue: 'En progreso',
-      personalValue: 'En progreso',
-      met: true,
-      tone: 'neutral',
-    }),
-    buildBadge({
-      label: 'Entrenamiento',
-      publicValue: 'Constante',
-      personalValue: safeWeight !== null ? `Peso actual: ${formatNumber(safeWeight, 1)} kg` : 'Constante',
+    }) : null,
+    safeBodyFat !== null ? buildBadge({
+      label: 'Grasa',
+      publicValue: `${formatNumber(safeBodyFat, 1)}% grasa`,
+      personalValue: `${formatNumber(safeBodyFat, 1)}% grasa`,
+      met: safeBodyFat <= targetBodyFat,
+      tone: safeBodyFat <= targetBodyFat ? 'success' : 'neutral',
+    }) : null,
+    safeMuscleMass !== null ? buildBadge({
+      label: 'Musculo',
+      publicValue: `${formatNumber(safeMuscleMass, 1)} kg musculo`,
+      personalValue: `${formatNumber(safeMuscleMass, 1)} kg musculo`,
       met: true,
       tone: 'success',
-    }),
-  ];
+    }) : null,
+  ].filter(Boolean);
 
   return buildCardContract({
     type: 'physical',
     availability,
     date,
-    title: 'Definicion en progreso',
-    subtitle: hasPhysicalData ? 'Mas cerca, mas disciplinado y sin hacer ruido.' : 'Faltan metricas corporales reales para cerrar esta tarjeta.',
-    primaryMetric: hasPhysicalData ? 'AVANCE CONSTANTE' : 'POR CONECTAR',
-    primaryMetricLines: hasPhysicalData ? ['AVANCE', 'CONSTANTE'] : ['POR', 'CONECTAR'],
-    primaryLabel: 'meta fisica',
+    title: hasPhysicalData ? 'Meta fisica cerca' : 'Falta dato corporal',
+    subtitle: hasPhysicalData ? `Rumbo a ${formatNumber(safeGoal, 1)} kg` : 'Faltan peso actual y peso objetivo para crear esta tarjeta.',
+    primaryMetric: hasPhysicalData ? distanceLabel : 'FALTA DATO',
+    primaryMetricLines: hasPhysicalData ? [distanceLabel] : ['FALTA', 'DATO'],
+    primaryLabel: hasPhysicalData ? 'para meta' : 'corporal',
     badges,
     footerPhrase: 'La constancia tambien se entrena.',
-    privacyLevel: 'public-hides-body-data',
+    privacyLevel: 'public-body-data-allowed',
     textToCopy: hasPhysicalData
-      ? 'Meta fisica en progreso. Mas cerca, mas disciplinado y sin hacer ruido. La constancia tambien se entrena.'
-      : 'Meta fisica en preparacion en Bitacora Daniel.',
+      ? `Meta fisica cerca: ${distanceLabel} para llegar a ${formatNumber(safeGoal, 1)} kg. Peso actual ${formatNumber(safeWeight, 1)} kg${safeBodyFat !== null ? `, grasa ${formatNumber(safeBodyFat, 1)}%` : ''}${safeMuscleMass !== null ? `, musculo ${formatNumber(safeMuscleMass, 1)} kg` : ''}.`
+      : 'Falta dato corporal para compartir hito fisico en Bitacora Daniel.',
     defaultTemplateId: defaultTemplateByCardType.physical,
+    fallbackNotes: ['Faltan peso actual y peso objetivo reales.'],
     metadata: {
+      eyebrow: 'META FISICA',
+      headline: hasPhysicalData ? 'Cada kilo cuenta' : 'Falta dato corporal',
+      heroValue: hasPhysicalData ? formatNumber(distanceToGoal, 1) : 'FALTA',
+      heroUnit: hasPhysicalData ? 'KG PARA META' : 'DATO CORPORAL',
+      contextLine: hasPhysicalData ? `${formatNumber(safeWeight, 1)} kg actual · objetivo ${formatNumber(safeGoal, 1)} kg` : 'Agrega peso actual y objetivo.',
+      storyLine: 'La constancia tambien se entrena.',
       personalBadges: [
         buildBadge({
           label: 'Peso actual',
-          publicValue: 'Dato privado',
+          publicValue: safeWeight !== null ? `${formatNumber(safeWeight, 1)} kg` : 'Sin registro',
           personalValue: safeWeight !== null ? `${formatNumber(safeWeight, 1)} kg` : 'Sin registro',
           met: safeWeight !== null,
           tone: 'neutral',
         }),
         buildBadge({
           label: 'Objetivo',
-          publicValue: 'En seguimiento',
+          publicValue: safeGoal !== null ? `${formatNumber(safeGoal, 1)} kg` : 'Sin objetivo',
           personalValue: safeGoal !== null ? `${formatNumber(safeGoal, 1)} kg` : 'Sin objetivo',
           met: safeGoal !== null,
           tone: 'neutral',
         }),
         buildBadge({
           label: 'Grasa corporal',
-          publicValue: 'Dato privado',
+          publicValue: safeBodyFat !== null ? `${formatNumber(safeBodyFat, 1)}%` : 'Sin registro',
           personalValue: safeBodyFat !== null ? `${formatNumber(safeBodyFat, 1)}%` : 'Sin registro',
           met: safeBodyFat !== null && safeBodyFat <= targetBodyFat,
           tone: safeBodyFat !== null && safeBodyFat <= targetBodyFat ? 'success' : 'neutral',
         }),
         buildBadge({
           label: 'Distancia',
-          publicValue: 'Avance constante',
+          publicValue: distanceLabel,
           personalValue: distanceLabel,
           met: weightDelta !== null,
           tone: weightDelta !== null ? 'success' : 'neutral',
@@ -602,7 +612,7 @@ export function buildSobrietyShareSummary({ date, sobrietyStartDate = '', sobrie
         tone: 'success',
       }),
       buildBadge({
-        label: 'Constancia',
+        label: 'Presente',
         publicValue: SOBRIETY_START_LABEL,
         personalValue: `Inicio: ${startDate}`,
         met: true,
@@ -614,6 +624,12 @@ export function buildSobrietyShareSummary({ date, sobrietyStartDate = '', sobrie
     textToCopy: `Hoy cumplo ${formatNumber(safeDays)} dias sobrio desde el 28 de diciembre de 2023. Un dia a la vez.`,
     defaultTemplateId: defaultTemplateByCardType.sobriety,
     metadata: {
+      eyebrow: 'SANO JUICIO',
+      headline: 'Sobriedad',
+      heroValue: formatNumber(safeDays),
+      heroUnit: 'DÍAS',
+      contextLine: 'Desde el 28 de diciembre de 2023',
+      storyLine: 'Hoy tambien elijo seguir.',
       sobrietyStartDate: startDate,
       sobrietyStartContext: 'jueves 28 de diciembre de 2023',
     },
@@ -625,7 +641,11 @@ export function buildKravMagaShareSummary({ date, kravDashboardSnapshot = null }
   const hasProgress = Number.isFinite(progress);
   const currentBelt = normalizeBeltLabel(kravDashboardSnapshot?.currentBelt || '');
   const targetBelt = normalizeBeltLabel(kravDashboardSnapshot?.targetBelt || '');
+  const currentBeltName = getBeltName(currentBelt);
+  const targetBeltName = getBeltName(targetBelt);
   const nextTechnique = kravDashboardSnapshot?.nextTechniqueName || '';
+  const pendingTechniques = Number(kravDashboardSnapshot?.pendingTechniques);
+  const hasPendingTechniques = Number.isFinite(pendingTechniques);
   const hasKrav = Boolean(kravDashboardSnapshot?.hasKravProfileData);
   const availability = hasKrav ? 'ready' : 'missing_data_source';
 
@@ -639,8 +659,29 @@ export function buildKravMagaShareSummary({ date, kravDashboardSnapshot = null }
     primaryMetricLines: currentBelt
       ? String(currentBelt).toUpperCase().split(/\s+/).slice(0, 2)
       : ['POR', 'REGISTRAR'],
-    primaryLabel: targetBelt ? `objetivo: ${targetBelt.toLowerCase()}` : 'cinta actual',
+    primaryLabel: targetBelt ? `camino a ${targetBelt.toLowerCase()}` : 'cinta actual',
     badges: [
+      buildBadge({
+        label: 'Avance',
+        publicValue: hasProgress ? `${formatNumber(progress)}%` : 'Pendiente',
+        personalValue: hasProgress ? `${formatNumber(progress)}%` : 'Sin porcentaje',
+        met: hasProgress && progress > 0,
+        tone: hasProgress ? 'success' : 'neutral',
+      }),
+      nextTechnique ? buildBadge({
+        label: 'Proxima',
+        publicValue: truncateText(nextTechnique, 34),
+        personalValue: nextTechnique,
+        met: Boolean(nextTechnique),
+        tone: 'neutral',
+      }) : null,
+      hasPendingTechniques ? buildBadge({
+        label: 'Por dominar',
+        publicValue: `${formatNumber(pendingTechniques)} tecnicas`,
+        personalValue: `${formatNumber(pendingTechniques)} tecnicas por dominar`,
+        met: pendingTechniques === 0,
+        tone: pendingTechniques === 0 ? 'success' : 'neutral',
+      }) : null,
       buildBadge({
         label: 'Cinta actual',
         publicValue: currentBelt || 'Pendiente',
@@ -648,34 +689,21 @@ export function buildKravMagaShareSummary({ date, kravDashboardSnapshot = null }
         met: Boolean(currentBelt),
         tone: 'success',
       }),
-      buildBadge({
-        label: 'Objetivo',
-        publicValue: targetBelt ? `Camino a ${targetBelt.toLowerCase()}` : 'Pendiente',
-        personalValue: targetBelt || 'Pendiente',
-        met: Boolean(targetBelt),
-        tone: 'success',
-      }),
-      buildBadge({
-        label: 'Avance',
-        publicValue: hasProgress ? 'En avance' : 'Pendiente',
-        personalValue: hasProgress ? `${formatNumber(progress)}%` : 'Sin porcentaje',
-        met: hasProgress && progress > 0,
-        tone: hasProgress ? 'success' : 'neutral',
-      }),
-      buildBadge({
-        label: 'Proxima tecnica',
-        publicValue: nextTechnique ? 'Tecnica prioritaria' : 'Tecnica pendiente de conectar',
-        personalValue: nextTechnique || 'Tecnica pendiente de conectar',
-        met: Boolean(nextTechnique),
-        tone: 'neutral',
-      }),
-    ],
-    footerPhrase: 'Tecnica limpia. Control primero. Progreso real.',
+    ].filter(Boolean),
+    footerPhrase: 'Control primero. Progreso real.',
     privacyLevel: 'public-safe',
     textToCopy: hasKrav
-      ? `Progreso Krav Maga: ${currentBelt || 'cinta actual'}${targetBelt ? `, camino a ${targetBelt.toLowerCase()}` : ''}. Tecnica limpia. Control primero.`
+      ? `Progreso Krav Maga: ${currentBelt || 'cinta actual'}${targetBelt ? `, camino a ${targetBelt.toLowerCase()}` : ''}. Control primero. Progreso real.`
       : 'Krav Maga en preparacion. Falta conectar curriculo activo.',
     defaultTemplateId: defaultTemplateByCardType.krav,
+    metadata: {
+      eyebrow: targetBeltName ? `CAMINO A CINTA ${targetBeltName.toUpperCase()}` : 'KRAV MAGA',
+      headline: hasKrav ? 'Progreso Krav Maga' : 'Krav Maga por registrar',
+      heroValue: currentBeltName ? 'CINTA' : 'POR',
+      heroUnit: currentBeltName ? currentBeltName.toUpperCase() : 'REGISTRAR',
+      contextLine: hasKrav && targetBeltName ? `Camino a cinta ${targetBeltName.toLowerCase()}` : 'Control primero. Progreso real.',
+      storyLine: 'Control primero. Progreso real.',
+    },
   });
 }
 
@@ -765,6 +793,50 @@ function buildFoodShareSummary({ date, entry, index = 0 } = {}) {
   const caffeine = toPositiveNumber(entry.caffeineMg);
   const cost = toPositiveNumber(entry.costMxn);
   const mealLabel = mealTypeLabels[entry.mealType] || 'Comida';
+  const homeSignal = String(`${entry.notes || ''} ${entry.category || ''}`).toLowerCase().includes('casa');
+  const macroContextLine = [
+    calories !== null ? `${formatNumber(calories)} kcal` : '',
+    carbs !== null ? `${formatNumber(carbs, 0)}C` : '',
+    fat !== null ? `${formatNumber(fat, 0)}G` : '',
+  ].filter(Boolean).join(' · ');
+  const discreetBadges = [
+    highProtein ? buildBadge({
+      label: 'Alto en proteina',
+      publicValue: protein !== null ? `${formatNumber(protein, 0)} g` : 'Registrada',
+      personalValue: protein !== null ? `${formatNumber(protein, 1)} g` : 'Registrada',
+      met: true,
+      tone: 'success',
+    }) : hasProtein ? buildBadge({
+      label: 'Proteina',
+      publicValue: 'Presente',
+      personalValue: `${formatNumber(protein, 1)} g`,
+      met: true,
+      tone: 'success',
+    }) : null,
+    isCompleteMeal ? buildBadge({
+      label: 'Comida completa',
+      publicValue: 'Registrada',
+      personalValue: 'Comida completa',
+      met: true,
+      tone: 'success',
+    }) : null,
+    homeSignal ? buildBadge({
+      label: 'Hecho en casa',
+      publicValue: 'Registrada',
+      personalValue: entry.notes || entry.category || 'Hecho en casa',
+      met: true,
+      tone: 'success',
+    }) : null,
+  ].filter(Boolean);
+  if (discreetBadges.length === 0) {
+    discreetBadges.push(buildBadge({
+      label: 'Comida',
+      publicValue: 'Registrada',
+      personalValue: mealLabel,
+      met: true,
+      tone: 'neutral',
+    }));
+  }
   const availability = 'ready';
 
   return buildCardContract({
@@ -773,39 +845,11 @@ function buildFoodShareSummary({ date, entry, index = 0 } = {}) {
     date: entry.date || date,
     title: getFoodShareTitle(entry, isCompleteMeal),
     subtitle: visualDisplayName,
-    primaryMetric: isCompleteMeal ? 'COMIDA COMPLETA' : 'COMIDA REGISTRADA',
-    primaryMetricLines: isCompleteMeal ? ['COMIDA', 'COMPLETA'] : ['COMIDA', 'REGISTRADA'],
+    primaryMetric: highProtein ? 'ALTO EN PROTEINA' : isCompleteMeal ? 'COMIDA COMPLETA' : 'COMIDA REGISTRADA',
+    primaryMetricLines: highProtein ? ['ALTO EN', 'PROTEINA'] : isCompleteMeal ? ['COMIDA', 'COMPLETA'] : ['COMIDA', 'REGISTRADA'],
     primaryLabel: 'Bitacora Daniel',
-    badges: [
-      buildBadge({
-        label: highProtein ? 'Alto en proteina' : 'Proteina',
-        publicValue: highProtein ? 'Si' : hasProtein ? 'Presente' : 'Registrada',
-        personalValue: protein !== null ? `${formatNumber(protein, 1)} g` : 'Sin dato',
-        met: hasProtein,
-        tone: hasProtein ? 'success' : 'neutral',
-      }),
-      buildBadge({
-        label: 'Calidad',
-        publicValue: isCompleteMeal ? 'Comida completa' : wholeFoodLabel,
-        personalValue: isCompleteMeal ? 'Comida completa' : wholeFoodLabel,
-        met: isCompleteMeal || wholeFoodLabel === 'Whole foods',
-        tone: isCompleteMeal || wholeFoodLabel === 'Whole foods' ? 'success' : 'neutral',
-      }),
-      buildBadge({
-        label: 'Tipo',
-        publicValue: mealLabel,
-        personalValue: mealLabel,
-        met: Boolean(entry.mealType),
-        tone: 'neutral',
-      }),
-      buildBadge({
-        label: caffeine !== null ? 'Cafeina' : 'Hecho en casa',
-        publicValue: caffeine !== null ? 'Registrada' : String(`${entry.notes || ''} ${entry.category || ''}`).toLowerCase().includes('casa') ? 'Probable' : 'No especificado',
-        personalValue: caffeine !== null ? `${formatNumber(caffeine)} mg` : entry.notes || entry.category || 'No especificado',
-        met: caffeine !== null || String(`${entry.notes || ''} ${entry.category || ''}`).toLowerCase().includes('casa'),
-        tone: 'neutral',
-      }),
-    ],
+    badges: discreetBadges,
+    badgeLimit: 3,
     footerPhrase: 'La constancia tambien se cocina.',
     privacyLevel: 'public-hides-food-detail',
     textToCopy: hasProtein
@@ -814,6 +858,21 @@ function buildFoodShareSummary({ date, entry, index = 0 } = {}) {
     defaultTemplateId: defaultTemplateByCardType.food,
     metadata: {
       id: entry.id || `food-${index}`,
+      eyebrow: `${mealLabel.toUpperCase()} DE DEFINICION`,
+      headline: getFoodShareTitle(entry, isCompleteMeal),
+      heroValue: highProtein ? 'ALTO EN' : 'COMIDA',
+      heroUnit: highProtein ? 'PROTEINA' : isCompleteMeal ? 'COMPLETA' : 'REGISTRADA',
+      contextLine: hasEnergy ? `${formatNumber(calories)} kcal registradas` : 'Registro de comida real',
+      description: visualDisplayName,
+      storyLine: 'La constancia tambien se cocina.',
+      macroHeroValue: protein !== null && protein >= 60
+        ? formatNumber(protein, 0)
+        : calories !== null
+          ? formatNumber(calories)
+          : 'MACROS',
+      macroHeroUnit: protein !== null && protein >= 60 ? 'G PROTEINA' : calories !== null ? 'KCAL' : 'REGISTRADOS',
+      macroContextLine: macroContextLine || 'Macros registrados',
+      macroCaption: `${mealLabel} de definicion: ${protein !== null ? `${formatNumber(protein, 0)} g de proteina` : 'proteina registrada'}${calories !== null ? `, ${formatNumber(calories)} kcal` : ''} y comida completa. La constancia tambien se cocina.`,
       optionLabel: truncateText(`${mealTypeLabels[entry.mealType] || 'Comida'}${entry.name ? ` · ${entry.name}` : ''}${getEntryTimeLabel(entry)}`, 96),
       personalTextToCopy: [
         `Comida registrada: ${entry.name || mealLabel}.`,
@@ -825,36 +884,48 @@ function buildFoodShareSummary({ date, entry, index = 0 } = {}) {
         cost !== null ? `$${formatNumber(cost, 2)} MXN` : '',
         entry.notes ? `Notas: ${entry.notes}` : '',
       ].filter(Boolean).join(' · '),
+      macroPrimaryMetricLines: protein !== null
+        ? [`${formatNumber(protein, 0)} G`, 'PROTEINA']
+        : calories !== null
+          ? [`${formatNumber(calories)}`, 'KCAL']
+          : undefined,
       macroBadges: [
-        buildBadge({
+        calories !== null ? buildBadge({
           label: 'Energia',
-          publicValue: calories !== null ? `${formatNumber(calories)} kcal` : 'Sin dato',
-          personalValue: calories !== null ? `${formatNumber(calories)} kcal` : 'Sin dato',
-          met: calories !== null,
-          tone: calories !== null ? 'success' : 'neutral',
-        }),
-        buildBadge({
+          publicValue: `${formatNumber(calories)} kcal`,
+          personalValue: `${formatNumber(calories)} kcal`,
+          met: true,
+          tone: 'success',
+        }) : null,
+        protein !== null ? buildBadge({
           label: 'Proteina',
-          publicValue: protein !== null ? `${formatNumber(protein, 1)} g` : 'Sin dato',
-          personalValue: protein !== null ? `${formatNumber(protein, 1)} g` : 'Sin dato',
-          met: protein !== null,
-          tone: protein !== null ? 'success' : 'neutral',
-        }),
-        buildBadge({
+          publicValue: `${formatNumber(protein, 1)} g`,
+          personalValue: `${formatNumber(protein, 1)} g`,
+          met: true,
+          tone: 'success',
+        }) : null,
+        carbs !== null ? buildBadge({
           label: 'Carbs',
-          publicValue: carbs !== null ? `${formatNumber(carbs, 1)} g` : 'Sin dato',
-          personalValue: carbs !== null ? `${formatNumber(carbs, 1)} g` : 'Sin dato',
-          met: carbs !== null,
+          publicValue: `${formatNumber(carbs, 1)} g`,
+          personalValue: `${formatNumber(carbs, 1)} g`,
+          met: true,
           tone: 'neutral',
-        }),
-        buildBadge({
+        }) : null,
+        fat !== null ? buildBadge({
           label: 'Grasa',
-          publicValue: fat !== null ? `${formatNumber(fat, 1)} g` : 'Sin dato',
-          personalValue: fat !== null ? `${formatNumber(fat, 1)} g` : 'Sin dato',
-          met: fat !== null,
+          publicValue: `${formatNumber(fat, 1)} g`,
+          personalValue: `${formatNumber(fat, 1)} g`,
+          met: true,
           tone: 'neutral',
-        }),
-      ],
+        }) : null,
+        caffeine !== null ? buildBadge({
+          label: 'Cafeina',
+          publicValue: `${formatNumber(caffeine)} mg`,
+          personalValue: `${formatNumber(caffeine)} mg`,
+          met: true,
+          tone: 'neutral',
+        }) : null,
+      ].filter(Boolean),
       personalBadges: [
         buildBadge({
           label: 'Energia',
@@ -938,47 +1009,64 @@ function buildExerciseShareSummary({ date, entry, index = 0 } = {}) {
   const calories = toPositiveNumber(entry.caloriesBurned);
   const distance = toPositiveNumber(entry.distance);
   const modality = exerciseModalityLabels[entry.modality] || entry.modality || 'Ejercicio';
+  const sessionName = truncateText(entry.name || modality, 42);
+  const intensityLabel = entry.intensity ? truncateText(entry.intensity, 28) : '';
+  const subtitle = [entry.name ? sessionName : modality, intensityLabel].filter(Boolean).join(' • ');
   const title = duration !== null ? 'Entrenamiento completado' : 'Sesion registrada';
+  const useCaloriesHero = calories !== null && calories > 0;
+  const exerciseBadges = [
+    duration !== null ? buildBadge({
+      label: 'Duracion',
+      publicValue: `${formatNumber(duration)} min`,
+      personalValue: `${formatNumber(duration)} min`,
+      met: true,
+      tone: 'success',
+    }) : null,
+    buildBadge({
+      label: 'Actividad',
+      publicValue: sessionName,
+      personalValue: sessionName,
+      met: true,
+      tone: 'success',
+    }),
+    entry.intensity ? buildBadge({
+      label: 'Intensidad',
+      publicValue: truncateText(entry.intensity, 28),
+      personalValue: truncateText(entry.intensity, 40),
+      met: true,
+      tone: 'neutral',
+    }) : null,
+    distance !== null ? buildBadge({
+      label: 'Distancia',
+      publicValue: `${formatNumber(distance, 2)} ${entry.distanceUnit || ''}`.trim(),
+      personalValue: `${formatNumber(distance, 2)} ${entry.distanceUnit || ''}`.trim(),
+      met: true,
+      tone: 'neutral',
+    }) : null,
+    !entry.intensity && !distance && entry.notes ? buildBadge({
+      label: 'Nota',
+      publicValue: truncateText(entry.notes, 34),
+      personalValue: truncateText(entry.notes, 80),
+      met: true,
+      tone: 'neutral',
+    }) : null,
+  ].filter(Boolean).slice(0, 4);
 
   return buildCardContract({
     type: 'exercise',
     availability: 'ready',
     date: entry.date || date,
     title,
-    subtitle: getExerciseDisplayName(entry),
-    primaryMetric: duration !== null ? `${formatNumber(duration)} min` : 'Sesion completa',
-    primaryMetricLines: duration !== null ? [`${formatNumber(duration)}`, 'MIN'] : ['SESION', 'COMPLETA'],
-    primaryLabel: modality,
-    badges: [
-      buildBadge({
-        label: 'Actividad',
-        publicValue: modality,
-        personalValue: getExerciseDisplayName(entry),
-        met: true,
-        tone: 'success',
-      }),
-      buildBadge({
-        label: 'Duracion',
-        publicValue: duration !== null ? `${formatNumber(duration)} min` : 'Registrada',
-        personalValue: duration !== null ? `${formatNumber(duration)} min` : 'Sin dato',
-        met: duration !== null,
-        tone: duration !== null ? 'success' : 'neutral',
-      }),
-      buildBadge({
-        label: 'Calorias',
-        publicValue: calories !== null ? 'Registradas' : 'Pendiente',
-        personalValue: calories !== null ? `${formatNumber(calories)} kcal` : 'Sin dato',
-        met: calories !== null,
-        tone: calories !== null ? 'success' : 'neutral',
-      }),
-      buildBadge({
-        label: 'Intensidad',
-        publicValue: entry.intensity || 'No especificada',
-        personalValue: truncateText(entry.notes || entry.intensity || 'No especificada', 80),
-        met: Boolean(entry.intensity),
-        tone: 'neutral',
-      }),
-    ],
+    subtitle,
+    primaryMetric: useCaloriesHero ? `${formatNumber(calories)} kcal` : duration !== null ? `${formatNumber(duration)} min` : 'Sesion completa',
+    primaryMetricLines: useCaloriesHero
+      ? [`${formatNumber(calories)}`, 'KCAL']
+      : duration !== null
+        ? [`${formatNumber(duration)}`, 'MIN']
+        : ['SESION', 'COMPLETA'],
+    primaryLabel: useCaloriesHero ? 'quemadas' : 'entrenados',
+    badges: exerciseBadges,
+    badgeLimit: 4,
     footerPhrase: 'La constancia tambien se entrena.',
     privacyLevel: 'public-safe',
     textToCopy: duration !== null
@@ -987,16 +1075,20 @@ function buildExerciseShareSummary({ date, entry, index = 0 } = {}) {
     defaultTemplateId: defaultTemplateByCardType.exercise,
     metadata: {
       id: entry.id || `exercise-${index}`,
+      caption: `${modality} completado: ${duration !== null ? `${formatNumber(duration)} min` : 'sesion registrada'}${entry.intensity ? `, intensidad ${String(entry.intensity).toLowerCase()}` : ''}${calories !== null ? ` y ${formatNumber(calories)} kcal quemadas` : ''}. La constancia tambien se entrena.`,
+      eyebrow: 'ENTRENAMIENTO DEL DIA',
+      headline: modality === 'Krav Maga' ? 'Krav Maga completado' : 'Entrenamiento completado',
+      heroValue: useCaloriesHero ? formatNumber(calories) : duration !== null ? formatNumber(duration) : 'SESION',
+      heroUnit: useCaloriesHero ? 'KCAL QUEMADAS' : duration !== null ? 'MIN ENTRENADOS' : 'COMPLETA',
+      contextLine: [
+        duration !== null ? `${formatNumber(duration)} min` : '',
+        entry.intensity ? `intensidad ${String(entry.intensity).toLowerCase()}` : '',
+      ].filter(Boolean).join(' · ') || modality,
+      description: truncateText(entry.notes || sessionName, 80),
+      storyLine: 'La constancia tambien se entrena.',
       optionLabel: truncateText(`${modality}${entry.name ? ` · ${entry.name}` : ''}${getEntryTimeLabel(entry)}`, 96),
       personalTextToCopy: `Sesion registrada: ${duration !== null ? `${formatNumber(duration)} min` : 'duracion sin dato'}, ${modality}, ${calories !== null ? `${formatNumber(calories)} kcal estimadas` : 'calorias sin dato'}${entry.notes ? ` y notas: ${entry.notes}` : ''}. Un paso mas.`,
       personalBadges: [
-        buildBadge({
-          label: 'Actividad',
-          publicValue: modality,
-          personalValue: getExerciseDisplayName(entry),
-          met: true,
-          tone: 'success',
-        }),
         buildBadge({
           label: 'Duracion',
           publicValue: duration !== null ? `${formatNumber(duration)} min` : 'Registrada',
@@ -1042,6 +1134,8 @@ export function buildExerciseShareSummaryGroup({ date, exercises = [] } = {}) {
 }
 
 function getBadgesForMode(summary = {}, mode = 'public', detailLevel = 'discreet') {
+  const badgeLimit = Number.isFinite(Number(summary.badgeLimit)) ? Number(summary.badgeLimit) : 4;
+
   if (mode === 'personal' && summary.type === 'food' && Array.isArray(summary.macroBadges) && summary.macroBadges.length > 0) {
     return summary.macroBadges.slice(0, 4);
   }
@@ -1054,7 +1148,29 @@ function getBadgesForMode(summary = {}, mode = 'public', detailLevel = 'discreet
     return summary.macroBadges.slice(0, 4);
   }
 
-  return (summary.badges || summary.metrics || []).slice(0, 4);
+  return (summary.badges || summary.metrics || []).slice(0, badgeLimit);
+}
+
+export function getShareStoryVisual(summary = {}, { detailLevel = 'discreet' } = {}) {
+  const useFoodMacros = summary.type === 'food' && detailLevel === 'macros';
+  const metricLineSource = useFoodMacros && Array.isArray(summary.macroPrimaryMetricLines)
+    ? summary.macroPrimaryMetricLines
+    : summary.primaryMetricLines;
+  const metricLines = Array.isArray(metricLineSource) && metricLineSource.length > 0
+    ? metricLineSource.slice(0, 2)
+    : [summary.primaryMetric || ''];
+  const heroValue = useFoodMacros && summary.macroHeroValue ? summary.macroHeroValue : summary.heroValue || metricLines[0] || '';
+  const heroUnit = useFoodMacros && summary.macroHeroUnit ? summary.macroHeroUnit : summary.heroUnit || metricLines.slice(1).join(' ') || summary.primaryLabel || '';
+
+  return {
+    eyebrow: summary.eyebrow || summary.brand || 'BITACORA DANIEL',
+    headline: summary.headline || summary.title || 'Compartir progreso',
+    heroValue,
+    heroUnit,
+    contextLine: useFoodMacros && summary.macroContextLine ? summary.macroContextLine : summary.contextLine || summary.subtitle || '',
+    description: summary.description || summary.subtitle || '',
+    storyLine: summary.storyLine || summary.footerPhrase || 'La constancia tambien se entrena.',
+  };
 }
 
 export function buildShareCardText(summary = {}, { mode = 'public', templateId, detailLevel = 'discreet' } = {}) {
@@ -1064,18 +1180,24 @@ export function buildShareCardText(summary = {}, { mode = 'public', templateId, 
     shareProgressTemplates[0];
   const badges = getBadgesForMode(summary, mode, detailLevel).map((badge) => `${badge.label}: ${getBadgeValue(badge, mode)}`);
 
-  if (summary.availability === 'missing_data_source' || summary.availability === 'no_record_today') {
+  if (summary.availability === 'missing_data_source' || summary.availability === 'no_record_today' || summary.availability === 'under_construction') {
     return [
       `${summary.brand || 'BITACORA DANIEL'} · ${template.label}`,
       summary.title,
       summary.subtitle,
       '',
-      summary.availability === 'no_record_today' ? 'Pendiente para generar tarjeta:' : 'Pendiente antes de compartir:',
+      summary.availability === 'no_record_today'
+        ? 'Pendiente para generar tarjeta:'
+        : summary.availability === 'under_construction'
+          ? 'En construccion:'
+          : 'Pendiente antes de compartir:',
       ...(summary.fallbackNotes || ['Falta conectar una fuente real.']),
     ].filter(Boolean).join('\n');
   }
 
   if (mode === 'personal' && summary.personalTextToCopy) return summary.personalTextToCopy;
+  if (summary.type === 'food' && detailLevel === 'macros' && summary.macroCaption) return summary.macroCaption;
+  if (summary.caption) return summary.caption;
 
   return summary.textToCopy || [
     `${summary.title} en Bitacora Daniel: ${summary.primaryMetric} ${summary.primaryLabel}.`,
@@ -1136,26 +1258,26 @@ export function buildShareCardSvg(summary = {}, options = {}) {
     shareProgressTemplates.find((item) => item.id === summary.defaultTemplateId) ||
     shareProgressTemplates[0];
   const badges = getBadgesForMode(summary, mode, detailLevel);
+  const visual = getShareStoryVisual(summary, { detailLevel });
   const [bgA, bgB, textLight, accent] = getPalette(template.id);
   const hasPhoto = Boolean(photoDataUrl && summary.type === 'food');
-  const subtitleLines = wrapText(summary.subtitle || '', 34, 3);
-  const phraseLines = wrapText(template.phrase || summary.footerPhrase, 32, 2);
-  const titleLines = wrapText(summary.title || 'Compartir progreso', 18, 2);
-  const metricLines = Array.isArray(summary.primaryMetricLines) && summary.primaryMetricLines.length > 0
-    ? summary.primaryMetricLines.slice(0, 2).map((line) => truncateText(line, 16))
-    : wrapText(summary.primaryMetric || '', 18, 2);
-  const titleFontSize = String(summary.title || '').length > 28 ? 62 : 76;
-  const metricFontSize = String(summary.primaryMetric || '').length > 18 ? 70 : 84;
-  const contentOffset = hasPhoto ? 190 : 0;
+  const contextLines = wrapText(visual.contextLine || '', 34, 2);
+  const descriptionLines = wrapText(visual.description || '', 34, 2);
+  const phraseLines = wrapText(visual.storyLine || template.phrase || summary.footerPhrase, 32, 2);
+  const titleLines = wrapText(visual.headline || 'Compartir progreso', 18, 2);
+  const metricLines = wrapText(visual.heroValue || '', 14, 2);
+  const titleFontSize = String(visual.headline || '').length > 28 ? 62 : 76;
+  const metricFontSize = String(visual.heroValue || '').length > 8 ? 90 : 132;
+  const contentOffset = hasPhoto ? 250 : 0;
   const badgeRows = badges.map((badge, index) => {
-    const y = 980 + contentOffset + index * 118;
+    const y = (hasPhoto ? 1210 : 1030) + index * (hasPhoto ? 92 : 108);
     const valueLines = wrapText(getBadgeValue(badge, mode), 24, 1);
     return `
       <g>
-        <rect x="105" y="${y}" width="870" height="90" rx="28" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.28)" />
-        <circle cx="150" cy="${y + 46}" r="15" fill="${badge.met ? accent : 'rgba(255,255,255,0.38)'}" />
-        <text x="190" y="${y + 39}" fill="${textLight}" font-size="32" font-weight="900">${escapeXml(badge.label)}</text>
-        ${valueLines.map((line) => `<text x="190" y="${y + 73}" fill="rgba(255,255,255,0.86)" font-size="28" font-weight="700">${escapeXml(line)}</text>`).join('')}
+        <rect x="105" y="${y}" width="870" height="${hasPhoto ? 74 : 86}" rx="26" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.28)" />
+        <circle cx="150" cy="${y + (hasPhoto ? 38 : 44)}" r="14" fill="${badge.met ? accent : 'rgba(255,255,255,0.38)'}" />
+        <text x="190" y="${y + (hasPhoto ? 32 : 37)}" fill="${textLight}" font-size="${hasPhoto ? 28 : 32}" font-weight="900">${escapeXml(badge.label)}</text>
+        ${valueLines.map((line) => `<text x="190" y="${y + (hasPhoto ? 60 : 70)}" fill="rgba(255,255,255,0.86)" font-size="${hasPhoto ? 25 : 28}" font-weight="700">${escapeXml(line)}</text>`).join('')}
       </g>`;
   }).join('');
 
@@ -1173,16 +1295,17 @@ export function buildShareCardSvg(summary = {}, options = {}) {
     <circle cx="930" cy="150" r="260" fill="rgba(255,255,255,0.08)" />
     <circle cx="120" cy="1750" r="330" fill="rgba(255,255,255,0.07)" />
     <rect x="70" y="90" width="940" height="1740" rx="58" fill="rgba(10,18,22,0.24)" stroke="rgba(255,255,255,0.24)" filter="url(#softShadow)" />
-    ${hasPhoto ? `<image href="${escapeXml(photoDataUrl)}" x="105" y="280" width="870" height="360" preserveAspectRatio="xMidYMid slice" opacity="0.88" /><rect x="105" y="280" width="870" height="360" fill="rgba(0,0,0,0.16)" />` : ''}
-    <text x="105" y="180" fill="${textLight}" font-size="38" font-weight="900" letter-spacing="4">${escapeXml(summary.brand || 'BITACORA DANIEL')}</text>
+    ${hasPhoto ? `<image href="${escapeXml(photoDataUrl)}" x="105" y="260" width="870" height="500" preserveAspectRatio="xMidYMid slice" opacity="0.9" /><rect x="105" y="260" width="870" height="500" fill="rgba(0,0,0,0.22)" />` : ''}
+    <text x="105" y="180" fill="${textLight}" font-size="34" font-weight="900" letter-spacing="4">${escapeXml(visual.eyebrow || 'BITACORA DANIEL')}</text>
     <text x="105" y="238" fill="rgba(255,255,255,0.82)" font-size="30" font-weight="700">${escapeXml(summary.dateLabel || '')}</text>
     ${titleLines.map((line, index) => `<text x="105" y="${365 + contentOffset + index * (titleFontSize + 8)}" fill="#ffffff" font-size="${titleFontSize}" font-weight="950">${escapeXml(line)}</text>`).join('')}
     ${metricLines.map((line, index) => `<text x="105" y="${570 + contentOffset + index * (metricFontSize + 8)}" fill="${accent}" font-size="${metricFontSize}" font-weight="950">${escapeXml(line)}</text>`).join('')}
-    <text x="105" y="${745 + contentOffset}" fill="rgba(255,255,255,0.9)" font-size="34" font-weight="900">${escapeXml(summary.primaryLabel || '')}</text>
-    ${subtitleLines.map((line, index) => `<text x="105" y="${820 + contentOffset + index * 42}" fill="rgba(255,255,255,0.88)" font-size="32" font-weight="700">${escapeXml(line)}</text>`).join('')}
+    <text x="105" y="${745 + contentOffset}" fill="rgba(255,255,255,0.9)" font-size="34" font-weight="900">${escapeXml(visual.heroUnit || '')}</text>
+    ${contextLines.map((line, index) => `<text x="105" y="${815 + contentOffset + index * 42}" fill="rgba(255,255,255,0.9)" font-size="32" font-weight="800">${escapeXml(line)}</text>`).join('')}
+    ${descriptionLines.map((line, index) => `<text x="105" y="${905 + contentOffset + index * 38}" fill="rgba(255,255,255,0.74)" font-size="28" font-weight="700">${escapeXml(line)}</text>`).join('')}
     ${badgeRows}
     ${phraseLines.map((line, index) => `<text x="105" y="${1660 + index * 50}" fill="#ffffff" font-size="42" font-weight="900">${escapeXml(line)}</text>`).join('')}
-    <text x="105" y="1778" fill="rgba(255,255,255,0.68)" font-size="27" font-weight="700">Generado localmente · Compartir manual</text>
+    <text x="105" y="1778" fill="rgba(255,255,255,0.68)" font-size="27" font-weight="700">Bitácora Daniel</text>
   </svg>`;
 }
 

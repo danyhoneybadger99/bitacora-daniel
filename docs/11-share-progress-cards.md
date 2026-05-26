@@ -1,6 +1,6 @@
 # Tarjetas sociales / Compartir progreso
 
-Sistema local para generar tarjetas visuales desde el Dashboard y compartirlas manualmente como imagen o texto.
+Sistema local para generar tarjetas visuales desde el Dashboard y compartirlas manualmente como imagen o texto. En Dashboard funciona como accion secundaria: aparece despues de las metricas principales, metas y resumen operativo con el copy `Comparte un avance`.
 
 ## Alcance
 
@@ -17,7 +17,7 @@ El modal muestra primero `Elige que quieres compartir`.
 
 Grupos:
 
-- Logros y avances: Dia de hoy, Hito fisico, Krav Maga, Sobriedad y Resumen mensual.
+- Logros y avances: Disciplina diaria, Hito fisico, Krav Maga, Sobriedad y Resumen mensual.
 - Post del dia: Alimentacion y Ejercicio.
 
 Estados:
@@ -43,6 +43,11 @@ Cada resumen derivado produce:
 
 - `type`
 - `availability`
+- `eyebrow`
+- `headline`
+- `heroValue`
+- `heroUnit`
+- `contextLine`
 - `title`
 - `subtitle`
 - `primaryMetric`
@@ -50,17 +55,20 @@ Cada resumen derivado produce:
 - `primaryLabel`
 - `badges` maximo 4
 - `footerPhrase`
+- `storyLine`
 - `privacyLevel`
 - `textToCopy`
 
 La tarjeta visual usa estructura fija 9:16 sin scroll interno:
 
-- Marca pequena: `BITACORA DANIEL`.
+- Eyebrow pequeno.
 - Fecha o periodo.
-- Titulo grande.
-- Metrica central.
+- Headline emocional.
+- Hero numerico o frase corta.
+- Contexto humano breve.
 - 3 a 4 badges.
 - Frase final.
+- Footer publico discreto: `Bitácora Daniel`.
 
 Reglas visuales:
 
@@ -70,12 +78,15 @@ Reglas visuales:
 - Footer y frase final siempre visibles.
 - Textos largos se envuelven de forma segura y, si hace falta, se truncan con `...`.
 - Si una metrica grande puede romperse, se define manualmente en `primaryMetricLines`, por ejemplo `AVANCE / CONSTANTE`, `COMIDA / COMPLETA`, `SIN / REGISTRO` o `CINTA / NARANJA`.
+- No se muestra texto tecnico dentro de la imagen publica, por ejemplo `Generado localmente` o `Compartir manual`.
+- Cada categoria tiene direccion visual propia: sobriedad azul profundo, alimentacion tipo post de comida, ejercicio oscuro/deportivo y Krav Maga naranja/negro.
+- V9 prioriza hook, numero fuerte y mini historia para que la tarjeta no parezca reporte tecnico.
 
 ## Tarjetas principales
 
 Tipos listos:
 
-- Dia de hoy.
+- Disciplina diaria.
 - Hito fisico.
 - Krav Maga.
 - Sobriedad.
@@ -89,10 +100,11 @@ Tipos en preparacion:
 
 - Resumen mensual.
 
-### Dia de hoy
+### Disciplina diaria
 
-- `ready` si cumple 4 a 6 habitos.
-- `in_progress` si cumple 0 a 3 habitos.
+- `ready` si cumple 5 a 6 habitos.
+- `under_construction` si cumple 0 a 4 habitos.
+- Descargar y Compartir se bloquean mientras este en construccion.
 
 Habitos evaluados:
 
@@ -107,10 +119,10 @@ Modo publico no muestra gramos ni calorias exactas.
 
 ### Hito fisico
 
-- `ready` si existe peso, objetivo o grasa corporal.
-- `missing_data_source` si no hay ninguna metrica corporal disponible.
+- `ready` si existen peso actual y peso objetivo.
+- `missing_data_source` si falta peso actual u objetivo.
 
-Modo publico oculta peso exacto y grasa exacta.
+Usa numeros reales cuando existen: peso actual, peso objetivo, distancia a meta, grasa corporal y musculo. No usa `AVANCE CONSTANTE` como dato principal.
 
 ### Krav Maga
 
@@ -141,6 +153,7 @@ Estado actual: `ready`.
 - Texto humano: `Desde el 28 de diciembre de 2023`.
 - Contexto confirmado: jueves 28 de diciembre de 2023.
 - Resultado esperado al 2026-05-22: 876 dias.
+- Resultado esperado al 2026-05-26: 880 dias.
 
 El calculo usa diferencia entre fechas locales por dia calendario, no horas exactas, para evitar errores por timezone.
 
@@ -175,7 +188,8 @@ Modo Publico:
 - Con macros: muestra kcal, proteina, carbs y grasa si el usuario elige ese nivel de detalle.
 - No muestra datos sensibles.
 - El nombre visible del platillo se trunca a maximo 80 caracteres.
-- Usa badges como Proteina, Energia, Whole foods o Comida registrada, Hecho en casa o Sin especificar.
+- Usa maximo 3 chips en discreto: alto en proteina, comida completa y hecho en casa solo si el registro lo sugiere.
+- En `Con macros`, el hero puede cambiar a proteina o kcal y los chips muestran macros reales del registro seleccionado.
 
 Nivel de detalle:
 
@@ -223,10 +237,11 @@ Como compartir una sesion:
 Modo Publico:
 
 - Muestra actividad.
-- Muestra duracion si existe.
-- Muestra calorias como estado registrado si existen.
+- Usa calorias quemadas como hero si existen.
+- Si no hay calorias quemadas, usa duracion como hero.
 - Muestra intensidad si existe.
 - No muestra ubicacion precisa.
+- Evita chips vacios o repetidos.
 
 Modo Personal:
 
@@ -287,7 +302,7 @@ Abrir desde Dashboard vs boton directo:
 1. Abrir Dashboard.
 2. Tocar `Ver tarjeta`.
 3. Confirmar grupos Logros y avances / Post del dia.
-4. Probar Dia de hoy.
+4. Probar Disciplina diaria.
 5. Probar Alimentacion con registro real.
 6. Confirmar boton `Compartir comida` en registros de hoy.
 7. Probar foto local: agregar, cambiar y quitar.
