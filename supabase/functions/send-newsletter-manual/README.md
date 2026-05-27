@@ -82,3 +82,9 @@ Envío real:
 - Si el newsletter no está en estado `ready` en el snapshot de Daniel, devuelve `409`.
 - Si ya existe `status = sent` para el mismo `issue_id + recipient_email`, no reenvía.
 - Si el correo no está confirmado, registra `skipped`.
+
+## Destinatarios opt-in
+
+- El diagnostico visual y el envio real usan la misma fuente: `public.app_users` con `newsletter_opt_in = true`.
+- Si existe un opt-in con correo faltante o invalido, el envio real queda bloqueado hasta corregir `public.app_users`.
+- Para asegurar que Jesus Flores aparezca como opt-in activo sin hardcode en la UI, ejecutar `supabase/ensure-jesus-newsletter-opt-in.sql`.

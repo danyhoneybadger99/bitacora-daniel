@@ -52,10 +52,11 @@ type RecipientCandidate = {
   emailMasked: string;
   displayName: string;
   profileType: string;
+  validEmail: boolean;
   confirmed: boolean;
   alreadySent: boolean;
-  status: 'sent' | 'pending' | 'unconfirmed' | 'error';
-  reason: 'already_sent' | 'ready_to_send' | 'email_not_confirmed' | 'last_attempt_failed';
+  status: 'sent' | 'pending' | 'unconfirmed' | 'invalid_email' | 'error';
+  reason: 'already_sent' | 'ready_to_send' | 'email_not_confirmed' | 'invalid_email' | 'last_attempt_failed';
   sentAt: string | null;
   errorMessage: string | null;
 };
@@ -176,6 +177,11 @@ function normalizeEmail(email = '') {
   return String(email || '').trim().toLowerCase();
 }
 
+function isValidEmail(email = '') {
+  const normalized = normalizeEmail(email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+}
+
 function maskEmail(email = '') {
   const normalized = normalizeEmail(email);
   const [localPart = '', domain = ''] = normalized.split('@');
@@ -197,6 +203,26 @@ function inferDisplayName(email = '') {
     .slice(0, 2)
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join(' ') || 'Usuario';
+}
+
+function logNewsletterRecipientsDebug(issueId: string, candidates: RecipientCandidate[]) {
+  const debugEnabled =
+    Deno.env.get('NEWSLETTER_DEBUG') === 'true' ||
+    Deno.env.get('ENVIRONMENT') === 'development' ||
+    Deno.env.get('DENO_ENV') === 'development';
+
+  if (!debugEnabled) return;
+
+  console.info('[send-newsletter-manual] recipients:plan', {
+    issueId,
+    candidateCount: candidates.length,
+    recipients: candidates.map((candidate) => ({
+      email: candidate.emailMasked,
+      profileType: candidate.profileType,
+      status: candidate.status,
+      reason: candidate.reason,
+    })),
+  });
 }
 
 function getRealSubject(subject = '') {
@@ -346,8 +372,7 @@ async function getRecipientCandidates(serviceClient: ReturnType<typeof createCli
   const { data: appUsers, error: appUsersError } = await serviceClient
     .from('app_users')
     .select('user_id, email, profile_type, newsletter_opt_in')
-    .eq('newsletter_opt_in', true)
-    .not('email', 'is', null);
+    .eq('newsletter_opt_in', true);
 
   if (appUsersError) throw appUsersError;
 
@@ -377,22 +402,28 @@ async function getRecipientCandidates(serviceClient: ReturnType<typeof createCli
 
   for (const appUser of (appUsers || []) as AppUserRecord[]) {
     const email = normalizeEmail(appUser.email || '');
-    if (!email || !appUser.user_id) continue;
-
-    const { data: authUserData, error: authUserError } = await serviceClient.auth.admin.getUserById(appUser.user_id);
-    const authUser = authUserData?.user as Record<string, unknown> | undefined;
-    const confirmed = !authUserError && isConfirmedAuthUser(authUser);
-    const alreadySent = alreadySentEmails.has(email);
-    const latestLog = latestLogByEmail.get(email);
+    const validEmail = isValidEmail(email);
+    const userId = appUser.user_id || '';
+    const authResult = userId
+      ? await serviceClient.auth.admin.getUserById(userId)
+      : { data: null, error: new Error('Missing user_id') };
+    const authUser = authResult.data?.user as Record<string, unknown> | undefined;
+    const confirmed = validEmail && !authResult.error && isConfirmedAuthUser(authUser);
+    const alreadySent = validEmail && alreadySentEmails.has(email);
+    const latestLog = validEmail ? latestLogByEmail.get(email) : undefined;
     const hasLatestError = latestLog?.status === 'failed';
-    const status = alreadySent
+    const status = !validEmail
+      ? 'invalid_email'
+      : alreadySent
       ? 'sent'
       : !confirmed
         ? 'unconfirmed'
         : hasLatestError
           ? 'error'
           : 'pending';
-    const reason = alreadySent
+    const reason = !validEmail
+      ? 'invalid_email'
+      : alreadySent
       ? 'already_sent'
       : !confirmed
         ? 'email_not_confirmed'
@@ -401,11 +432,12 @@ async function getRecipientCandidates(serviceClient: ReturnType<typeof createCli
           : 'ready_to_send';
 
     candidates.push({
-      userId: appUser.user_id,
+      userId,
       email,
-      emailMasked: maskEmail(email),
-      displayName: inferDisplayName(email),
+      emailMasked: validEmail ? maskEmail(email) : 'Correo invalido',
+      displayName: validEmail ? inferDisplayName(email) : `Usuario ${userId.slice(0, 8) || 'opt-in'}`,
       profileType: appUser.profile_type || 'fitness-basic',
+      validEmail,
       confirmed,
       alreadySent,
       status,
@@ -419,11 +451,16 @@ async function getRecipientCandidates(serviceClient: ReturnType<typeof createCli
 }
 
 function summarizeCandidates(candidates: RecipientCandidate[]) {
+  const invalidEmailCount = candidates.filter((item) => !item.validEmail).length;
+  const unconfirmedCount = candidates.filter((item) => item.validEmail && !item.confirmed).length;
+
   return {
     candidateCount: candidates.length,
     confirmedCount: candidates.filter((item) => item.confirmed).length,
     alreadySentCount: candidates.filter((item) => item.alreadySent).length,
-    skippedUnconfirmedCount: candidates.filter((item) => !item.confirmed).length,
+    skippedUnconfirmedCount: unconfirmedCount,
+    invalidEmailCount,
+    blockingRecipientIssueCount: invalidEmailCount,
     errorCount: candidates.filter((item) => item.status === 'error').length,
     pendingToSendCount: candidates.filter((item) => item.status === 'pending').length,
     sendableCount: candidates.filter((item) => item.status === 'pending').length,
@@ -435,6 +472,7 @@ function buildRecipientDiagnostics(candidates: RecipientCandidate[]) {
     displayName: candidate.displayName,
     emailMasked: candidate.emailMasked,
     profileType: candidate.profileType,
+    validEmail: candidate.validEmail,
     confirmed: candidate.confirmed,
     alreadySent: candidate.alreadySent,
     sendable: candidate.status === 'pending',
@@ -515,9 +553,23 @@ Deno.serve(async (request) => {
   const candidates = await getRecipientCandidates(serviceClient, issueId);
   const summary = summarizeCandidates(candidates);
   const recipientDiagnostics = buildRecipientDiagnostics(candidates);
+  logNewsletterRecipientsDebug(issueId, candidates);
 
   if (dryRun) {
     return jsonResponse({ ok: true, issueId, dryRun: true, ...summary, recipientDiagnostics });
+  }
+
+  if (summary.blockingRecipientIssueCount > 0) {
+    return jsonResponse(
+      {
+        error: 'Hay destinatarios opt-in con correo faltante o invalido. Corrige app_users antes de enviar.',
+        issueId,
+        dryRun: false,
+        ...summary,
+        recipientDiagnostics,
+      },
+      409
+    );
   }
 
   const status = await getNewsletterStatus(serviceClient, user.id, issueId);
