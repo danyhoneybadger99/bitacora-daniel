@@ -100,6 +100,27 @@ Tipos en preparacion:
 
 - Resumen mensual.
 
+Tipo promocional:
+
+- Invitar a Bitacora.
+- No usa datos personales.
+- Vive en el grupo `Comparte la app`.
+- Caption sugerido: `Estoy usando Bitacora Daniel para registrar nutricion, entrenamiento, ayuno y progreso fisico con ayuda de IA. Si tambien estas trabajando en tus habitos, pruebala aqui: https://bitacora-daniel.vercel.app`
+
+## V10: enfoque de redes sociales
+
+La afinacion visual usa una direccion mas viva para historias de Instagram, Facebook y TikTok:
+
+- Paleta base: fondo oscuro, rojo vino, rojo acento, dorado, crema y blanco calido.
+- Alimentacion con foto usa layout editorial: foto arriba y contenido abajo para evitar que texto y comida compitan.
+- El overlay de foto es oscuro para mantener contraste.
+- Alimentacion sin foto usa fondo oliva/crema/dorado sin ilustraciones genericas.
+- Ejercicio usa azul oscuro/negro con acento cian.
+- Krav Maga conserva naranja/negro con mas contraste.
+- Sobriedad mantiene azul profundo y numero fuerte.
+- La tarjeta promocional muestra `HABITOS / CON DIRECCION`, CTA `Pruebala gratis` y el footer `bitacora-daniel.vercel.app`.
+- No se muestran textos tecnicos dentro de la imagen publica.
+
 ### Disciplina diaria
 
 - `ready` si cumple 5 a 6 habitos.

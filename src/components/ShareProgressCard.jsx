@@ -60,6 +60,10 @@ function getShareOptionDescription(cardType, optionSummary) {
     return 'Todavia se esta construyendo el dia';
   }
 
+  if (cardType === 'invite') {
+    return 'Comparte la app con alguien que este trabajando sus habitos';
+  }
+
   return optionSummary?.primaryMetric || optionSummary?.subtitle || 'Pendiente';
 }
 
@@ -232,14 +236,16 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
     ? [
         ['daily_post', 'Post del dia'],
         ['achievements', 'Logros y avances'],
+        ['share_app', 'Comparte la app'],
         ['preparation', 'En preparacion'],
       ]
     : [
         ['achievements', 'Logros y avances'],
         ['daily_post', 'Post del dia'],
+        ['share_app', 'Comparte la app'],
         ['preparation', 'En preparacion'],
       ];
-  const cardSortOrder = { food: 1, exercise: 2, sobriety: 3, krav: 4, physical: 5, daily: 6, monthly: 7 };
+  const cardSortOrder = { food: 1, exercise: 2, sobriety: 3, krav: 4, physical: 5, daily: 6, invite: 7, monthly: 8 };
 
   function selectCardType(nextType) {
     setCardType(nextType);
@@ -266,8 +272,8 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
   return (
     <section className="share-progress-entry card-soft">
       <div>
-        <span>Comparte un avance</span>
-        <strong>Crear tarjeta social</strong>
+        <span>Accion secundaria</span>
+        <strong>Comparte un avance</strong>
         <p>Elige un logro, comida o entrenamiento que valga la pena compartir hoy.</p>
       </div>
       <button className="button button-primary" type="button" onClick={() => setIsOpen(true)}>
@@ -298,6 +304,9 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                       <span>{storyVisual.eyebrow}</span>
                       <small>{selectedSummary.dateLabel}</small>
                     </header>
+                    {selectedPhotoUrl ? (
+                      <div className="share-story-photo-strip" aria-hidden="true" />
+                    ) : null}
                     <div className="share-story-status">
                       <strong className={getStoryTextDensityClass(storyVisual.headline, 'share-story-title')}>
                         {storyVisual.headline}
@@ -311,6 +320,9 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                       <p>{storyVisual.contextLine}</p>
                       {storyVisual.description && storyVisual.description !== storyVisual.contextLine ? (
                         <p className="share-story-description">{storyVisual.description}</p>
+                      ) : null}
+                      {selectedSummary.ctaLabel ? (
+                        <span className="share-story-cta">{selectedSummary.ctaLabel}</span>
                       ) : null}
                     </div>
                     <div className="share-story-metrics">
@@ -326,7 +338,7 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                     </div>
                     <footer>
                       <strong>{storyVisual.storyLine}</strong>
-                      <span>Bitácora Daniel</span>
+                      <span>{selectedSummary.footerLabel || 'Bitacora Daniel'}</span>
                     </footer>
                   </div>
                 </article>
@@ -349,6 +361,11 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
                       {groupId === 'preparation' ? (
                         <p className="share-card-group-helper">
                           Estas tarjetas quedan guardadas para una siguiente fase. No son errores.
+                        </p>
+                      ) : null}
+                      {groupId === 'share_app' ? (
+                        <p className="share-card-group-helper">
+                          Una tarjeta limpia para invitar a otras personas a probar Bitacora Daniel.
                         </p>
                       ) : null}
                       <div className="share-card-options">

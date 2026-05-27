@@ -31,6 +31,7 @@ import {
   buildDailyShareSummary,
   buildExerciseShareSummaryGroup,
   buildFoodShareSummaryGroup,
+  buildInviteShareSummary,
   buildKravMagaShareSummary,
   buildMonthlyShareSummary,
   buildPhysicalMilestoneSummary,
@@ -273,6 +274,7 @@ const newsletterRecipientStatusLabels = {
   sent: 'Enviado',
   pending: 'Pendiente',
   unconfirmed: 'No confirmado',
+  invalid_email: 'Correo invalido',
   error: 'Error',
 };
 
@@ -2048,10 +2050,13 @@ function App() {
   const newsletterPendingToSendCount = Number(
     newsletterManualSummary?.pendingToSendCount ?? newsletterManualSummary?.sendableCount ?? 0
   );
+  const newsletterInvalidEmailCount = Number(newsletterManualSummary?.invalidEmailCount ?? 0);
+  const newsletterBlockingRecipientIssueCount = Number(newsletterManualSummary?.blockingRecipientIssueCount ?? 0);
   const newsletterErrorCount = Number(newsletterManualSummary?.errorCount ?? 0);
   const canSendNewsletterManual =
     Boolean(syncUser?.id) &&
     newsletterPendingToSendCount > 0 &&
+    newsletterBlockingRecipientIssueCount <= 0 &&
     (isSelectedNewsletterReady || hasSelectedNewsletterBeenSent);
   const newsletterEditorialReminder = getNewsletterEditorialReminder(
     newsletterAdmin,
@@ -3336,6 +3341,9 @@ function lockPrivateModule(feedbackText = '') {
           date: currentDate,
           exercises: todaysExercises,
         }),
+        invite: buildInviteShareSummary({
+          date: currentDate,
+        }),
       };
 
       if (canShowSobrietyCard(activeShareProfile)) {
@@ -3834,6 +3842,11 @@ function lockPrivateModule(feedbackText = '') {
 
     if (newsletterManualSummary && newsletterPendingToSendCount <= 0) {
       setNewsletterPreviewFeedback('No hay nuevos destinatarios opt-in pendientes para este issue.');
+      return;
+    }
+
+    if (newsletterBlockingRecipientIssueCount > 0) {
+      setNewsletterPreviewFeedback('Hay destinatarios opt-in con correo invalido. Corrige app_users antes de enviar.');
       return;
     }
 
@@ -6718,6 +6731,9 @@ function toggleRecommendedSupplement(itemConfig) {
                         {newsletterManualSummary?.skippedUnconfirmedCount ? (
                           <span>{`${newsletterManualSummary.skippedUnconfirmedCount} omitidos por correo no confirmado`}</span>
                         ) : null}
+                        {newsletterInvalidEmailCount ? (
+                          <span>{`${newsletterInvalidEmailCount} con correo invalido en app_users`}</span>
+                        ) : null}
                         {newsletterErrorCount ? (
                           <span>{`${newsletterErrorCount} con error en el último intento`}</span>
                         ) : null}
@@ -6751,6 +6767,12 @@ function toggleRecommendedSupplement(itemConfig) {
                             <strong>{newsletterErrorCount}</strong>
                           </div>
                         </div>
+
+                        {newsletterInvalidEmailCount ? (
+                          <div className="alert-banner alert-banner-warning">
+                            Hay destinatarios opt-in con correo invalido. Corrige app_users antes de enviar el newsletter real.
+                          </div>
+                        ) : null}
 
                         {isLoadingNewsletterRecipients ? (
                           <p className="section-helper">Calculando estado de envío...</p>

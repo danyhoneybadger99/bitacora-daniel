@@ -481,9 +481,6 @@ export default function DashboardTab(props) {
           </div>
         </SectionCard>
       </div>
-
-      <ShareProgressCard summaries={shareProgressSummaries} launchRequest={shareProgressLaunchRequest} />
-
       <div className="dashboard-grid dashboard-compact-grid">
         <SectionCard title="Alimentos" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">
@@ -576,6 +573,8 @@ export default function DashboardTab(props) {
           </div>
         </SectionCard>
       </div>
+
+      <ShareProgressCard summaries={shareProgressSummaries} launchRequest={shareProgressLaunchRequest} />
     </>
   );
 }

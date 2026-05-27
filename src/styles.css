@@ -1748,16 +1748,25 @@ button {
 }
 
 .share-story-card-with-photo {
+  background:
+    radial-gradient(circle at 76% 12%, rgba(255, 216, 151, 0.2), transparent 30%),
+    linear-gradient(145deg, #17201a, #4f5f32);
+}
+
+.share-story-photo-strip {
+  min-height: 34%;
+  border-radius: 24px;
   background-image:
-    linear-gradient(180deg, rgba(5, 10, 9, 0.18), rgba(5, 10, 9, 0.56) 44%, rgba(5, 10, 9, 0.86)),
-    var(--share-card-photo),
-    linear-gradient(145deg, #1d2a21, #5c6b3b);
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.68)),
+    var(--share-card-photo);
   background-position: center;
   background-size: cover;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 -80px 90px rgba(0, 0, 0, 0.38);
 }
 
 .share-story-shell {
-  background: rgba(6, 13, 17, 0.28);
+  background: rgba(6, 13, 17, 0.24);
   border-color: rgba(255,255,255,0.26);
   backdrop-filter: blur(1px);
 }
@@ -1794,12 +1803,55 @@ button {
 }
 
 .share-story-card-with-photo .share-story-shell {
-  background: linear-gradient(180deg, rgba(5, 10, 9, 0.14), rgba(5, 10, 9, 0.7));
+  background: rgba(6, 13, 17, 0.18);
+  gap: 8px;
+}
+
+.share-story-card-with-photo .share-story-status,
+.share-story-card-with-photo .share-story-metrics {
+  padding: 0 2px;
+}
+
+.share-story-card-with-photo .share-story-primary span {
+  font-size: clamp(1.95rem, 5.1vw, 3.2rem);
+}
+
+.share-story-card-with-photo .share-story-status p {
+  font-size: 0.82rem;
+  line-height: 1.28;
 }
 
 .share-story-metric {
   background: rgba(255,255,255,0.18);
   border-color: rgba(255,255,255,0.28);
+}
+
+.share-story-cta {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: #d94a3a;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.share-story-card-invite {
+  background:
+    radial-gradient(circle at 82% 12%, rgba(242, 193, 91, 0.24), transparent 30%),
+    radial-gradient(circle at 16% 92%, rgba(217, 74, 58, 0.22), transparent 38%),
+    linear-gradient(145deg, #111827, #9f3f4a);
+}
+
+.share-story-card-invite .share-story-primary span {
+  color: #f2c15b;
+}
+
+.share-story-card-invite .share-metric-dot-ok {
+  background: #d94a3a;
 }
 
 .share-story-metric strong {
@@ -3675,6 +3727,12 @@ button {
 }
 
 .newsletter-recipient-status-error {
+  color: #8b312a;
+  background: #fff2f0;
+  border-color: rgba(175, 88, 79, 0.34);
+}
+
+.newsletter-recipient-status-invalid_email {
   color: #8b312a;
   background: #fff2f0;
   border-color: rgba(175, 88, 79, 0.34);

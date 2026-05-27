@@ -5,6 +5,7 @@ export const shareProgressCardTypes = [
   { id: 'sobriety', label: 'Sobriedad', group: 'achievements' },
   { id: 'food', label: 'Alimentacion', group: 'daily_post' },
   { id: 'exercise', label: 'Ejercicio', group: 'daily_post' },
+  { id: 'invite', label: 'Invitar a Bitacora', group: 'share_app' },
   { id: 'monthly', label: 'Resumen mensual', group: 'preparation' },
 ];
 
@@ -86,6 +87,12 @@ export const shareProgressTemplates = [
     label: 'Post de ejercicio',
     phrase: 'La constancia tambien se entrena.',
   },
+  {
+    id: 'invite-app',
+    cardType: 'invite',
+    label: 'Invitar a Bitacora',
+    phrase: 'Pruebala gratis.',
+  },
 ];
 
 export const defaultTemplateByCardType = {
@@ -96,6 +103,7 @@ export const defaultTemplateByCardType = {
   monthly: 'monthly-progress',
   food: 'food-meal',
   exercise: 'exercise-session',
+  invite: 'invite-app',
 };
 
 const mealTypeLabels = {
@@ -749,6 +757,65 @@ export function buildMonthlyShareSummary({ date } = {}) {
   });
 }
 
+export function buildInviteShareSummary({ date } = {}) {
+  return buildCardContract({
+    type: 'invite',
+    availability: 'ready',
+    date,
+    title: 'Convierte tu dia en datos claros',
+    subtitle: 'Nutricion, ejercicio, ayuno y progreso fisico en un solo lugar.',
+    primaryMetric: 'HABITOS CON DIRECCION',
+    primaryMetricLines: ['HABITOS', 'CON DIRECCION'],
+    primaryLabel: 'Bitacora Daniel',
+    badges: [
+      buildBadge({
+        label: 'Registra comidas',
+        publicValue: 'Diario',
+        personalValue: 'Diario',
+        met: true,
+        tone: 'success',
+      }),
+      buildBadge({
+        label: 'Mide entrenamiento',
+        publicValue: 'Progreso',
+        personalValue: 'Progreso',
+        met: true,
+        tone: 'success',
+      }),
+      buildBadge({
+        label: 'Sigue tu ayuno',
+        publicValue: 'Claridad',
+        personalValue: 'Claridad',
+        met: true,
+        tone: 'success',
+      }),
+      buildBadge({
+        label: 'Historias',
+        publicValue: 'Avances',
+        personalValue: 'Convierte avances en historias',
+        met: true,
+        tone: 'success',
+      }),
+    ],
+    footerPhrase: 'Pruebala gratis',
+    privacyLevel: 'public-safe',
+    textToCopy:
+      'Estoy usando Bitacora Daniel para registrar nutricion, entrenamiento, ayuno y progreso fisico con ayuda de IA. Si tambien estas trabajando en tus habitos, pruebala aqui: https://bitacora-daniel.vercel.app',
+    defaultTemplateId: defaultTemplateByCardType.invite,
+    metadata: {
+      eyebrow: 'BITACORA DANIEL',
+      headline: 'Convierte tu dia en datos claros',
+      heroValue: 'HABITOS',
+      heroUnit: 'CON DIRECCION',
+      contextLine: 'Nutricion, ejercicio, ayuno y progreso fisico en un solo lugar.',
+      description: '',
+      storyLine: 'Habitos diarios. Progreso real.',
+      ctaLabel: 'Pruebala gratis',
+      footerLabel: 'bitacora-daniel.vercel.app',
+    },
+  });
+}
+
 function buildFoodShareSummary({ date, entry, index = 0 } = {}) {
   if (!entry) {
     return buildCardContract({
@@ -862,9 +929,9 @@ function buildFoodShareSummary({ date, entry, index = 0 } = {}) {
       headline: getFoodShareTitle(entry, isCompleteMeal),
       heroValue: highProtein ? 'ALTO EN' : 'COMIDA',
       heroUnit: highProtein ? 'PROTEINA' : isCompleteMeal ? 'COMPLETA' : 'REGISTRADA',
-      contextLine: hasEnergy ? `${formatNumber(calories)} kcal registradas` : 'Registro de comida real',
+      contextLine: macroContextLine || (hasEnergy ? `${formatNumber(calories)} kcal registradas` : 'Registro de comida real'),
       description: visualDisplayName,
-      storyLine: 'La constancia tambien se cocina.',
+      storyLine: 'Comida real. Progreso real.',
       macroHeroValue: protein !== null && protein >= 60
         ? formatNumber(protein, 0)
         : calories !== null
@@ -872,7 +939,7 @@ function buildFoodShareSummary({ date, entry, index = 0 } = {}) {
           : 'MACROS',
       macroHeroUnit: protein !== null && protein >= 60 ? 'G PROTEINA' : calories !== null ? 'KCAL' : 'REGISTRADOS',
       macroContextLine: macroContextLine || 'Macros registrados',
-      macroCaption: `${mealLabel} de definicion: ${protein !== null ? `${formatNumber(protein, 0)} g de proteina` : 'proteina registrada'}${calories !== null ? `, ${formatNumber(calories)} kcal` : ''} y comida completa. La constancia tambien se cocina.`,
+      macroCaption: `${mealLabel} de definicion: ${protein !== null ? `${formatNumber(protein, 0)} g de proteina` : 'proteina registrada'}${calories !== null ? `, ${formatNumber(calories)} kcal` : ''} y comida real. Progreso real.`,
       optionLabel: truncateText(`${mealTypeLabels[entry.mealType] || 'Comida'}${entry.name ? ` · ${entry.name}` : ''}${getEntryTimeLabel(entry)}`, 96),
       personalTextToCopy: [
         `Comida registrada: ${entry.name || mealLabel}.`,
@@ -1240,15 +1307,15 @@ function wrapText(value = '', maxLength = 32, maxLines = 3) {
   return visibleLines;
 }
 
-function getPalette(templateId = '') {
-  if (templateId.includes('completed')) return ['#10291f', '#2f7d4f', '#f5f4eb', '#d6a94f'];
-  if (templateId.includes('physical')) return ['#13232b', '#425a55', '#f5efe3', '#d7b46a'];
-  if (templateId.includes('sobriety')) return ['#101c2a', '#315f8c', '#f2f5f7', '#c9d8e8'];
-  if (templateId.includes('krav')) return ['#23150d', '#c46d2d', '#fff4e7', '#2f7d4f'];
-  if (templateId.includes('monthly')) return ['#17202a', '#614d35', '#f8efe2', '#d7b46a'];
-  if (templateId.includes('food')) return ['#1d2a21', '#5c6b3b', '#fff7e8', '#e0b968'];
-  if (templateId.includes('exercise')) return ['#14202b', '#2d5f73', '#f3fbff', '#79c7d3'];
-  return ['#121f26', '#27433e', '#f5efe3', '#d7b46a'];
+function getPalette(templateId = '', type = '') {
+  if (type === 'food' || templateId.includes('food')) return ['#17201A', '#4F5F32', '#FFF7E8', '#F2C15B', '#D94A3A'];
+  if (type === 'exercise' || templateId.includes('exercise')) return ['#07111D', '#12304A', '#F9FAF6', '#55DDEB', '#D94A3A'];
+  if (type === 'krav' || templateId.includes('krav')) return ['#130D09', '#9F4F1F', '#FFF7E8', '#F2C15B', '#D94A3A'];
+  if (type === 'sobriety' || templateId.includes('sobriety')) return ['#0A1220', '#193B63', '#F9FAF6', '#D7E8FF', '#F2C15B'];
+  if (type === 'physical' || templateId.includes('physical')) return ['#111827', '#1E3329', '#FFF7E8', '#F2C15B', '#9F3F4A'];
+  if (type === 'invite' || templateId.includes('invite')) return ['#111827', '#9F3F4A', '#F9FAF6', '#F2C15B', '#D94A3A'];
+  if (type === 'monthly' || templateId.includes('monthly')) return ['#17202a', '#614d35', '#FFF7E8', '#F2C15B', '#9F3F4A'];
+  return ['#111827', '#17201A', '#F9FAF6', '#F2C15B', '#D94A3A'];
 }
 
 export function buildShareCardSvg(summary = {}, options = {}) {
@@ -1259,27 +1326,58 @@ export function buildShareCardSvg(summary = {}, options = {}) {
     shareProgressTemplates[0];
   const badges = getBadgesForMode(summary, mode, detailLevel);
   const visual = getShareStoryVisual(summary, { detailLevel });
-  const [bgA, bgB, textLight, accent] = getPalette(template.id);
+  const [bgA, bgB, textLight, accent, accentStrong] = getPalette(template.id, summary.type);
   const hasPhoto = Boolean(photoDataUrl && summary.type === 'food');
-  const contextLines = wrapText(visual.contextLine || '', 34, 2);
-  const descriptionLines = wrapText(visual.description || '', 34, 2);
-  const phraseLines = wrapText(visual.storyLine || template.phrase || summary.footerPhrase, 32, 2);
-  const titleLines = wrapText(visual.headline || 'Compartir progreso', 18, 2);
-  const metricLines = wrapText(visual.heroValue || '', 14, 2);
-  const titleFontSize = String(visual.headline || '').length > 28 ? 62 : 76;
-  const metricFontSize = String(visual.heroValue || '').length > 8 ? 90 : 132;
-  const contentOffset = hasPhoto ? 250 : 0;
+  const contextLines = wrapText(visual.contextLine || '', hasPhoto ? 40 : 38, 2);
+  const descriptionLines = wrapText(visual.description || '', hasPhoto ? 42 : 36, 2);
+  const phraseLines = wrapText(visual.storyLine || template.phrase || summary.footerPhrase, 38, 2);
+  const titleLines = wrapText(visual.headline || 'Compartir progreso', 22, 2);
+  const metricLines = wrapText(visual.heroValue || '', 12, 2);
+  const titleFontSize = String(visual.headline || '').length > 30 ? 56 : 68;
+  const metricFontSize = String(visual.heroValue || '').length > 8 ? 92 : 124;
+  const layout = hasPhoto
+    ? {
+        photoY: 250,
+        photoHeight: 620,
+        titleY: 980,
+        heroY: 1128,
+        unitY: 1266,
+        contextY: 1325,
+        descriptionY: 1400,
+        badgesY: 1488,
+        badgeHeight: 70,
+        badgeGap: 76,
+        storyY: 1700,
+        footerY: 1800,
+      }
+    : {
+        photoY: 0,
+        photoHeight: 0,
+        titleY: 360,
+        heroY: 565,
+        unitY: 744,
+        contextY: 825,
+        descriptionY: 900,
+        badgesY: 1030,
+        badgeHeight: 86,
+        badgeGap: 108,
+        storyY: 1660,
+        footerY: 1780,
+      };
   const badgeRows = badges.map((badge, index) => {
-    const y = (hasPhoto ? 1210 : 1030) + index * (hasPhoto ? 92 : 108);
+    const y = layout.badgesY + index * layout.badgeGap;
     const valueLines = wrapText(getBadgeValue(badge, mode), 24, 1);
     return `
       <g>
-        <rect x="105" y="${y}" width="870" height="${hasPhoto ? 74 : 86}" rx="26" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.28)" />
-        <circle cx="150" cy="${y + (hasPhoto ? 38 : 44)}" r="14" fill="${badge.met ? accent : 'rgba(255,255,255,0.38)'}" />
-        <text x="190" y="${y + (hasPhoto ? 32 : 37)}" fill="${textLight}" font-size="${hasPhoto ? 28 : 32}" font-weight="900">${escapeXml(badge.label)}</text>
-        ${valueLines.map((line) => `<text x="190" y="${y + (hasPhoto ? 60 : 70)}" fill="rgba(255,255,255,0.86)" font-size="${hasPhoto ? 25 : 28}" font-weight="700">${escapeXml(line)}</text>`).join('')}
+        <rect x="105" y="${y}" width="870" height="${layout.badgeHeight}" rx="26" fill="rgba(255,255,255,0.16)" stroke="rgba(255,255,255,0.26)" />
+        <circle cx="150" cy="${y + layout.badgeHeight / 2}" r="13" fill="${badge.met ? accent : 'rgba(255,255,255,0.38)'}" />
+        <text x="190" y="${y + (hasPhoto ? 29 : 36)}" fill="${textLight}" font-size="${hasPhoto ? 25 : 30}" font-weight="900">${escapeXml(badge.label)}</text>
+        ${valueLines.map((line) => `<text x="190" y="${y + (hasPhoto ? 58 : 68)}" fill="rgba(255,255,255,0.84)" font-size="${hasPhoto ? 23 : 26}" font-weight="700">${escapeXml(line)}</text>`).join('')}
       </g>`;
   }).join('');
+  const cta = summary.ctaLabel
+    ? `<rect x="105" y="1544" width="365" height="82" rx="41" fill="${accentStrong || accent}" /><text x="146" y="1596" fill="#ffffff" font-size="32" font-weight="950">${escapeXml(summary.ctaLabel)}</text>`
+    : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
     <defs>
@@ -1292,20 +1390,21 @@ export function buildShareCardSvg(summary = {}, options = {}) {
       </filter>
     </defs>
     <rect width="1080" height="1920" fill="url(#bg)" />
-    <circle cx="930" cy="150" r="260" fill="rgba(255,255,255,0.08)" />
-    <circle cx="120" cy="1750" r="330" fill="rgba(255,255,255,0.07)" />
-    <rect x="70" y="90" width="940" height="1740" rx="58" fill="rgba(10,18,22,0.24)" stroke="rgba(255,255,255,0.24)" filter="url(#softShadow)" />
-    ${hasPhoto ? `<image href="${escapeXml(photoDataUrl)}" x="105" y="260" width="870" height="500" preserveAspectRatio="xMidYMid slice" opacity="0.9" /><rect x="105" y="260" width="870" height="500" fill="rgba(0,0,0,0.22)" />` : ''}
-    <text x="105" y="180" fill="${textLight}" font-size="34" font-weight="900" letter-spacing="4">${escapeXml(visual.eyebrow || 'BITACORA DANIEL')}</text>
-    <text x="105" y="238" fill="rgba(255,255,255,0.82)" font-size="30" font-weight="700">${escapeXml(summary.dateLabel || '')}</text>
-    ${titleLines.map((line, index) => `<text x="105" y="${365 + contentOffset + index * (titleFontSize + 8)}" fill="#ffffff" font-size="${titleFontSize}" font-weight="950">${escapeXml(line)}</text>`).join('')}
-    ${metricLines.map((line, index) => `<text x="105" y="${570 + contentOffset + index * (metricFontSize + 8)}" fill="${accent}" font-size="${metricFontSize}" font-weight="950">${escapeXml(line)}</text>`).join('')}
-    <text x="105" y="${745 + contentOffset}" fill="rgba(255,255,255,0.9)" font-size="34" font-weight="900">${escapeXml(visual.heroUnit || '')}</text>
-    ${contextLines.map((line, index) => `<text x="105" y="${815 + contentOffset + index * 42}" fill="rgba(255,255,255,0.9)" font-size="32" font-weight="800">${escapeXml(line)}</text>`).join('')}
-    ${descriptionLines.map((line, index) => `<text x="105" y="${905 + contentOffset + index * 38}" fill="rgba(255,255,255,0.74)" font-size="28" font-weight="700">${escapeXml(line)}</text>`).join('')}
+    <circle cx="930" cy="165" r="280" fill="rgba(249,250,246,0.09)" />
+    <circle cx="112" cy="1770" r="360" fill="rgba(242,193,91,0.12)" />
+    <rect x="70" y="90" width="940" height="1740" rx="64" fill="rgba(10,18,22,0.22)" stroke="rgba(255,255,255,0.22)" filter="url(#softShadow)" />
+    ${hasPhoto ? `<image href="${escapeXml(photoDataUrl)}" x="105" y="${layout.photoY}" width="870" height="${layout.photoHeight}" preserveAspectRatio="xMidYMid slice" opacity="0.98" /><rect x="105" y="${layout.photoY}" width="870" height="${layout.photoHeight}" fill="rgba(0,0,0,0.32)" /><rect x="105" y="${layout.photoY + layout.photoHeight - 170}" width="870" height="170" fill="rgba(0,0,0,0.62)" />` : ''}
+    <text x="105" y="176" fill="${textLight}" font-size="30" font-weight="900" letter-spacing="5">${escapeXml(visual.eyebrow || 'BITACORA DANIEL')}</text>
+    <text x="105" y="230" fill="rgba(255,255,255,0.78)" font-size="27" font-weight="700">${escapeXml(summary.dateLabel || '')}</text>
+    ${titleLines.map((line, index) => `<text x="105" y="${layout.titleY + index * (titleFontSize + 8)}" fill="#ffffff" font-size="${titleFontSize}" font-weight="950">${escapeXml(line)}</text>`).join('')}
+    ${metricLines.map((line, index) => `<text x="105" y="${layout.heroY + index * (metricFontSize + 8)}" fill="${accent}" font-size="${metricFontSize}" font-weight="950">${escapeXml(line)}</text>`).join('')}
+    <text x="105" y="${layout.unitY}" fill="rgba(255,255,255,0.92)" font-size="32" font-weight="950" letter-spacing="1">${escapeXml(visual.heroUnit || '')}</text>
+    ${contextLines.map((line, index) => `<text x="105" y="${layout.contextY + index * 39}" fill="rgba(255,255,255,0.9)" font-size="${hasPhoto ? 28 : 31}" font-weight="800">${escapeXml(line)}</text>`).join('')}
+    ${descriptionLines.map((line, index) => `<text x="105" y="${layout.descriptionY + index * 36}" fill="rgba(255,255,255,0.76)" font-size="${hasPhoto ? 25 : 27}" font-weight="700">${escapeXml(line)}</text>`).join('')}
     ${badgeRows}
-    ${phraseLines.map((line, index) => `<text x="105" y="${1660 + index * 50}" fill="#ffffff" font-size="42" font-weight="900">${escapeXml(line)}</text>`).join('')}
-    <text x="105" y="1778" fill="rgba(255,255,255,0.68)" font-size="27" font-weight="700">Bitácora Daniel</text>
+    ${cta}
+    ${phraseLines.map((line, index) => `<text x="105" y="${layout.storyY + index * 46}" fill="#ffffff" font-size="38" font-weight="900">${escapeXml(line)}</text>`).join('')}
+    <text x="105" y="${layout.footerY}" fill="rgba(255,255,255,0.74)" font-size="27" font-weight="800">${escapeXml(summary.footerLabel || 'Bitacora Daniel')}</text>
   </svg>`;
 }
 
