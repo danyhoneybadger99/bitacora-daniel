@@ -13,6 +13,14 @@ const checkInInsightCopyByProfile = {
     highState: ['Buen estado. Día para progresar con intención.', 'Practica la técnica prioritaria'],
     stable: ['Día estable. Suma constancia sin exceso.', 'Haz una sesión técnica corta'],
   },
+  'oseas-summit': {
+    lowEnergy: ['Energía baja. Ajusta volumen y protege recuperación.', 'Cardio suave, movilidad y descanso primero'],
+    lowSleep: ['Sueño bajo. El Summit se prepara recuperando bien.', 'Técnica limpia sin forzar intensidad'],
+    stress: ['Tensión alta. Ordena respiración y carga del día.', 'Haz básicos: cardio corto, comida limpia y descanso'],
+    pain: ['Dolor o lesión registrada. No persigas ego.', 'Movilidad, técnica segura y recuperación'],
+    highState: ['Buen estado. Día para construir condición Summit.', 'Cardio, fuerza y técnica con intención'],
+    stable: ['Semana en construcción. Suma sin desorden.', 'Completa un bloque medible del plan'],
+  },
   'fitness-basic': {
     lowEnergy: ['Energía baja. Cuida hidratación y comida.', 'Camina ligero + agua suficiente'],
     lowSleep: ['Sueño bajo. Recupera antes de exigir más.', 'Come simple y duerme temprano'],
@@ -161,6 +169,27 @@ export default function DashboardTab(props) {
     ? todayDailyCheckIn.emotions[0]
     : '';
   const primaryCheckInEmotion = checkInEmotionOptions?.find((item) => item.value === primaryCheckInEmotionValue)?.label || primaryCheckInEmotionValue;
+  const isOseasSummitProfile = profileType === 'oseas-summit';
+  const hasCardioToday = todaysExercises.some((item) => {
+    const source = `${item.modality || ''} ${item.name || ''} ${item.notes || ''}`.toLowerCase();
+    return source.includes('cardio') || source.includes('correr') || source.includes('caminata');
+  });
+  const hasStrengthToday = todaysExercises.some((item) => {
+    const source = `${item.modality || ''} ${item.name || ''} ${item.notes || ''}`.toLowerCase();
+    return source.includes('pesas') || source.includes('fuerza') || source.includes('resistencia');
+  });
+  const hasKravPracticeToday = todaysExercises.some((item) => {
+    const source = `${item.modality || ''} ${item.name || ''} ${item.notes || ''}`.toLowerCase();
+    return source.includes('krav') || source.includes('tecnica') || source.includes('técnica');
+  });
+  const oseasSummitMetrics = [
+    { label: 'Cardio', value: hasCardioToday ? 'Con registro hoy' : 'Pendiente de registros', helper: 'Registra sesiones para ver avance real.' },
+    { label: 'Fuerza', value: hasStrengthToday ? 'Con registro hoy' : 'Pendiente de registros', helper: 'Sin volumen semanal registrado todavía.' },
+    { label: 'Técnica Krav Maga', value: hasKravPracticeToday ? 'Con registro hoy' : 'Pendiente de registros', helper: 'Bitácora técnica rumbo al Summit.' },
+    { label: 'Sueño/descanso', value: todayDailyCheckIn?.sleepQuality ? `${todayDailyCheckIn.sleepQuality}/10` : 'Pendiente', helper: 'Check-in diario para medir recuperación.' },
+    { label: 'Alimentación', value: todaysFoods.length > 0 ? 'Con registros hoy' : 'Pendiente', helper: 'Comida limpia y suficiente para entrenar.' },
+    { label: 'Lectura/preparación mental', value: todayDailyCheckIn?.minimumAction ? 'Registrada' : 'Pendiente', helper: 'Lectura, enfoque o intención del día.' },
+  ];
 
   return (
     <>
@@ -481,6 +510,24 @@ export default function DashboardTab(props) {
           </div>
         </SectionCard>
       </div>
+      {isOseasSummitProfile ? (
+        <SectionCard
+          title="Preparación Summit"
+          subtitle="Cardio, fuerza, resistencia, técnica, alimentación y descanso. Un día a la vez hasta agosto."
+          className="card-soft dashboard-summit-card"
+        >
+          <div className="dashboard-summit-grid">
+            {oseasSummitMetrics.map((metric) => (
+              <div className="dashboard-summit-metric" key={metric.label}>
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+                <small>{metric.helper}</small>
+              </div>
+            ))}
+          </div>
+          <p className="section-helper">Llegar fuerte, técnico y condicionado al Summit.</p>
+        </SectionCard>
+      ) : null}
       <div className="dashboard-grid dashboard-compact-grid">
         <SectionCard title="Alimentos" subtitle="Resumen de hoy" className="card-soft dashboard-compact-card">
           <div className="dashboard-snapshot">

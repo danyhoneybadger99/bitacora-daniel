@@ -36,6 +36,7 @@ import {
   buildMonthlyShareSummary,
   buildPhysicalMilestoneSummary,
   buildSobrietyShareSummary,
+  buildSummitShareSummary,
   canShowSobrietyCard,
 } from './utils/domain/shareProgress';
 import {
@@ -238,10 +239,46 @@ const tabs = [
 const tabLabelById = Object.fromEntries(tabs.map((tab) => [tab.id, tab.label]));
 const DANIEL_ACCOUNT_EMAIL = 'itsme.daniel0802@gmail.com';
 const JESUS_FLORES_ACCOUNT_EMAIL = 'jfloresm1994@gmail.com';
+const OSEAS_TONCHE_ACCOUNT_EMAIL = 'oseas.tonche@outlook.com';
+const OSEAS_SUMMIT_PROFILE_TYPE = 'oseas-summit';
+const DEV_PROFILE_PREVIEWS = {
+  daniel: {
+    id: 'daniel',
+    profileId: 'daniel-full',
+    profileType: 'daniel-full',
+    label: 'Daniel',
+  },
+  jesus: {
+    id: 'jesus',
+    profileId: 'jesus',
+    profileType: 'krav-360',
+    label: 'Jesús',
+  },
+  'oseas-summit': {
+    id: 'oseas',
+    profileId: 'oseas',
+    profileType: 'oseas-summit',
+    label: 'Oseas',
+  },
+};
+const oseasSummitProfile = {
+  id: 'oseas',
+  displayName: 'Oseas Tonche',
+  shortName: 'Oseas',
+  role: 'Coach Krav Maga 360',
+  level: 'Cinta negra',
+  city: 'Monterrey',
+  mainGoal: 'Llegar en máxima condición al Summit de agosto',
+  eventName: 'Summit Krav Maga CDMX',
+  eventMonth: 'agosto',
+  trainingFocus: 'Cardio, fuerza, resistencia, técnica, alimentación y descanso',
+  publicTagline: 'Preparación disciplinada para el Summit de agosto',
+  privateTagline: 'Subir condición cardiovascular, fuerza, resistencia y técnica sin descuidar alimentación ni descanso.',
+};
 const LOCAL_MODE_CHOICE_KEY = 'mi-diario-local-mode-enabled';
 const LOCAL_PUBLIC_STORAGE_KEY = `${STORAGE_KEY}:local-public`;
 const NEWSLETTER_OPT_IN_CHOICE_KEY = 'mi-diario-newsletter-opt-in';
-const selectableUserProfiles = ['fitness-basic', 'krav-360', 'daniel-full'];
+const selectableUserProfiles = ['fitness-basic', 'krav-360', OSEAS_SUMMIT_PROFILE_TYPE, 'daniel-full'];
 const newsletterPreviewOptions = [
   { id: 'welcome', label: 'Welcome newsletter', newsletter: welcomeNewsletter },
   ...firstFourNewsletters.map((newsletter) => ({
@@ -268,6 +305,31 @@ function formatNewsletterWhatsApp(newsletter = {}) {
 
 function formatNewsletterManualEmail(newsletter = {}) {
   return renderNewsletterText(newsletter);
+}
+
+function applyShareProfileBrand(summary, { brand = 'BITACORA DANIEL', footerLabel = 'Bitacora Daniel' } = {}) {
+  if (!summary) return summary;
+
+  const brandedSummary = {
+    ...summary,
+    brand,
+    footerLabel: summary.footerLabel || footerLabel,
+  };
+
+  if (Array.isArray(summary.options)) {
+    brandedSummary.options = summary.options.map((item) => applyShareProfileBrand(item, { brand, footerLabel }));
+  }
+
+  return brandedSummary;
+}
+
+function getDevProfilePreview(isDevMode = false) {
+  if (!isDevMode || typeof window === 'undefined') return null;
+
+  const requestedProfile = new URLSearchParams(window.location.search).get('devProfile');
+  const normalizedProfile = String(requestedProfile || '').trim().toLowerCase();
+
+  return DEV_PROFILE_PREVIEWS[normalizedProfile] || null;
 }
 
 const newsletterRecipientStatusLabels = {
@@ -362,6 +424,10 @@ function isJesusFloresAccount(user) {
   return normalizeAuthEmail(user?.email) === JESUS_FLORES_ACCOUNT_EMAIL;
 }
 
+function isOseasToncheAccount(user) {
+  return normalizeAuthEmail(user?.email) === OSEAS_TONCHE_ACCOUNT_EMAIL;
+}
+
 function normalizeDanielFullSnapshot(snapshot, user) {
   if (!snapshot || snapshot.profileId !== 'daniel-full' || !isDanielAccount(user)) {
     return snapshot;
@@ -409,8 +475,38 @@ function normalizeJesusFloresKravSnapshot(snapshot, user) {
   };
 }
 
+function normalizeOseasToncheSnapshot(snapshot, user) {
+  if (!snapshot || !isOseasToncheAccount(user)) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    profileId: snapshot.profileId === 'daniel-full' ? 'oseas' : snapshot.profileId || 'oseas',
+    userSettings: createUserSettings(OSEAS_SUMMIT_PROFILE_TYPE, null, {
+      onboardingCompleted: true,
+      newsletterOptIn: Boolean(snapshot.userSettings?.newsletterOptIn),
+    }),
+    summitProfile: {
+      ...(snapshot.summitProfile || {}),
+      ...oseasSummitProfile,
+    },
+    kravSettings: {
+      ...(snapshot.kravSettings || {}),
+      currentBelt: 'negra',
+      targetBelt: snapshot.kravSettings?.targetBelt || '',
+      activeCurriculumBelt: snapshot.kravSettings?.activeCurriculumBelt || 'negra',
+      activeCurriculumLabel: snapshot.kravSettings?.activeCurriculumLabel || 'Summit CDMX agosto',
+      summitGoal: oseasSummitProfile.eventName,
+      summitMonth: oseasSummitProfile.eventMonth,
+      trainingFocus: oseasSummitProfile.trainingFocus,
+      forgottenThresholdDays: snapshot.kravSettings?.forgottenThresholdDays || '5',
+    },
+  };
+}
+
 function normalizeUserSpecificSnapshot(snapshot, user) {
-  return normalizeJesusFloresKravSnapshot(normalizeDanielFullSnapshot(snapshot, user), user);
+  return normalizeOseasToncheSnapshot(normalizeJesusFloresKravSnapshot(normalizeDanielFullSnapshot(snapshot, user), user), user);
 }
 
 function isUnsafePublicLocalState(state = {}) {
@@ -940,8 +1036,11 @@ function App() {
     Boolean(import.meta.env.DEV) &&
     !Boolean(import.meta.env.PROD) &&
     (typeof window === 'undefined' || ['localhost', '127.0.0.1'].includes(window.location.hostname));
+  const devProfilePreview = getDevProfilePreview(isDevMode);
+  const isDevProfilePreviewActive = Boolean(devProfilePreview);
   const appBuildLabel = __APP_BUILD_LABEL__;
   const remoteSyncEnabled = isSupabaseConfigured;
+  const effectiveRemoteSyncEnabled = remoteSyncEnabled && !isDevProfilePreviewActive;
   const [activeTab, setActiveTab] = useState('dashboard');
   const [diaryData, setDiaryData] = useState(defaultState);
   const [hasLoadedData, setHasLoadedData] = useState(false);
@@ -1012,7 +1111,7 @@ function App() {
   const [privateBackupInputKey, setPrivateBackupInputKey] = useState(0);
   const [privateFeedback, setPrivateFeedback] = useState({ type: '', text: '' });
   const [syncFeedback, setSyncFeedback] = useState({ type: '', text: '' });
-  const [syncStatus, setSyncStatus] = useState(remoteSyncEnabled ? 'auth' : 'local');
+  const [syncStatus, setSyncStatus] = useState(effectiveRemoteSyncEnabled ? 'auth' : 'local');
   const [syncCredentials, setSyncCredentials] = useState({ email: '', password: '' });
   const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(() => isPasswordRecoveryRedirect());
   const [passwordRecoveryForm, setPasswordRecoveryForm] = useState({ password: '', confirm: '' });
@@ -1020,14 +1119,15 @@ function App() {
   const [newsletterOptInDraft, setNewsletterOptInDraft] = useState(false);
   const [showPrivacyInfo, setShowPrivacyInfo] = useState(false);
   const [hasChosenLocalMode, setHasChosenLocalMode] = useState(() => {
+    if (isDevProfilePreviewActive) return false;
     return readLocalModeChoice(remoteSyncEnabled);
   });
   const [canResendConfirmationEmail, setCanResendConfirmationEmail] = useState(false);
   const [isOnline, setIsOnline] = useState(
     typeof navigator === 'undefined' ? true : navigator.onLine
   );
-  const [hasResolvedSyncSession, setHasResolvedSyncSession] = useState(!remoteSyncEnabled);
-  const [hasResolvedRemoteSnapshot, setHasResolvedRemoteSnapshot] = useState(!remoteSyncEnabled);
+  const [hasResolvedSyncSession, setHasResolvedSyncSession] = useState(!effectiveRemoteSyncEnabled);
+  const [hasResolvedRemoteSnapshot, setHasResolvedRemoteSnapshot] = useState(!effectiveRemoteSyncEnabled);
   const [syncLastSyncedAt, setSyncLastSyncedAt] = useState('');
   const [privateUnlockPin, setPrivateUnlockPin] = useState('');
   const [privateSetupPin, setPrivateSetupPin] = useState('');
@@ -1055,7 +1155,7 @@ function App() {
   const syncDebounceTimeoutRef = useRef(null);
   const skipNextRemoteSyncRef = useRef(false);
   const syncRefreshInFlightRef = useRef(false);
-  const initialRemoteLoadCompletedUserRef = useRef(remoteSyncEnabled ? '' : 'local');
+  const initialRemoteLoadCompletedUserRef = useRef(effectiveRemoteSyncEnabled ? '' : 'local');
   const lastSyncRefreshAtRef = useRef(0);
   const privateAutoLockTimeoutRef = useRef(null);
   const privateDailyHormonalSectionRef = useRef(null);
@@ -1094,7 +1194,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!remoteSyncEnabled) {
+    if (!effectiveRemoteSyncEnabled) {
       setHasResolvedSyncSession(true);
       return undefined;
     }
@@ -1138,10 +1238,10 @@ function App() {
       isMounted = false;
       subscription?.unsubscribe?.();
     };
-  }, [isOnline, remoteSyncEnabled]);
+  }, [effectiveRemoteSyncEnabled, isOnline]);
 
   useEffect(() => {
-    if (!remoteSyncEnabled || !hasLoadedData || !hasResolvedRemoteSnapshot || !syncUser) return undefined;
+    if (!effectiveRemoteSyncEnabled || !hasLoadedData || !hasResolvedRemoteSnapshot || !syncUser) return undefined;
 
     const handleForegroundSync = () => {
       if (document.visibilityState !== 'visible') return;
@@ -1179,7 +1279,7 @@ function App() {
       document.removeEventListener('visibilitychange', handleForegroundSync);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [hasLoadedData, hasResolvedRemoteSnapshot, remoteSyncEnabled, syncUser, isOnline]);
+  }, [effectiveRemoteSyncEnabled, hasLoadedData, hasResolvedRemoteSnapshot, syncUser, isOnline]);
 
   function togglePrivateForm(formKey) {
     setPrivateFormVisibility((current) => ({
@@ -1301,7 +1401,7 @@ function App() {
   }
 
   async function pullRemoteSnapshotAndHydrate({ reason = 'manual', force = false, preferRemote = false } = {}) {
-    if (!remoteSyncEnabled || !syncUser || !isOnline) return { status: 'skipped', winner: 'local' };
+    if (!effectiveRemoteSyncEnabled || !syncUser || !isOnline) return { status: 'skipped', winner: 'local' };
     if (syncRefreshInFlightRef.current) return { status: 'busy', winner: 'local' };
 
     const now = Date.now();
@@ -1385,7 +1485,7 @@ function App() {
   }
 
   useEffect(() => {
-    const shouldUsePublicLocalCache = readLocalModeChoice(remoteSyncEnabled);
+    const shouldUsePublicLocalCache = isDevProfilePreviewActive ? false : readLocalModeChoice(effectiveRemoteSyncEnabled);
     const initialStorageKey = shouldUsePublicLocalCache ? LOCAL_PUBLIC_STORAGE_KEY : getUserStorageKey();
     const initialFallbackState = shouldUsePublicLocalCache ? createCleanDefaultState() : defaultState;
     activeStorageKeyRef.current = initialStorageKey;
@@ -1411,10 +1511,11 @@ function App() {
       });
     }
     setHasLoadedData(true);
-  }, [isDevMode, remoteSyncEnabled]);
+  }, [effectiveRemoteSyncEnabled, isDevMode, isDevProfilePreviewActive]);
 
   useEffect(() => {
     if (!hasLoadedData) return;
+    if (isDevProfilePreviewActive) return;
 
     // Avoid bumping updatedAt when the app is only hydrating an already-persisted snapshot
     // from local storage or from Supabase. Real edits create a new diaryData object and
@@ -1438,10 +1539,10 @@ function App() {
         collectionCounts: getPersistenceCollectionCounts(dataToPersist),
       });
     }
-  }, [diaryData, hasLoadedData, isDevMode]);
+  }, [diaryData, hasLoadedData, isDevMode, isDevProfilePreviewActive]);
 
   useEffect(() => {
-    if (!hasLoadedData || !hasResolvedSyncSession || !remoteSyncEnabled) return;
+    if (!hasLoadedData || !hasResolvedSyncSession || !effectiveRemoteSyncEnabled) return;
 
     const isPublicLocalMode = !syncUser?.id && hasChosenLocalMode;
     const nextStorageKey = syncUser?.id
@@ -1478,12 +1579,12 @@ function App() {
         collectionCounts: getPersistenceCollectionCounts(userPreparedData),
       });
     }
-  }, [hasChosenLocalMode, hasLoadedData, hasResolvedSyncSession, isDevMode, remoteSyncEnabled, syncUser?.id]);
+  }, [effectiveRemoteSyncEnabled, hasChosenLocalMode, hasLoadedData, hasResolvedSyncSession, isDevMode, syncUser?.id]);
 
   useEffect(() => {
     if (!hasLoadedData || !hasResolvedSyncSession) return;
 
-    if (!remoteSyncEnabled) {
+    if (!effectiveRemoteSyncEnabled) {
       setHasResolvedRemoteSnapshot(true);
       setSyncStatus('local');
       return;
@@ -1533,10 +1634,10 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [hasLoadedData, hasResolvedSyncSession, isOnline, remoteSyncEnabled, syncUser]);
+  }, [effectiveRemoteSyncEnabled, hasLoadedData, hasResolvedSyncSession, isOnline, syncUser]);
 
   useEffect(() => {
-    if (!hasLoadedData || !hasResolvedRemoteSnapshot || !remoteSyncEnabled || !syncUser) return;
+    if (!hasLoadedData || !hasResolvedRemoteSnapshot || !effectiveRemoteSyncEnabled || !syncUser) return;
     if (initialRemoteLoadCompletedUserRef.current !== syncUser.id) return;
 
     if (!isOnline) {
@@ -1595,7 +1696,7 @@ function App() {
     return () => {
       window.clearTimeout(syncDebounceTimeoutRef.current);
     };
-  }, [diaryData, hasLoadedData, hasResolvedRemoteSnapshot, isOnline, remoteSyncEnabled, syncUser]);
+  }, [diaryData, effectiveRemoteSyncEnabled, hasLoadedData, hasResolvedRemoteSnapshot, isOnline, syncUser]);
 
   const todaysFoods = useMemo(
     () => sortFoods(diaryData.foods).filter((item) => item.date && isSameDate(item.date, currentDate)),
@@ -1987,10 +2088,19 @@ function App() {
   const syncMeta = diaryData.syncMeta || defaultState.syncMeta;
   const userSettings = useMemo(
     () => {
+      if (devProfilePreview) {
+        return createUserSettings(devProfilePreview.profileType, null, {
+          onboardingCompleted: true,
+          newsletterOptIn: Boolean(diaryData.userSettings?.newsletterOptIn),
+        });
+      }
+
       const fallbackProfile = diaryData.profileId === 'clean' ? 'fitness-basic' : 'daniel-full';
       const requestedProfile = diaryData.userSettings?.profileType || fallbackProfile;
       const safeProfile =
-        diaryData.profileId === 'daniel-full' && isDanielAccount(syncUser)
+        isOseasToncheAccount(syncUser)
+          ? OSEAS_SUMMIT_PROFILE_TYPE
+          : diaryData.profileId === 'daniel-full' && isDanielAccount(syncUser)
           ? 'daniel-full'
           : diaryData.profileId === 'daniel-full' || requestedProfile !== 'daniel-full'
           ? requestedProfile
@@ -2005,16 +2115,31 @@ function App() {
         }
       );
     },
-    [diaryData.profileId, diaryData.userSettings, syncUser?.email]
+    [devProfilePreview, diaryData.profileId, diaryData.userSettings, syncUser?.email]
   );
-  const selectableProfilesForSettings =
-    diaryData.profileId === 'daniel-full' && isDanielAccount(syncUser)
-      ? selectableUserProfiles
-      : selectableUserProfiles.filter((profileType) => profileType !== 'daniel-full');
+  const selectableProfilesForSettings = selectableUserProfiles.filter((profileType) => {
+    if (profileType === 'daniel-full') {
+      return isDevProfilePreviewActive
+        ? devProfilePreview.profileType === 'daniel-full'
+        : diaryData.profileId === 'daniel-full' && isDanielAccount(syncUser);
+    }
+
+    if (profileType === OSEAS_SUMMIT_PROFILE_TYPE) {
+      return isDevProfilePreviewActive
+        ? devProfilePreview.profileType === OSEAS_SUMMIT_PROFILE_TYPE
+        : userSettings.profileType === OSEAS_SUMMIT_PROFILE_TYPE && isOseasToncheAccount(syncUser);
+    }
+
+    return true;
+  });
   const isDanielFullProfile =
-    diaryData.profileId === 'daniel-full' &&
+    (devProfilePreview?.profileType === 'daniel-full' || diaryData.profileId === 'daniel-full') &&
     userSettings.profileType === 'daniel-full' &&
-    isDanielAccount(syncUser);
+    (isDanielAccount(syncUser) || devProfilePreview?.profileType === 'daniel-full');
+  const isJesusFloresProfile = userSettings.profileType === 'krav-360' && (isJesusFloresAccount(syncUser) || devProfilePreview?.id === 'jesus');
+  const isOseasSummitProfile =
+    userSettings.profileType === OSEAS_SUMMIT_PROFILE_TYPE &&
+    (isOseasToncheAccount(syncUser) || devProfilePreview?.profileType === OSEAS_SUMMIT_PROFILE_TYPE);
   const spiritualWeeklyChecks = diaryData.spiritualWeeklyChecks || [];
   const massAttendedThisWeek = useMemo(
     () => hasMassAttendanceForWeek(spiritualWeeklyChecks, currentDate),
@@ -2176,7 +2301,7 @@ function App() {
   ]);
 
   useEffect(() => {
-    if (!remoteSyncEnabled || !syncUser?.id || !hasLoadedData || !hasResolvedRemoteSnapshot) return;
+    if (!effectiveRemoteSyncEnabled || !syncUser?.id || !hasLoadedData || !hasResolvedRemoteSnapshot) return;
 
     const metadataNewsletterOptIn = getNewsletterOptInFromMetadata(syncUser);
     const isCleanFirstAccess = diaryData.profileId === 'clean' && !userSettings.onboardingCompleted;
@@ -2212,7 +2337,7 @@ function App() {
     hasLoadedData,
     hasResolvedRemoteSnapshot,
     isDevMode,
-    remoteSyncEnabled,
+    effectiveRemoteSyncEnabled,
     syncUser?.email,
     syncUser?.id,
     syncUser?.user_metadata,
@@ -2231,7 +2356,7 @@ function App() {
   const privatePinLength = getPrivatePinLength(privateVault);
   const syncStatusLabel = syncStatusLabels[syncStatus] || syncStatusLabels.local;
   const syncUserLabel = syncUser?.email || 'Sin cuenta conectada';
-  const shouldGateUnauthenticatedApp = remoteSyncEnabled && !syncUser && !hasChosenLocalMode;
+  const shouldGateUnauthenticatedApp = effectiveRemoteSyncEnabled && !syncUser && !hasChosenLocalMode;
   const shouldShowAuthLanding = shouldGateUnauthenticatedApp && hasResolvedSyncSession;
   const shouldShowAuthResolvingScreen = shouldGateUnauthenticatedApp && !hasResolvedSyncSession;
   const privateCycles = useMemo(
@@ -2284,11 +2409,38 @@ function App() {
     [diaryData.kravCurriculum]
   );
   const kravSettings = useMemo(
-    () => ({
-      ...defaultState.kravSettings,
-      ...(diaryData.kravSettings || {}),
-    }),
-    [diaryData.kravSettings]
+    () => {
+      const baseSettings = {
+        ...defaultState.kravSettings,
+        ...(diaryData.kravSettings || {}),
+      };
+
+      if (isJesusFloresProfile) {
+        return {
+          ...baseSettings,
+          currentBelt: 'cafe',
+          targetBelt: 'cafe',
+          activeCurriculumBelt: 'cafe',
+          activeCurriculumKey: 'brown-adults-360',
+          activeCurriculumLabel: baseSettings.activeCurriculumLabel || 'Currículo café adultos 360',
+          sourceLabel: baseSettings.sourceLabel || '360 Company - Brown Belt Adultos',
+        };
+      }
+
+      if (!isOseasSummitProfile) return baseSettings;
+
+      return {
+        ...baseSettings,
+        currentBelt: 'negra',
+        targetBelt: baseSettings.targetBelt || '',
+        activeCurriculumBelt: baseSettings.activeCurriculumBelt || 'negra',
+        activeCurriculumLabel: baseSettings.activeCurriculumLabel || 'Summit CDMX agosto',
+        summitGoal: oseasSummitProfile.eventName,
+        summitMonth: oseasSummitProfile.eventMonth,
+        trainingFocus: oseasSummitProfile.trainingFocus,
+      };
+    },
+    [diaryData.kravSettings, isJesusFloresProfile, isOseasSummitProfile]
   );
   const normalizedKravActiveCurriculumBelt = String(
     kravSettings.activeCurriculumBelt || kravSettings.targetBelt || kravSettings.currentBelt || 'verde'
@@ -3299,9 +3451,9 @@ function lockPrivateModule(feedbackText = '') {
     () => {
       const kravShareSnapshot = enabledTabIds.includes('krav') ? kravDashboardSnapshot : null;
       const activeShareProfile = {
-        id: isDanielFullProfile ? 'daniel' : diaryData.profileId,
-        slug: isDanielFullProfile ? 'daniel' : userSettings.profileType,
-        name: isDanielFullProfile ? 'Daniel' : USER_PROFILE_LABELS[userSettings.profileType] || userSettings.profileType,
+        id: isDanielFullProfile ? 'daniel' : isOseasSummitProfile ? 'oseas' : isJesusFloresProfile ? 'jesus' : diaryData.profileId,
+        slug: isDanielFullProfile ? 'daniel' : isOseasSummitProfile ? 'oseas' : isJesusFloresProfile ? 'jesus' : userSettings.profileType,
+        name: isDanielFullProfile ? 'Daniel' : isOseasSummitProfile ? 'Oseas' : isJesusFloresProfile ? 'Jesús' : USER_PROFILE_LABELS[userSettings.profileType] || userSettings.profileType,
         profileId: diaryData.profileId,
         profileType: userSettings.profileType,
       };
@@ -3346,6 +3498,31 @@ function lockPrivateModule(feedbackText = '') {
         }),
       };
 
+      if (isOseasSummitProfile) {
+        summaries.summit = buildSummitShareSummary({
+          date: currentDate,
+          profile: diaryData.summitProfile || oseasSummitProfile,
+        });
+
+        Object.keys(summaries).forEach((summaryKey) => {
+          if (summaryKey === 'invite') return;
+          summaries[summaryKey] = applyShareProfileBrand(summaries[summaryKey], {
+            brand: 'BITACORA OSEAS',
+            footerLabel: 'Bitacora Oseas',
+          });
+        });
+      }
+
+      if (isJesusFloresProfile) {
+        Object.keys(summaries).forEach((summaryKey) => {
+          if (summaryKey === 'invite') return;
+          summaries[summaryKey] = applyShareProfileBrand(summaries[summaryKey], {
+            brand: 'BITACORA JESUS',
+            footerLabel: 'Bitacora Jesus',
+          });
+        });
+      }
+
       if (canShowSobrietyCard(activeShareProfile)) {
         summaries.sobriety = buildSobrietyShareSummary({
           date: currentDate,
@@ -3366,6 +3543,8 @@ function lockPrivateModule(feedbackText = '') {
       enabledTabsKey,
       hydrationBaseGoal,
       isDanielFullProfile,
+      isJesusFloresProfile,
+      isOseasSummitProfile,
       kravDashboardSnapshot,
       metricCompositionGoal?.targetBodyFat,
       metricFieldSnapshots.bodyFat?.rawValue,
@@ -3373,6 +3552,7 @@ function lockPrivateModule(feedbackText = '') {
       todaysExercises,
       todaysFoods,
       todaySummary,
+      diaryData.summitProfile,
       userSettings.profileType,
       weightGoal,
     ]
@@ -4099,7 +4279,7 @@ function lockPrivateModule(feedbackText = '') {
       ...current,
       userSettings: nextUserSettings,
     }));
-    if (remoteSyncEnabled && syncUser?.id) {
+    if (effectiveRemoteSyncEnabled && syncUser?.id) {
       upsertAppUser({
         userId: syncUser.id,
         email: syncUser.email || '',
@@ -6245,40 +6425,83 @@ function toggleRecommendedSupplement(itemConfig) {
     );
   }
 
+  const heroProfile = isOseasSummitProfile
+    ? {
+        className: 'hero-profile-oseas',
+        eyebrow: 'PREPARACIÓN SUMMIT',
+        title: 'Bitácora Oseas',
+        text: 'Sistema personal para registrar entrenamiento, cardio, técnica, alimentación, descanso y preparación mental rumbo al Summit de agosto.',
+        chips: ['Coach Krav Maga 360', 'Cinta negra', 'Summit CDMX', 'Agosto'],
+        value: 'Llegar fuerte, técnico y condicionado al Summit.',
+        signature: oseasSummitProfile.publicTagline,
+        panelLabel: 'Meta',
+        panelTitle: 'Summit de agosto',
+        panelText: 'Condición física - técnica - resistencia',
+      }
+    : isJesusFloresProfile
+    ? {
+        className: 'hero-profile-jesus',
+        eyebrow: 'COACH KRAV 360',
+        title: 'Bitácora Jesús',
+        text: 'Sistema personal para registrar entrenamiento, técnica Krav Maga, alimentación, métricas y progreso como coach.',
+        chips: ['Coach Krav Maga 360', 'Cinta café', 'Currículo adultos 360', 'Monterrey'],
+        value: 'Técnica limpia, control y progreso real.',
+        signature: 'Perfil Krav 360',
+        panelLabel: 'Perfil',
+        panelTitle: 'Krav 360',
+        panelText: 'Currículo café adultos 360',
+      }
+    : {
+        className: '',
+        eyebrow: 'SEGUIMIENTO PERSONAL',
+        title: 'Bitácora Daniel',
+        text: 'Sistema personal para registrar nutrición, entrenamiento, ayuno y progreso físico. Usa IA para estimar comidas, ejercicio y avances.',
+        chips: ['Ingeniero Mecánico', 'Consejero en adicciones'],
+        value: 'Te enseño a usar IA y hábitos diarios para cumplir tus metas',
+        signature: 'Daniel.Arredondo88',
+        signatureHref: 'https://instagram.com/Daniel.Arredondo88',
+        panelLabel: 'Hoy',
+        panelTitle: formatDate(currentDate),
+        panelText: `${todaySummary.foodEntries + todaySummary.hydrationEntries + todaySummary.exerciseEntries + todaySummary.metricEntries + todaySummary.supplementEntries + todaySummary.fastingEntries} registros hoy`,
+      };
+
   return (
     <div className="app-shell">
-      <header className="hero hero-modern">
+      <header className={`hero hero-modern ${heroProfile.className}`}>
         <div className="hero-copy">
           <div className="hero-brand-block">
             <div className="hero-title-block">
-              <p className="eyebrow">SEGUIMIENTO PERSONAL</p>
-              <h1>Bitacora Daniel</h1>
+              <p className="eyebrow">{heroProfile.eyebrow}</p>
+              <h1>{heroProfile.title}</h1>
             </div>
-            <p className="hero-text">
-              Sistema personal para registrar nutrición, entrenamiento, ayuno y progreso físico. Usa IA para estimar comidas, ejercicio y avances.
-            </p>
+            <p className="hero-text">{heroProfile.text}</p>
             <div className="hero-identity-strip" aria-label="Identidad profesional">
-              <span className="hero-identity-chip">Ingeniero Mecánico</span>
-              <span className="hero-identity-chip">Consejero en adicciones</span>
+              {heroProfile.chips.map((chip) => (
+                <span className="hero-identity-chip" key={chip}>{chip}</span>
+              ))}
             </div>
-            <p className="hero-value">Te enseño a usar IA y hábitos diarios para cumplir tus metas</p>
-            <a
-              className="hero-signature"
-              href="https://instagram.com/Daniel.Arredondo88"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Instagram Daniel.Arredondo88"
-            >
-              <span className="hero-signature-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" role="img" focusable="false">
-                  <path
-                    d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm0 2a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H7Zm5 2.75A4.25 4.25 0 1 1 7.75 12 4.25 4.25 0 0 1 12 7.75Zm0 2A2.25 2.25 0 1 0 14.25 12 2.25 2.25 0 0 0 12 9.75ZM17.3 6.7a1 1 0 1 1-1 1 1 1 0 0 1 1-1Z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </span>
-              <span>Daniel.Arredondo88</span>
-            </a>
+            <p className="hero-value">{heroProfile.value}</p>
+            {heroProfile.signatureHref ? (
+              <a
+                className="hero-signature"
+                href={heroProfile.signatureHref}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Instagram Daniel.Arredondo88"
+              >
+                <span className="hero-signature-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img" focusable="false">
+                    <path
+                      d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm0 2a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H7Zm5 2.75A4.25 4.25 0 1 1 7.75 12 4.25 4.25 0 0 1 12 7.75Zm0 2A2.25 2.25 0 1 0 14.25 12 2.25 2.25 0 0 0 12 9.75ZM17.3 6.7a1 1 0 1 1-1 1 1 1 0 0 1 1-1Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+                <span>{heroProfile.signature}</span>
+              </a>
+            ) : (
+              <p className="hero-signature hero-signature-static">{heroProfile.signature}</p>
+            )}
             <div className="hero-meta-row">
               <p className="hero-build-label">Build: {appBuildLabel}</p>
               <p className="hero-build-label">Sync: {syncStatusLabel}</p>
@@ -6287,11 +6510,17 @@ function toggleRecommendedSupplement(itemConfig) {
         </div>
 
         <div className="hero-panel">
-          <span>Hoy</span>
-          <strong>{formatDate(currentDate)}</strong>
-          <p>{todaySummary.foodEntries + todaySummary.hydrationEntries + todaySummary.exerciseEntries + todaySummary.metricEntries + todaySummary.supplementEntries + todaySummary.fastingEntries} registros hoy</p>
+          <span>{heroProfile.panelLabel}</span>
+          <strong>{heroProfile.panelTitle}</strong>
+          <p>{heroProfile.panelText}</p>
         </div>
       </header>
+
+      {isDevProfilePreviewActive ? (
+        <div className="dev-profile-preview-badge" role="status">
+          DEV profile preview · {devProfilePreview.label}
+        </div>
+      ) : null}
 
       <nav className="tabs">
         {visibleTabs.map((tab) => (
@@ -6437,6 +6666,7 @@ function toggleRecommendedSupplement(itemConfig) {
             formatDate={formatDate}
             onFieldChange={handleDailyCheckInFieldChange}
             onEmotionToggle={handleDailyCheckInEmotionToggle}
+            profileType={userSettings.profileType}
             showSpiritualSection={isDanielFullProfile}
             massAttendedThisWeek={massAttendedThisWeek}
             massAttendanceStreak={massAttendanceStreak}

@@ -827,6 +827,40 @@ button {
   color: #74828d;
 }
 
+.dashboard-summit-card {
+  border-color: rgba(159, 63, 74, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 247, 232, 0.96), rgba(249, 250, 246, 0.9)),
+    radial-gradient(circle at top right, rgba(217, 74, 58, 0.12), transparent 34%);
+}
+
+.dashboard-summit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.dashboard-summit-metric {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(23, 32, 42, 0.08);
+}
+
+.dashboard-summit-metric span,
+.dashboard-summit-metric small {
+  color: #66727a;
+  font-size: 0.78rem;
+}
+
+.dashboard-summit-metric strong {
+  color: #17201a;
+  font-size: 0.98rem;
+}
+
 .dashboard-snapshot {
   display: grid;
   gap: 4px;
@@ -1162,6 +1196,10 @@ button {
 
 .share-story-card-krav {
   background: linear-gradient(145deg, #2b1d12, #c46d2d);
+}
+
+.share-story-card-summit {
+  background: linear-gradient(145deg, #111827, #9f3f4a);
 }
 
 .share-story-card-physical {
@@ -1719,6 +1757,13 @@ button {
   background:
     radial-gradient(circle at 82% 12%, rgba(255, 177, 85, 0.3), transparent 30%),
     linear-gradient(145deg, #170f0a, #3b2111 47%, #c46d2d);
+}
+
+.share-story-card-summit {
+  background:
+    radial-gradient(circle at 80% 12%, rgba(242, 193, 91, 0.3), transparent 32%),
+    radial-gradient(circle at 15% 86%, rgba(217, 74, 58, 0.16), transparent 38%),
+    linear-gradient(145deg, #111827, #17201a 48%, #9f3f4a);
 }
 
 .share-story-card-physical {
@@ -2636,6 +2681,70 @@ button {
   font-size: 1.1rem;
 }
 
+.hero-profile-oseas {
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, 0.96), rgba(33, 47, 40, 0.92)),
+    radial-gradient(circle at top right, rgba(242, 193, 91, 0.22), transparent 38%);
+  color: #f9faf6;
+}
+
+.hero-profile-oseas .eyebrow,
+.hero-profile-oseas .hero-text,
+.hero-profile-oseas .hero-value,
+.hero-profile-oseas .hero-build-label,
+.hero-profile-oseas .hero-signature-static {
+  color: rgba(249, 250, 246, 0.82);
+}
+
+.hero-profile-oseas .hero-identity-chip {
+  background: rgba(242, 193, 91, 0.16);
+  border-color: rgba(242, 193, 91, 0.28);
+  color: #fff7e8;
+}
+
+.hero-profile-oseas .hero-panel {
+  background: linear-gradient(180deg, #9f3f4a 0%, #17201a 100%);
+}
+
+.hero-profile-jesus {
+  background:
+    linear-gradient(135deg, rgba(17, 32, 42, 0.96), rgba(31, 55, 45, 0.92)),
+    radial-gradient(circle at top right, rgba(196, 109, 45, 0.2), transparent 38%);
+  color: #f9faf6;
+}
+
+.hero-profile-jesus .eyebrow,
+.hero-profile-jesus .hero-text,
+.hero-profile-jesus .hero-value,
+.hero-profile-jesus .hero-build-label,
+.hero-profile-jesus .hero-signature-static {
+  color: rgba(249, 250, 246, 0.82);
+}
+
+.hero-profile-jesus .hero-identity-chip {
+  background: rgba(196, 109, 45, 0.16);
+  border-color: rgba(196, 109, 45, 0.28);
+  color: #fff7e8;
+}
+
+.hero-profile-jesus .hero-panel {
+  background: linear-gradient(180deg, #c46d2d 0%, #17202a 100%);
+}
+
+.dev-profile-preview-badge {
+  width: fit-content;
+  margin: -12px 0 18px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.08);
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  color: #4b5563;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 .progress-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -3405,6 +3514,34 @@ button {
 .daily-checkin-traffic-red strong {
   background: rgba(163, 61, 68, 0.12);
   color: #a33d44;
+}
+
+.daily-checkin-summit-habits {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.06), rgba(242, 193, 91, 0.12));
+  border: 1px solid rgba(159, 63, 74, 0.14);
+}
+
+.daily-checkin-summit-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.daily-checkin-summit-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(23, 32, 42, 0.08);
+  color: #24313a;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .daily-checkin-emotions {

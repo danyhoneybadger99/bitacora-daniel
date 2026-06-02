@@ -90,6 +90,7 @@ export const USER_PROFILE_TAB_PRESETS = {
     'settings',
   ],
   'krav-360': ['dashboard', 'checkin', 'exercises', 'krav', 'foods', 'metrics', 'weekly', 'history', 'settings'],
+  'oseas-summit': ['dashboard', 'checkin', 'exercises', 'krav', 'foods', 'metrics', 'weekly', 'history', 'settings'],
   'fitness-basic': [
     'dashboard',
     'checkin',
@@ -109,6 +110,7 @@ export const USER_PROFILE_TAB_PRESETS = {
 export const USER_PROFILE_LABELS = {
   'daniel-full': 'Daniel full',
   'krav-360': 'Krav 360',
+  'oseas-summit': 'Oseas Summit',
   'fitness-basic': 'Fitness basic',
   custom: 'Personalizado',
 };
@@ -116,6 +118,8 @@ export const USER_PROFILE_LABELS = {
 const USER_PROFILE_ALIASES = {
   'krav-student': 'krav-360',
   krav360: 'krav-360',
+  oseas: 'oseas-summit',
+  'oseas-tonche': 'oseas-summit',
 };
 
 export function createUserSettings(profileType = 'fitness-basic', enabledTabs = null, options = {}) {

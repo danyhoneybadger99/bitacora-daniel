@@ -245,7 +245,7 @@ export default function ShareProgressCard({ summaries, summary, launchRequest })
         ['share_app', 'Comparte la app'],
         ['preparation', 'En preparacion'],
       ];
-  const cardSortOrder = { food: 1, exercise: 2, sobriety: 3, krav: 4, physical: 5, daily: 6, invite: 7, monthly: 8 };
+  const cardSortOrder = { food: 1, exercise: 2, summit: 3, sobriety: 4, krav: 5, physical: 6, daily: 7, invite: 8, monthly: 9 };
 
   function selectCardType(nextType) {
     setCardType(nextType);

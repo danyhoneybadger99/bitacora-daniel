@@ -2,6 +2,7 @@ export const shareProgressCardTypes = [
   { id: 'daily', label: 'Disciplina diaria', group: 'achievements' },
   { id: 'physical', label: 'Hito fisico', group: 'achievements' },
   { id: 'krav', label: 'Krav Maga', group: 'achievements' },
+  { id: 'summit', label: 'Preparacion Summit', group: 'achievements' },
   { id: 'sobriety', label: 'Sobriedad', group: 'achievements' },
   { id: 'food', label: 'Alimentacion', group: 'daily_post' },
   { id: 'exercise', label: 'Ejercicio', group: 'daily_post' },
@@ -70,6 +71,12 @@ export const shareProgressTemplates = [
     phrase: 'Control primero. Progreso real.',
   },
   {
+    id: 'summit-prep',
+    cardType: 'summit',
+    label: 'Preparacion Summit',
+    phrase: 'La condicion tambien se entrena antes de subir al tatami.',
+  },
+  {
     id: 'monthly-progress',
     cardType: 'monthly',
     label: 'Mes en progreso',
@@ -100,6 +107,7 @@ export const defaultTemplateByCardType = {
   physical: 'physical-weight-goal',
   sobriety: 'sobriety-days',
   krav: 'krav-belt-progress',
+  summit: 'summit-prep',
   monthly: 'monthly-progress',
   food: 'food-meal',
   exercise: 'exercise-session',
@@ -715,6 +723,68 @@ export function buildKravMagaShareSummary({ date, kravDashboardSnapshot = null }
   });
 }
 
+export function buildSummitShareSummary({ date, profile = {} } = {}) {
+  const eventMonth = profile.eventMonth || 'agosto';
+  const eventName = profile.eventName || 'Summit Krav Maga CDMX';
+  const trainingFocus = profile.trainingFocus || 'Cardio, fuerza, resistencia, tecnica, alimentacion y descanso';
+
+  return buildCardContract({
+    type: 'summit',
+    availability: 'ready',
+    brand: 'BITACORA OSEAS',
+    date,
+    title: 'Preparacion en marcha',
+    subtitle: trainingFocus,
+    primaryMetric: `${String(eventMonth).toUpperCase()} CDMX`,
+    primaryMetricLines: [String(eventMonth).toUpperCase(), 'CDMX'],
+    primaryLabel: eventName,
+    badges: [
+      buildBadge({
+        label: 'Cardio',
+        publicValue: 'Enfoque',
+        personalValue: 'Condicion cardiovascular',
+        met: true,
+        tone: 'success',
+      }),
+      buildBadge({
+        label: 'Fuerza',
+        publicValue: 'Base',
+        personalValue: 'Fuerza y resistencia',
+        met: true,
+        tone: 'success',
+      }),
+      buildBadge({
+        label: 'Tecnica',
+        publicValue: 'Krav Maga',
+        personalValue: 'Tecnica limpia',
+        met: true,
+        tone: 'success',
+      }),
+      buildBadge({
+        label: 'Descanso',
+        publicValue: 'Clave',
+        personalValue: 'Alimentacion y descanso',
+        met: true,
+        tone: 'neutral',
+      }),
+    ],
+    footerPhrase: 'La condicion tambien se entrena antes de subir al tatami.',
+    privacyLevel: 'public-safe',
+    textToCopy:
+      'Rumbo al Summit Krav Maga CDMX: cardio, fuerza, resistencia, tecnica, alimentacion y descanso. La condicion tambien se entrena antes de subir al tatami.',
+    defaultTemplateId: defaultTemplateByCardType.summit,
+    metadata: {
+      eyebrow: 'RUMBO AL SUMMIT',
+      headline: 'Preparacion en marcha',
+      heroValue: String(eventMonth).toUpperCase(),
+      heroUnit: 'CDMX',
+      contextLine: 'Cardio - fuerza - resistencia - tecnica',
+      storyLine: 'La condicion tambien se entrena antes de subir al tatami.',
+      footerLabel: 'Krav Maga 360 - Bitacora Oseas',
+    },
+  });
+}
+
 export function buildMonthlyShareSummary({ date } = {}) {
   return buildCardContract({
     type: 'monthly',
@@ -1311,6 +1381,7 @@ function getPalette(templateId = '', type = '') {
   if (type === 'food' || templateId.includes('food')) return ['#17201A', '#4F5F32', '#FFF7E8', '#F2C15B', '#D94A3A'];
   if (type === 'exercise' || templateId.includes('exercise')) return ['#07111D', '#12304A', '#F9FAF6', '#55DDEB', '#D94A3A'];
   if (type === 'krav' || templateId.includes('krav')) return ['#130D09', '#9F4F1F', '#FFF7E8', '#F2C15B', '#D94A3A'];
+  if (type === 'summit' || templateId.includes('summit')) return ['#111827', '#9F3F4A', '#F9FAF6', '#F2C15B', '#D94A3A'];
   if (type === 'sobriety' || templateId.includes('sobriety')) return ['#0A1220', '#193B63', '#F9FAF6', '#D7E8FF', '#F2C15B'];
   if (type === 'physical' || templateId.includes('physical')) return ['#111827', '#1E3329', '#FFF7E8', '#F2C15B', '#9F3F4A'];
   if (type === 'invite' || templateId.includes('invite')) return ['#111827', '#9F3F4A', '#F9FAF6', '#F2C15B', '#D94A3A'];

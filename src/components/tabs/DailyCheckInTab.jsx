@@ -43,6 +43,7 @@ export default function DailyCheckInTab({
   formatDate,
   onFieldChange,
   onEmotionToggle,
+  profileType = 'fitness-basic',
   showSpiritualSection = false,
   massAttendedThisWeek = false,
   massAttendanceStreak = 0,
@@ -53,6 +54,16 @@ export default function DailyCheckInTab({
   const gratitudeText = checkInForm.gratitudeText || '';
   const hasReflection = gratitudeText.trim().length > 0;
   const trafficLight = getDailyCheckInTrafficLight(checkInForm);
+  const isOseasSummitProfile = profileType === 'oseas-summit';
+  const oseasSummitHabits = [
+    'Cardio',
+    'Fuerza/resistencia',
+    'Técnica Krav Maga',
+    'Alimentación limpia',
+    'Sueño/descanso',
+    'Lectura/preparación mental',
+    'Movilidad/recuperación',
+  ];
 
   return (
     <SectionCard
@@ -100,6 +111,22 @@ export default function DailyCheckInTab({
           <p>{trafficLight.summary}</p>
           <small>Esto es una herramienta de seguimiento personal; no sustituye orientación profesional.</small>
         </div>
+
+        {isOseasSummitProfile ? (
+          <div className="daily-checkin-summit-habits">
+            <div className="daily-checkin-label-row">
+              <div>
+                <strong>Hábitos Summit sugeridos</strong>
+                <small>Guía rápida para preparar agosto sin inventar métricas.</small>
+              </div>
+            </div>
+            <div className="daily-checkin-summit-chip-grid">
+              {oseasSummitHabits.map((habit) => (
+                <span className="daily-checkin-summit-chip" key={habit}>{habit}</span>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="daily-checkin-emotions">
           <div className="daily-checkin-label-row">
