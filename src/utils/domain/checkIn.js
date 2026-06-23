@@ -116,7 +116,20 @@ export function normalizeSpiritualWeeklyCheck(item = {}) {
 }
 
 export function createDanielSpiritualWeeklySeeds() {
-  return ['2026-04-25', '2026-05-02', '2026-05-09'].map((date) =>
+  // Correccion operativa 2026-06-23: Daniel asistio a misa el domingo
+  // 2026-06-21, pero el registro semanal se hizo tarde. Mantener el historial
+  // fuente permite que la racha se derive como 9 semanas, sin hardcodear la UI.
+  return [
+    '2026-04-25',
+    '2026-05-02',
+    '2026-05-09',
+    '2026-05-17',
+    '2026-05-24',
+    '2026-05-31',
+    '2026-06-07',
+    '2026-06-14',
+    '2026-06-21',
+  ].map((date) =>
     normalizeSpiritualWeeklyCheck({
       id: `spiritual-mass-${date}`,
       weekStart: getSpiritualWeekStart(date),
